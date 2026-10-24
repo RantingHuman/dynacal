@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getRuntime } from "@/server/runtime";
 import { currentSession } from "@/server/session";
+import { UnreviewedBanner } from "./review/unreviewed-banner";
 import { Calendar } from "./schedule/calendar";
 import { TaskPanel } from "./tasks/task-panel";
 
@@ -24,6 +25,18 @@ export default async function HomePage() {
           </form>
         </nav>
       </header>
+      {scheduleView.status === "ready" && (
+        <UnreviewedBanner
+          timeZone={scheduleView.timeZone}
+          blocks={commands.listUnreviewedBlocks().map((b) => ({
+            id: b.id,
+            taskTitle: b.taskTitle,
+            start: b.start.toISOString(),
+            end: b.end.toISOString(),
+            suggestedWorkedMinutes: b.suggestedWorkedMinutes,
+          }))}
+        />
+      )}
       <div className="app-body">
         <TaskPanel
           tasks={commands.listTasks()}

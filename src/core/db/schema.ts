@@ -1,4 +1,5 @@
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import type { BlockReview } from "../completion";
 import type { TaskFlag } from "../scheduler";
 import type { WorkingHours } from "../settings";
 import type { Priority } from "../tasks";
@@ -33,6 +34,8 @@ export const tasks = sqliteTable("tasks", {
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   /** Worked out by the latest Recalculation; null when the Task has no problem. */
   scheduleFlag: text("schedule_flag").$type<TaskFlag>(),
+  /** When the owner marked the Task complete; null while it's still to do. */
+  completedAt: integer("completed_at", { mode: "timestamp_ms" }),
 });
 
 /** The Schedule: each Block is a span of time for one Task, stored as UTC instants. */
@@ -43,4 +46,8 @@ export const blocks = sqliteTable("blocks", {
     .references(() => tasks.id, { onDelete: "cascade" }),
   start: integer("start", { mode: "timestamp_ms" }).notNull(),
   end: integer("end", { mode: "timestamp_ms" }).notNull(),
+  /** The owner's review of a past Block; null while it's unreviewed. */
+  review: text("review").$type<BlockReview>(),
+  /** Minutes worked, for a "did part of it" review. */
+  workedMinutes: integer("worked_minutes"),
 });
