@@ -1,8 +1,15 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { eq, gte, lt, sql } from "drizzle-orm";
 import type { Clock } from "./clock";
 import type { Db } from "./db";
-import { sessions, settings, tasks } from "./db/schema";
+import { blocks, sessions, settings, tasks } from "./db/schema";
+import {
+  PLANNING_HORIZON_DAYS,
+  resolveDeadline,
+  resolveEarliestStart,
+  schedule,
+  type TaskFlag,
+} from "./scheduler";
 import { DEFAULT_SETTINGS, validateSettings, type Settings, type SettingsUpdate, type UpdateSettingsResult } from "./settings";
 import {
   compareTasks,
@@ -38,6 +45,32 @@ export interface Session {
   email: string;
 }
 
+/** A Block as the UI shows it. */
+export interface BlockView {
+  id: string;
+  taskId: string;
+  taskTitle: string;
+  start: Date;
+  end: Date;
+}
+
+/** Until the owner saves a time zone, there's no Schedule. */
+export type ScheduleView =
+  | { status: "needs-time-zone" }
+  | {
+      status: "ready";
+      timeZone: string;
+      /** The Planning Horizon: from now until this many days ahead. */
+      horizon: { start: Date; end: Date };
+      blocks: BlockView[];
+      flags: Record<string, TaskFlag | null>;
+    };
+
+export type RecalculateResult = { ok: true } | { ok: false; reason: "needs-time-zone" };
+
+const MINUTE_MS = 60_000;
+const DAY_MS = 24 * 60 * MINUTE_MS;
+
 export function createCommands({ db, clock, ownerEmail }: CommandDeps) {
   const owner = ownerEmail.trim().toLowerCase();
 
@@ -62,7 +95,7 @@ export function createCommands({ db, clock, ownerEmail }: CommandDeps) {
     };
   }
 
-  function toTask(row: typeof tasks.$inferSelect): Task {
+  function toTask(row: Omit<typeof tasks.$inferSelect, "scheduleFlag">): Task {
     const dateOrDateTime = (date: string | null, time: string | null): DateOrDateTime | null =>
       date === null ? null : { date, time };
     return {
@@ -75,6 +108,68 @@ export function createCommands({ db, clock, ownerEmail }: CommandDeps) {
       priority: row.priority,
       dontSplit: row.dontSplit,
     };
+  }
+
+  /**
+   * Recalculation: regenerates the Schedule. Past and in-progress Blocks are never moved;
+   * every Block that hasn't started yet is replaced. Every command that changes what the
+   * Schedule depends on calls this.
+   */
+  function recalculate(): RecalculateResult {
+    const { timeZone, workingHours, minimumBlockMinutes } = getSettings();
+    if (timeZone === null) return { ok: false, reason: "needs-time-zone" };
+    const now = clock.now();
+    db.transaction((tx) => {
+      const started = tx.select().from(blocks).where(lt(blocks.start, now)).all();
+      const workedMs = new Map<string, number>();
+      for (const b of started) {
+        const worked = Math.min(b.end.getTime(), now.getTime()) - b.start.getTime();
+        workedMs.set(b.taskId, (workedMs.get(b.taskId) ?? 0) + worked);
+      }
+      // Oldest first, so ties in the scheduler go to the Task created first.
+      const taskRows = tx.select().from(tasks).orderBy(tasks.createdAt, sql`rowid`).all();
+      const previousSchedule = tx.select().from(blocks).where(gte(blocks.start, now)).all();
+
+      const result = schedule({
+        now,
+        timeZone,
+        workingHours,
+        minimumBlockMinutes,
+        planningHorizonDays: PLANNING_HORIZON_DAYS,
+        tasks: taskRows.map((row) => ({
+          id: row.id,
+          remainingMinutes: row.estimatedMinutes - (workedMs.get(row.id) ?? 0) / MINUTE_MS,
+          deadline:
+            row.deadlineDate === null
+              ? null
+              : resolveDeadline({ date: row.deadlineDate, time: row.deadlineTime }, timeZone, workingHours),
+          earliestStart:
+            row.earliestStartDate === null
+              ? null
+              : resolveEarliestStart(
+                  { date: row.earliestStartDate, time: row.earliestStartTime },
+                  timeZone,
+                  workingHours,
+                ),
+          priority: row.priority,
+          dontSplit: row.dontSplit,
+        })),
+        busy: [],
+        pinnedBlocks: [],
+        fixedBlocks: started.filter((b) => b.end > now),
+        previousSchedule,
+      });
+
+      tx.delete(blocks).where(gte(blocks.start, now)).run();
+      for (const block of result.blocks) tx.insert(blocks).values({ id: randomUUID(), ...block }).run();
+      for (const row of taskRows) {
+        tx.update(tasks)
+          .set({ scheduleFlag: result.flags[row.id] ?? null })
+          .where(eq(tasks.id, row.id))
+          .run();
+      }
+    });
+    return { ok: true };
   }
 
   return {
@@ -111,6 +206,7 @@ export function createCommands({ db, clock, ownerEmail }: CommandDeps) {
       if (errors) return { ok: false, errors };
       const row = { id: randomUUID(), createdAt: clock.now(), ...taskRow(input) };
       db.insert(tasks).values(row).run();
+      recalculate();
       return { ok: true, task: toTask(row) };
     },
 
@@ -119,11 +215,13 @@ export function createCommands({ db, clock, ownerEmail }: CommandDeps) {
       const errors = validateTask(input);
       if (errors) return { ok: false, errors };
       const row = db.update(tasks).set(taskRow(input)).where(eq(tasks.id, id)).returning().get();
+      recalculate();
       return { ok: true, task: toTask(row) };
     },
 
     deleteTask(id: string): void {
       db.delete(tasks).where(eq(tasks.id, id)).run();
+      recalculate();
     },
 
     /** Every Task, in Task list order. */
@@ -145,7 +243,37 @@ export function createCommands({ db, clock, ownerEmail }: CommandDeps) {
         .values({ id: 1, ...next })
         .onConflictDoUpdate({ target: settings.id, set: next })
         .run();
+      recalculate();
       return { ok: true, settings: next };
+    },
+
+    /** The Recalculate button. */
+    recalculate,
+
+    getSchedule(): ScheduleView {
+      const { timeZone } = getSettings();
+      if (timeZone === null) return { status: "needs-time-zone" };
+      const now = clock.now();
+      const rows = db
+        .select({ block: blocks, taskTitle: tasks.title })
+        .from(blocks)
+        .innerJoin(tasks, eq(blocks.taskId, tasks.id))
+        .all()
+        .sort((a, b) => a.block.start.getTime() - b.block.start.getTime());
+      const flags = Object.fromEntries(
+        db
+          .select({ id: tasks.id, flag: tasks.scheduleFlag })
+          .from(tasks)
+          .all()
+          .map(({ id, flag }) => [id, flag]),
+      );
+      return {
+        status: "ready",
+        timeZone,
+        horizon: { start: now, end: new Date(now.getTime() + PLANNING_HORIZON_DAYS * DAY_MS) },
+        blocks: rows.map(({ block, taskTitle }) => ({ ...block, taskTitle })),
+        flags,
+      };
     },
   };
 }

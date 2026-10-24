@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { WEEKDAYS, type UpdateSettingsResult } from "@/core/settings";
 import { getRuntime } from "@/server/runtime";
@@ -20,5 +21,7 @@ const settingsInput = z.object({
 export async function saveSettings(input: unknown): Promise<UpdateSettingsResult> {
   await requireOwner();
   const parsed = settingsInput.parse(input);
-  return getRuntime().commands.updateSettings(parsed);
+  const result = getRuntime().commands.updateSettings(parsed);
+  revalidatePath("/");
+  return result;
 }

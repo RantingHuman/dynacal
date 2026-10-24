@@ -1,4 +1,5 @@
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import type { TaskFlag } from "../scheduler";
 import type { WorkingHours } from "../settings";
 import type { Priority } from "../tasks";
 
@@ -30,4 +31,16 @@ export const tasks = sqliteTable("tasks", {
   priority: text("priority").notNull().$type<Priority>(),
   dontSplit: integer("dont_split", { mode: "boolean" }).notNull(),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  /** Worked out by the latest Recalculation; null when the Task has no problem. */
+  scheduleFlag: text("schedule_flag").$type<TaskFlag>(),
+});
+
+/** The Schedule: each Block is a span of time for one Task, stored as UTC instants. */
+export const blocks = sqliteTable("blocks", {
+  id: text("id").primaryKey(),
+  taskId: text("task_id")
+    .notNull()
+    .references(() => tasks.id, { onDelete: "cascade" }),
+  start: integer("start", { mode: "timestamp_ms" }).notNull(),
+  end: integer("end", { mode: "timestamp_ms" }).notNull(),
 });

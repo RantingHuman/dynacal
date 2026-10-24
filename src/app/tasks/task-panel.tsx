@@ -2,11 +2,18 @@
 
 import { useState } from "react";
 import { PRIORITY_LABELS, formatDateOrDateTime, formatDuration, type Task } from "@/core/tasks";
+import type { TaskFlag } from "@/core/scheduler";
 import { TaskForm } from "./task-form";
+
+const FLAG_LABELS: Record<TaskFlag, string> = {
+  "at-risk": "At Risk",
+  overdue: "Overdue",
+  unscheduled: "Unscheduled",
+};
 
 type Editing = { mode: "closed" } | { mode: "new" } | { mode: "edit"; task: Task };
 
-export function TaskPanel({ tasks }: { tasks: Task[] }) {
+export function TaskPanel({ tasks, flags }: { tasks: Task[]; flags: Record<string, TaskFlag | null> }) {
   const [editing, setEditing] = useState<Editing>({ mode: "closed" });
 
   return (
@@ -39,7 +46,12 @@ export function TaskPanel({ tasks }: { tasks: Task[] }) {
                 className={`task-row${editing.mode === "edit" && editing.task.id === task.id ? " selected" : ""}`}
                 onClick={() => setEditing({ mode: "edit", task })}
               >
-                <span className="task-title">{task.title}</span>
+                <span className="task-title-row">
+                  <span className="task-title">{task.title}</span>
+                  {flags[task.id] && (
+                    <span className={`flag flag-${flags[task.id]}`}>{FLAG_LABELS[flags[task.id]!]}</span>
+                  )}
+                </span>
                 <span className="task-meta">
                   <span className={`priority priority-${task.priority}`}>{PRIORITY_LABELS[task.priority]}</span>
                   <span>{formatDuration(task.estimatedMinutes)}</span>

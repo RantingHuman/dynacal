@@ -1,0 +1,225 @@
+import type { WorkingHours } from "./settings";
+import { PRIORITIES, type DateOrDateTime, type Priority } from "./tasks";
+import { addDays, fromZoned, toZoned, weekdayOf } from "./time-zone";
+
+/**
+ * The scheduler (seam 1): a deterministic pure function from everything that shapes the Schedule
+ * to the new set of Blocks and a flag per Task. No database, no clock, no I/O.
+ */
+
+export const PLANNING_HORIZON_DAYS = 14;
+
+const MINUTE_MS = 60_000;
+const GRID_MS = 15 * MINUTE_MS;
+const DAY_MS = 24 * 60 * MINUTE_MS;
+
+export interface Interval {
+  start: Date;
+  end: Date;
+}
+
+/** A Block as the scheduler sees it: a span of time for one Task. */
+export interface ScheduledBlock extends Interval {
+  taskId: string;
+}
+
+export interface SchedulerTask {
+  id: string;
+  /** Remaining Duration, in minutes. */
+  remainingMinutes: number;
+  /** Already resolved to an instant (date-only values become the end of that day's Working Hours). */
+  deadline: Date | null;
+  /** Already resolved to an instant (date-only values become the start of that day's Working Hours). */
+  earliestStart: Date | null;
+  priority: Priority;
+  dontSplit: boolean;
+}
+
+export interface SchedulerInput {
+  now: Date;
+  timeZone: string;
+  workingHours: WorkingHours;
+  minimumBlockMinutes: number;
+  planningHorizonDays: number;
+  /** In a stable order; it breaks any remaining ties. */
+  tasks: SchedulerTask[];
+  /** Time no Block may overlap (Events on Busy Calendars). */
+  busy: Interval[];
+  /** Blocks the owner placed by hand; planned around, never moved. */
+  pinnedBlocks: ScheduledBlock[];
+  /** Past and in-progress Blocks; planned around, never moved. */
+  fixedBlocks: ScheduledBlock[];
+  /** The Schedule before this Recalculation. */
+  previousSchedule: ScheduledBlock[];
+}
+
+export type TaskFlag = "at-risk" | "overdue" | "unscheduled";
+
+export interface SchedulerOutput {
+  /** New unpinned future Blocks, in time order. */
+  blocks: ScheduledBlock[];
+  flags: Record<string, TaskFlag | null>;
+}
+
+function minutesOf(time: string): number {
+  const [h, m] = time.split(":").map(Number);
+  return h * 60 + m;
+}
+
+/** A deadline as an instant: a date only means the end of that day's Working Hours (or of the day, if it has none). */
+export function resolveDeadline(value: DateOrDateTime, timeZone: string, workingHours: WorkingHours): Date {
+  if (value.time !== null) return fromZoned({ date: value.date, minutes: minutesOf(value.time) }, timeZone);
+  const ends = workingHours[weekdayOf(value.date)].map((w) => w.end);
+  return fromZoned({ date: value.date, minutes: ends.length ? Math.max(...ends) : 24 * 60 }, timeZone);
+}
+
+/** An Earliest Start as an instant: a date only means the start of that day's Working Hours (or of the day, if it has none). */
+export function resolveEarliestStart(value: DateOrDateTime, timeZone: string, workingHours: WorkingHours): Date {
+  if (value.time !== null) return fromZoned({ date: value.date, minutes: minutesOf(value.time) }, timeZone);
+  const starts = workingHours[weekdayOf(value.date)].map((w) => w.start);
+  return fromZoned({ date: value.date, minutes: starts.length ? Math.min(...starts) : 0 }, timeZone, "later");
+}
+
+/** Free time as [start, end) in epoch ms. */
+type Span = [number, number];
+
+function workingSpans(input: SchedulerInput, from: number, to: number): Span[] {
+  const spans: Span[] = [];
+  const lastDate = toZoned(new Date(to), input.timeZone).date;
+  for (let date = addDays(toZoned(new Date(from), input.timeZone).date, -1); date <= lastDate; date = addDays(date, 1)) {
+    for (const window of input.workingHours[weekdayOf(date)]) {
+      const start = Math.max(from, fromZoned({ date, minutes: window.start }, input.timeZone, "later").getTime());
+      const end = Math.min(to, fromZoned({ date, minutes: window.end }, input.timeZone).getTime());
+      if (end > start) spans.push([start, end]);
+    }
+  }
+  return spans.sort((a, b) => a[0] - b[0]);
+}
+
+/** Removes `taken` from `free`, then rounds each remaining span inward to the grid. */
+function subtract(free: Span[], taken: Interval[]): Span[] {
+  let spans = free;
+  for (const { start, end } of taken) {
+    const [s, e] = [start.getTime(), end.getTime()];
+    spans = spans.flatMap(([a, b]): Span[] => {
+      if (e <= a || s >= b) return [[a, b]];
+      const pieces: Span[] = [];
+      if (s > a) pieces.push([a, s]);
+      if (e < b) pieces.push([e, b]);
+      return pieces;
+    });
+  }
+  return spans
+    .map(([a, b]): Span => [roundUp(a), Math.floor(b / GRID_MS) * GRID_MS])
+    .filter(([a, b]) => b > a);
+}
+
+export function schedule(input: SchedulerInput): SchedulerOutput {
+  const from = roundUp(input.now.getTime());
+  const to = input.now.getTime() + input.planningHorizonDays * DAY_MS;
+  const now = input.now.getTime();
+  const kept = [...input.pinnedBlocks, ...input.fixedBlocks].filter((b) => b.end.getTime() > now);
+  const free = subtract(workingSpans(input, from, to), [...input.busy, ...kept]);
+
+  const blocks: ScheduledBlock[] = [];
+  const flags: Record<string, TaskFlag | null> = {};
+  for (const task of placementOrder(input.tasks)) {
+    const keptForTask = kept.filter((b) => b.taskId === task.id);
+    const covered = keptForTask.reduce((sum, b) => sum + b.end.getTime() - Math.max(b.start.getTime(), now), 0);
+    const need = Math.max(0, task.remainingMinutes * MINUTE_MS - covered);
+    const available = startingFrom(free, task.earliestStart ? roundUp(task.earliestStart.getTime()) : from);
+    const pieces = task.dontSplit
+      ? placeWhole(available, need)
+      : placeSplit(available, need, input.minimumBlockMinutes * MINUTE_MS);
+    for (const [start, end] of pieces) {
+      blocks.push({ taskId: task.id, start: new Date(start), end: new Date(end) });
+      take(free, start, end);
+    }
+    flags[task.id] = flagFor(task, need, pieces, keptForTask.length > 0, now);
+  }
+  return { blocks: blocks.sort((a, b) => a.start.getTime() - b.start.getTime()), flags };
+}
+
+/** Overdue outranks Unscheduled, which outranks At Risk. */
+function flagFor(
+  task: SchedulerTask,
+  need: number,
+  pieces: Span[],
+  hasKeptBlocks: boolean,
+  now: number,
+): TaskFlag | null {
+  const deadline = task.deadline?.getTime() ?? null;
+  if (deadline !== null && deadline <= now) return "overdue";
+  if (need > 0 && pieces.length === 0 && !hasKeptBlocks) return "unscheduled";
+  if (deadline !== null) {
+    const beforeDeadline = pieces.reduce((sum, [a, b]) => sum + Math.max(0, Math.min(b, deadline) - a), 0);
+    if (beforeDeadline < need) return "at-risk";
+  }
+  return null;
+}
+
+function roundUp(ms: number): number {
+  return Math.ceil(ms / GRID_MS) * GRID_MS;
+}
+
+/**
+ * Earliest deadline first; Tasks without a deadline after all deadlined ones, higher Priority first.
+ * Remaining ties keep the input order.
+ */
+function placementOrder(tasks: SchedulerTask[]): SchedulerTask[] {
+  const rank = (t: SchedulerTask) => PRIORITIES.indexOf(t.priority);
+  return tasks
+    .map((task, index) => ({ task, index }))
+    .sort((x, y) => {
+      const [a, b] = [x.task, y.task];
+      if (a.deadline && b.deadline && a.deadline.getTime() !== b.deadline.getTime()) {
+        return a.deadline.getTime() - b.deadline.getTime();
+      }
+      if (!a.deadline !== !b.deadline) return a.deadline ? -1 : 1;
+      if (!a.deadline && rank(a) !== rank(b)) return rank(b) - rank(a);
+      return x.index - y.index;
+    })
+    .map(({ task }) => task);
+}
+
+/** The free spans, cut so none starts before `earliest`. */
+function startingFrom(free: Span[], earliest: number): Span[] {
+  return free.filter(([, b]) => b > earliest).map(([a, b]): Span => [Math.max(a, earliest), b]);
+}
+
+/** One piece in the earliest gap that holds all of `need`, or nothing. */
+function placeWhole(free: Span[], need: number): Span[] {
+  if (need <= 0) return [];
+  const span = free.find(([a, b]) => b - a >= need);
+  return span ? [[span[0], span[0] + need]] : [];
+}
+
+/**
+ * Pieces in the earliest gaps, none shorter than `minimum`. A Task needing less than `minimum`
+ * in total is placed whole. A piece never leaves a remainder shorter than `minimum`.
+ */
+function placeSplit(free: Span[], need: number, minimum: number): Span[] {
+  if (need <= 0) return [];
+  if (need < minimum) return placeWhole(free, need);
+  const pieces: Span[] = [];
+  let left = need;
+  for (const [a, b] of free) {
+    if (left <= 0) break;
+    const room = b - a;
+    const length = room >= left ? left : Math.min(room, left - minimum);
+    if (length < minimum) continue;
+    pieces.push([a, a + length]);
+    left -= length;
+  }
+  return pieces;
+}
+
+/** Marks [start, end) as used. */
+function take(free: Span[], start: number, end: number): void {
+  const index = free.findIndex(([a, b]) => a <= start && end <= b);
+  const [a, b] = free[index];
+  const rest: Span[] = [];
+  if (start > a) rest.push([a, start]);
+  if (end < b) rest.push([end, b]);
+  free.splice(index, 1, ...rest);
+}
