@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { and, eq, gt, gte, isNull, lt, lte, sql } from "drizzle-orm";
+import type { CalendarEvent, CalendarGateway, GoogleCalendar } from "./calendar-gateway";
 import type { Clock } from "./clock";
 import {
   remainingMinutes,
@@ -9,7 +10,18 @@ import {
   type ReviewOutcome,
 } from "./completion";
 import type { Db } from "./db";
-import { blocks, pushSubscriptions, remindersSent, sessions, settings, tasks } from "./db/schema";
+import {
+  blocks,
+  busyCalendars,
+  events,
+  googleConnection,
+  pushSubscriptions,
+  remindersSent,
+  sessions,
+  settings,
+  tasks,
+} from "./db/schema";
+import { countsAsBusy, eventInterval, eventsFingerprint } from "./events";
 import { validatePushSubscription, type PushSender, type PushSubscriptionInput, type SubscribeToPushResult } from "./push";
 import { dueReminders, reminderMessage } from "./reminders";
 import {
@@ -37,7 +49,34 @@ export interface CommandDeps {
   clock: Clock;
   ownerEmail: string;
   pushSender: PushSender;
+  /** All Google Calendar access goes through this. */
+  calendar: CalendarGateway;
 }
+
+/** What Google handed over when the owner connected their calendar. */
+export interface GoogleGrant {
+  email: string;
+  refreshToken: string;
+  accessToken: string;
+  accessTokenExpiresAt: Date;
+}
+
+export type ConnectGoogleResult = { ok: true } | { ok: false; reason: "not-owner" };
+
+export interface SetupStatus {
+  googleConnected: boolean;
+  timeZoneSaved: boolean;
+  complete: boolean;
+}
+
+export type SyncEventsResult = { ok: true; recalculated: boolean } | { ok: false; reason: "not-connected" };
+
+export type SetBusyCalendarsResult = { ok: true } | { ok: false; errors: { busyCalendars: string } };
+
+/** The owner's Google calendars, each marked with whether it's a Busy Calendar. */
+export type GoogleCalendarsView =
+  | { status: "not-connected" }
+  | { status: "connected"; email: string; calendars: (GoogleCalendar & { busy: boolean })[] };
 
 /** The identity Google vouched for at the end of the OAuth flow. */
 export interface GoogleIdentity {
@@ -53,6 +92,15 @@ export type SignInRefusal = "not-owner" | "email-unverified";
 
 export interface Session {
   email: string;
+}
+
+/** An Event as the UI shows it; an all-day Event spans midnight to midnight in the owner's time zone. */
+export interface EventView {
+  id: string;
+  title: string;
+  start: Date;
+  end: Date;
+  allDay: boolean;
 }
 
 /** A Block as the UI shows it. */
@@ -73,6 +121,8 @@ export type ScheduleView =
       /** The Planning Horizon: from now until this many days ahead. */
       horizon: { start: Date; end: Date };
       blocks: BlockView[];
+      /** Events that count as busy time, in time order. */
+      events: EventView[];
       flags: Record<string, TaskFlag | null>;
     };
 
@@ -97,7 +147,7 @@ export type RecalculateResult = { ok: true } | { ok: false; reason: "needs-time-
 const MINUTE_MS = 60_000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
 
-export function createCommands({ db, clock, ownerEmail, pushSender }: CommandDeps) {
+export function createCommands({ db, clock, ownerEmail, pushSender, calendar }: CommandDeps) {
   const owner = ownerEmail.trim().toLowerCase();
 
   function getSettings(): Settings {
@@ -145,14 +195,69 @@ export function createCommands({ db, clock, ownerEmail, pushSender }: CommandDep
     };
   }
 
+  /** The Events last read from Busy Calendars. */
+  function cachedEvents(): CalendarEvent[] {
+    return db
+      .select()
+      .from(events)
+      .all()
+      .map((row): CalendarEvent => {
+        const common = { id: row.eventId, calendarId: row.calendarId, title: row.title, free: row.free };
+        return row.allDay
+          ? { ...common, allDay: true, startDate: row.startDate!, endDate: row.endDate! }
+          : { ...common, allDay: false, start: row.start!, end: row.end! };
+      });
+  }
+
+  /**
+   * Reads the Events on every Busy Calendar over the Planning Horizon from Google and caches them.
+   * Returns whether any Event was added, moved or deleted since the last read.
+   */
+  async function readEvents(): Promise<boolean> {
+    const now = clock.now();
+    const range = { start: now, end: new Date(now.getTime() + PLANNING_HORIZON_DAYS * DAY_MS) };
+    const calendarIds = db.select().from(busyCalendars).all().map((b) => b.calendarId);
+    const fresh = (await Promise.all(calendarIds.map((id) => calendar.listEvents(id, range)))).flat();
+    const changed = eventsFingerprint(fresh) !== eventsFingerprint(cachedEvents());
+    db.transaction((tx) => {
+      tx.delete(events).run();
+      for (const e of fresh) {
+        tx.insert(events)
+          .values({
+            calendarId: e.calendarId,
+            eventId: e.id,
+            title: e.title,
+            free: e.free,
+            allDay: e.allDay,
+            start: e.allDay ? null : e.start,
+            end: e.allDay ? null : e.end,
+            startDate: e.allDay ? e.startDate : null,
+            endDate: e.allDay ? e.endDate : null,
+          })
+          .onConflictDoNothing()
+          .run();
+      }
+    });
+    return changed;
+  }
+
+  /** The time taken up by Events that count as busy under the owner's settings. */
+  function busyTime(current: Settings, timeZone: string) {
+    return cachedEvents()
+      .filter((e) => countsAsBusy(e, current))
+      .map((e) => eventInterval(e, timeZone));
+  }
+
   /**
    * Recalculation: regenerates the Schedule. Past and in-progress Blocks are never moved;
    * every Block that hasn't started yet is replaced. Every command that changes what the
    * Schedule depends on calls this.
    */
   function recalculate(): RecalculateResult {
-    const { timeZone, workingHours, minimumBlockMinutes } = getSettings();
+    const current = getSettings();
+    const { timeZone, workingHours, minimumBlockMinutes } = current;
     if (timeZone === null) return { ok: false, reason: "needs-time-zone" };
+    const busy = busyTime(current, timeZone);
     const now = clock.now();
     db.transaction((tx) => {
       const started = tx.select().from(blocks).where(lt(blocks.start, now)).all();
@@ -196,7 +301,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender }: CommandDep
           priority: row.priority,
           dontSplit: row.dontSplit,
         })),
-        busy: [],
+        busy,
         pinnedBlocks: [],
         fixedBlocks: inProgress,
         previousSchedule,
@@ -242,6 +347,82 @@ export function createCommands({ db, clock, ownerEmail, pushSender }: CommandDep
     },
 
     getSettings,
+
+    /**
+     * Stores the owner's Google Calendar connection. Only the owner's own Google account may be connected.
+     * On the first connection, their primary calendar becomes a Busy Calendar.
+     */
+    async connectGoogle(grant: GoogleGrant): Promise<ConnectGoogleResult> {
+      const email = grant.email.trim().toLowerCase();
+      if (email !== owner) return { ok: false, reason: "not-owner" };
+      const row = {
+        email,
+        refreshToken: grant.refreshToken,
+        accessToken: grant.accessToken,
+        accessTokenExpiresAt: grant.accessTokenExpiresAt,
+        connectedAt: clock.now(),
+      };
+      db.insert(googleConnection)
+        .values({ id: 1, ...row })
+        .onConflictDoUpdate({ target: googleConnection.id, set: row })
+        .run();
+      if (!db.select().from(busyCalendars).get()) {
+        const primary = (await calendar.listCalendars()).find((c) => c.primary);
+        if (primary) db.insert(busyCalendars).values({ calendarId: primary.id }).run();
+      }
+      await readEvents();
+      recalculate();
+      return { ok: true };
+    },
+
+    /** Chooses which of the owner's Google calendars count as busy time, then rereads Events and recalculates. */
+    async setBusyCalendars(calendarIds: string[]): Promise<SetBusyCalendarsResult> {
+      const known = new Set((await calendar.listCalendars()).map((c) => c.id));
+      if (!calendarIds.every((id) => known.has(id))) {
+        return {
+          ok: false,
+          errors: { busyCalendars: "One of the chosen calendars is no longer in your Google account. Reload and choose again." },
+        };
+      }
+      db.transaction((tx) => {
+        tx.delete(busyCalendars).run();
+        for (const calendarId of new Set(calendarIds)) tx.insert(busyCalendars).values({ calendarId }).run();
+      });
+      await readEvents();
+      recalculate();
+      return { ok: true };
+    },
+
+    /**
+     * Polling: rereads Events from the Busy Calendars, and recalculates if any were added, moved or deleted.
+     * Gateway failures are thrown to the caller.
+     */
+    async syncEvents(): Promise<SyncEventsResult> {
+      if (!db.select({ id: googleConnection.id }).from(googleConnection).get()) {
+        return { ok: false, reason: "not-connected" };
+      }
+      if (!(await readEvents())) return { ok: true, recalculated: false };
+      return { ok: true, recalculated: recalculate().ok };
+    },
+
+    /** First-run setup: connect Google (and choose Busy Calendars), then set Working Hours and time zone. */
+    getSetupStatus(): SetupStatus {
+      const googleConnected = db.select({ id: googleConnection.id }).from(googleConnection).get() !== undefined;
+      const timeZoneSaved = getSettings().timeZone !== null;
+      return { googleConnected, timeZoneSaved, complete: googleConnected && timeZoneSaved };
+    },
+
+    async getGoogleCalendars(): Promise<GoogleCalendarsView> {
+      const connection = db.select().from(googleConnection).get();
+      if (!connection) return { status: "not-connected" };
+      const busy = new Set(db.select().from(busyCalendars).all().map((b) => b.calendarId));
+      const calendars = await calendar.listCalendars();
+      return {
+        status: "connected",
+        email: connection.email,
+        calendars: calendars.map((c) => ({ ...c, busy: busy.has(c.id) })),
+      };
+    },
 
     createTask(input: TaskInput): TaskResult {
       const errors = validateTask(input);
@@ -356,7 +537,8 @@ export function createCommands({ db, clock, ownerEmail, pushSender }: CommandDep
     },
 
     getSchedule(): ScheduleView {
-      const { timeZone } = getSettings();
+      const current = getSettings();
+      const { timeZone } = current;
       if (timeZone === null) return { status: "needs-time-zone" };
       const now = clock.now();
       const rows = db
@@ -377,6 +559,10 @@ export function createCommands({ db, clock, ownerEmail, pushSender }: CommandDep
         timeZone,
         horizon: { start: now, end: new Date(now.getTime() + PLANNING_HORIZON_DAYS * DAY_MS) },
         blocks: rows.map(({ block, taskTitle }) => ({ ...block, taskTitle })),
+        events: cachedEvents()
+          .filter((e) => countsAsBusy(e, current))
+          .map((e) => ({ id: `${e.calendarId}/${e.id}`, title: e.title, allDay: e.allDay, ...eventInterval(e, timeZone) }))
+          .sort((a, b) => a.start.getTime() - b.start.getTime()),
         flags,
       };
     },

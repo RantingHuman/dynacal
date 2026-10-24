@@ -507,3 +507,74 @@ a {
 .block-time {
   color: var(--muted);
 }
+
+/* Events: read-only busy time from Busy Calendars, drawn as grey hatched boxes so they read differently from Blocks. */
+.event {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0.15rem 0.35rem;
+  border-radius: 0.3rem;
+  border: 1px solid var(--border);
+  background: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--muted) 12%, var(--bg)) 0 6px,
+    color-mix(in srgb, var(--muted) 20%, var(--bg)) 6px 12px
+  );
+  color: var(--fg);
+  font-size: 0.75rem;
+  line-height: 1.25;
+}
+
+.event.all-day {
+  position: static;
+  display: block;
+  padding: 0.1rem 0.35rem;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.calendar-all-day-label {
+  font-size: 0.7rem;
+  color: var(--muted);
+  text-align: right;
+  padding-right: 0.4rem;
+}
+
+.calendar-all-day {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 0.35rem;
+  min-width: 0;
+}
+
+/* First-run setup and the Google Calendar section of Settings. */
+.setup-steps {
+  padding-left: 1.25rem;
+}
+
+.setup-steps > li {
+  margin-bottom: 2rem;
+}
+
+.setup-steps > li.done > h2::after {
+  content: " ✓";
+  color: var(--accent);
+}
+
+.busy-calendars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.checkbox,
+.settings label.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}

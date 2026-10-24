@@ -13,6 +13,15 @@ export interface CalendarBlock {
   end: string;
 }
 
+/** An Event as sent to the browser: read-only busy time from a Busy Calendar. */
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  allDay: boolean;
+  start: string;
+  end: string;
+}
+
 type View = "day" | "week";
 
 const WEEKDAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -30,22 +39,40 @@ function mondayOf(date: string): string {
   return addDays(date, -index);
 }
 
-/** A Block's part within one local day, in minutes after midnight. */
-interface Placed {
-  block: CalendarBlock;
+/** The part of a span of time within one local day, in minutes after midnight. */
+interface Placed<T> {
+  item: T;
   top: number;
   bottom: number;
+}
+
+/** Splits each item into its parts on the given local days. */
+function placeOnDays<T extends { start: string; end: string }>(items: T[], days: string[], timeZone: string) {
+  const byDay = new Map<string, Placed<T>[]>(days.map((d) => [d, []]));
+  for (const item of items) {
+    const start = toZoned(new Date(item.start), timeZone);
+    const end = toZoned(new Date(item.end), timeZone);
+    for (const day of days) {
+      if (day < start.date || day > end.date) continue;
+      const top = day === start.date ? start.minutes : 0;
+      const bottom = day === end.date ? end.minutes : 24 * 60;
+      if (bottom > top) byDay.get(day)!.push({ item, top, bottom });
+    }
+  }
+  return byDay;
 }
 
 export function Calendar({
   timeZone,
   horizon,
   blocks,
+  events,
   workingHours,
 }: {
   timeZone: string;
   horizon: { start: string; end: string };
   blocks: CalendarBlock[];
+  events: CalendarEvent[];
   workingHours: WorkingHours;
 }) {
   const today = toZoned(new Date(horizon.start), timeZone).date;
@@ -64,19 +91,20 @@ export function Calendar({
     setAnchor(next < today ? today : next > lastDay ? lastDay : next);
   };
 
-  const placedByDay = new Map<string, Placed[]>(days.map((d) => [d, []]));
-  for (const block of blocks) {
-    const start = toZoned(new Date(block.start), timeZone);
-    const end = toZoned(new Date(block.end), timeZone);
-    for (const day of days) {
-      if (day < start.date || day > end.date) continue;
-      const top = day === start.date ? start.minutes : 0;
-      const bottom = day === end.date ? end.minutes : 24 * 60;
-      if (bottom > top) placedByDay.get(day)!.push({ block, top, bottom });
-    }
-  }
+  const placedByDay = placeOnDays(blocks, days, timeZone);
+  const eventsByDay = placeOnDays(
+    events.filter((e) => !e.allDay),
+    days,
+    timeZone,
+  );
+  const allDayByDay = placeOnDays(
+    events.filter((e) => e.allDay),
+    days,
+    timeZone,
+  );
+  const hasAllDay = days.some((d) => allDayByDay.get(d)!.length > 0);
 
-  // Show the hours that matter: Working Hours on the days in view and any Block, at least 08:00–18:00.
+  // Show the hours that matter: Working Hours on the days in view and any Block or Event, at least 08:00–18:00.
   let first = 8 * 60;
   let last = 18 * 60;
   for (const day of days) {
@@ -84,7 +112,7 @@ export function Calendar({
       first = Math.min(first, w.start);
       last = Math.max(last, w.end);
     }
-    for (const p of placedByDay.get(day)!) {
+    for (const p of [...placedByDay.get(day)!, ...eventsByDay.get(day)!]) {
       first = Math.min(first, p.top);
       last = Math.max(last, p.bottom);
     }
@@ -137,6 +165,21 @@ export function Calendar({
           </div>
         ))}
 
+        {hasAllDay && (
+          <>
+            <div className="calendar-all-day-label">All day</div>
+            {days.map((day) => (
+              <div key={day} className="calendar-all-day">
+                {allDayByDay.get(day)!.map(({ item }) => (
+                  <div key={item.id} className="event all-day" title={`${item.title} (all day)`}>
+                    {item.title}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </>
+        )}
+
         <div className="calendar-hours" style={{ height: px(last) }}>
           {hours.map((h) => (
             <span key={h} style={{ top: px(h) }}>
@@ -161,7 +204,20 @@ export function Calendar({
                 />
               ))}
               {day === nowZoned.date && <div className="now-line" style={{ top: px(nowZoned.minutes) }} />}
-              {placedByDay.get(day)!.map(({ block, top, bottom }) => (
+              {eventsByDay.get(day)!.map(({ item: event, top, bottom }) => (
+                <div
+                  key={`${event.id}-${day}`}
+                  className="event"
+                  style={{ top: px(top), height: px(bottom) - px(top) }}
+                  title={`${event.title}, ${formatMinutes(top)}–${formatMinutes(bottom)} (Event)`}
+                >
+                  <span className="block-title">{event.title}</span>
+                  <span className="block-time">
+                    {formatMinutes(top)}–{formatMinutes(bottom)}
+                  </span>
+                </div>
+              ))}
+              {placedByDay.get(day)!.map(({ item: block, top, bottom }) => (
                 <div
                   key={`${block.id}-${day}`}
                   className="block"

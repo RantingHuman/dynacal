@@ -4,6 +4,8 @@ import { getRuntime } from "./runtime";
 export const SESSION_COOKIE = "dynacal_session";
 export const OAUTH_STATE_COOKIE = "dynacal_oauth_state";
 export const OAUTH_VERIFIER_COOKIE = "dynacal_oauth_verifier";
+/** Set when the OAuth flow is connecting Google Calendar rather than signing in: `connect-calendar:<setup|settings>`. */
+export const OAUTH_PURPOSE_COOKIE = "dynacal_oauth_purpose";
 
 export function secureCookies(): boolean {
   return getRuntime().config.PUBLIC_BASE_URL.startsWith("https://");

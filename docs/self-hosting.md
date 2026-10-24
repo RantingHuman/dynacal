@@ -5,10 +5,11 @@ Each dynacal deployment belongs to one person: you. It runs as a single Docker c
 ## 1. Create a Google OAuth client
 
 1. Go to the [Google Cloud console](https://console.cloud.google.com/) and create a project, e.g. "dynacal".
-2. Open **APIs & Services → Library** and enable the **Google Calendar API**. Sign-in doesn't need it, but calendar features will.
+2. Open **APIs & Services → Library** and enable the **Google Calendar API**. Sign-in doesn't need it, but connecting your calendar does.
 3. Open **Google Auth Platform** (formerly the OAuth consent screen) and configure it:
    - **Branding**: give the app a name (e.g. "dynacal") and your email as the support and developer contact.
    - **Audience**: choose **External**.
+   - **Data access**: add the scope `https://www.googleapis.com/auth/calendar` (listed as Google Calendar API, "See, edit, share, and permanently delete all the calendars you can access using Google Calendar"). dynacal uses it to read your Busy Calendars and, later, to write its Blocks to its own "dynacal" calendar.
 4. Under **Clients**, create a client of type **Web application**:
    - **Authorized redirect URIs**: add `<PUBLIC_BASE_URL>/api/auth/google/callback`, for example `https://dynacal.example.com/api/auth/google/callback`. For local use, add `http://localhost:3000/api/auth/google/callback`.
    - Copy the **client ID** and **client secret**.
@@ -57,6 +58,18 @@ To reach dynacal from outside your network, put it behind a reverse proxy that t
 ## 5. Sign in
 
 Open `PUBLIC_BASE_URL` and choose **Sign in with Google** using the `OWNER_EMAIL` account. Any other Google account is refused.
+
+## 6. Connect Google Calendar
+
+The first time you sign in, dynacal walks you through setup:
+
+1. **Connect Google Calendar.** This is a second Google consent, separate from signing in, that grants calendar access. Connect the same `OWNER_EMAIL` account; any other account is refused. It uses the same redirect URI as sign-in, so there's nothing extra to register.
+2. **Choose your Busy Calendars**: the calendars whose Events dynacal plans around. Your primary calendar is chosen to start with.
+3. **Set your Working Hours and time zone.**
+
+You can change Busy Calendars, and whether Events marked "free" or all-day Events count as busy, under **Settings** at any time. dynacal rereads your Busy Calendars every 5 minutes. If Google access stops working, choose **Reconnect** in Settings.
+
+dynacal stores the Google refresh token in its SQLite file, so treat backups of `dynacal.db` as secrets. To cut dynacal off, remove it at [Google account → Third-party apps & services](https://myaccount.google.com/connections).
 
 ## Local development
 
