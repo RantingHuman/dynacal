@@ -71,7 +71,7 @@ Blocks appear in a separate "dynacal" calendar in my Google account, so I see my
 41. As the owner, I want Tasks ordered so that earlier deadlines get time first, so that as few deadlines as possible are missed.
 42. As the owner, I want a higher-Priority Task to go first when doing so doesn't push any other Task past its deadline, so that important work happens sooner whenever it's free to.
 43. As the owner, I want the lower-Priority Task to be the one that misses when a missed deadline can't be avoided, so that my Critical work is protected.
-44. As the owner, I want Tasks without a deadline scheduled after deadlined Tasks, ordered by Priority, so that open-ended work fills the remaining time.
+44. As the owner, I want Tasks without a deadline placed by Priority alongside deadlined Tasks, going ahead of a lower-Priority Task only when that Task still meets its deadline, so that important open-ended work isn't starved by trivial deadlined work.
 45. As the owner, I want longer Tasks split into several Blocks around Events and outside Working Hours, so that they still fit in my week.
 46. As the owner, I want no Block shorter than the Minimum Block Length, so that splitting doesn't produce fragments I can't use.
 47. As the owner, I want a "don't split" Task scheduled only as one continuous Block, so that it gets the focus it needs.
@@ -144,7 +144,7 @@ Blocks appear in a separate "dynacal" calendar in my Google account, so I see my
   - *Outputs*: the new set of unpinned future Blocks; a per-Task flag (At Risk, Overdue, Unscheduled, or none); and the list of Conflicts.
   - *Rules*:
     - deadline-first ordering, with Priority deciding who goes first only when that pushes no other Task past its deadline, and deciding who misses when a miss can't be avoided (ADR-0003);
-    - Tasks without a deadline come after deadlined ones, ordered by Priority;
+    - Tasks without a deadline are ordered by Priority under the same rule: they may go ahead of a lower-Priority deadlined Task only when that Task still meets its deadline;
     - Blocks are aligned to the 15-minute grid and start no earlier than the next grid mark after now;
     - Blocks sit inside Working Hours, never overlap busy Events or Pinned Blocks, and are no shorter than the Minimum Block Length;
     - a don't-split Task gets exactly one Block;
@@ -194,7 +194,7 @@ Blocks appear in a separate "dynacal" calendar in my Google account, so I see my
   - splitting and the Minimum Block Length;
   - don't-split Tasks and Earliest Start;
   - deadline-first ordering, Priority overriding order only when no deadline is put at risk, and the lower-Priority Task missing when a miss is unavoidable;
-  - Tasks without a deadline coming after deadlined ones;
+  - Tasks without a deadline going ahead of lower-Priority deadlined Tasks only when no deadline is put at risk;
   - the At Risk, Overdue and Unscheduled flags, with an At Risk Task's remainder continuing after its deadline;
   - Conflicts with Pinned Blocks;
   - keeping Blocks in place on ties, and determinism.
