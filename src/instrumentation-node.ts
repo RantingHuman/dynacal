@@ -1,9 +1,10 @@
 // Refuse to boot with incomplete config, and open/migrate the database before serving requests.
 import { ConfigError } from "./server/config";
+import { startReminderJob } from "./server/reminder-job";
 import { getRuntime } from "./server/runtime";
 
 try {
-  getRuntime();
+  startReminderJob(getRuntime());
 } catch (error) {
   if (error instanceof ConfigError) {
     console.error(`\n${error.message}\n`);
