@@ -33,9 +33,12 @@ export async function GET(request: Request) {
   const valid = code && state && expectedState && codeVerifier && state === expectedState;
 
   if (purpose?.startsWith("connect-calendar:")) {
-    const page = purpose.endsWith(":settings") ? "settings" : "setup";
+    const page = purpose.endsWith(":settings") ? "settings" : purpose.endsWith(":home") ? "" : "setup";
+    // A reconnect from the main screen's banner returns there, or to Settings to explain a failure.
     const back = (error?: string) =>
-      Response.redirect(`${config.PUBLIC_BASE_URL}/${page}${error ? `?google=${error}` : ""}`);
+      Response.redirect(
+        `${config.PUBLIC_BASE_URL}/${error ? `${page || "settings"}?google=${error}` : page}`,
+      );
     if (!(await currentSession())) return Response.redirect(`${config.PUBLIC_BASE_URL}/sign-in`);
     if (!valid) return back("failed");
 

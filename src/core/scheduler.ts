@@ -127,24 +127,21 @@ export function schedule(input: SchedulerInput): SchedulerOutput {
   const to = input.now.getTime() + input.planningHorizonDays * DAY_MS;
   const now = input.now.getTime();
   const kept = [...input.pinnedBlocks, ...input.fixedBlocks].filter((b) => b.end.getTime() > now);
-  const free = subtract(workingSpans(input, from, to), [...input.busy, ...kept]);
+  const ctx: Context = {
+    now,
+    from,
+    minimum: input.minimumBlockMinutes * MINUTE_MS,
+    kept,
+    free: subtract(workingSpans(input, from, to), [...input.busy, ...kept]),
+  };
 
-  const blocks: ScheduledBlock[] = [];
+  const order = chooseOrder(ctx, input.tasks);
+  const placed = closestToPrevious(ctx, order, input.previousSchedule);
   const flags: Record<string, TaskFlag | null> = {};
-  for (const task of placementOrder(input.tasks)) {
-    const keptForTask = kept.filter((b) => b.taskId === task.id);
-    const covered = keptForTask.reduce((sum, b) => sum + b.end.getTime() - Math.max(b.start.getTime(), now), 0);
-    const need = Math.max(0, task.remainingMinutes * MINUTE_MS - covered);
-    const available = startingFrom(free, task.earliestStart ? roundUp(task.earliestStart.getTime()) : from);
-    const pieces = task.dontSplit
-      ? placeWhole(available, need)
-      : placeSplit(available, need, input.minimumBlockMinutes * MINUTE_MS);
-    for (const [start, end] of pieces) {
-      blocks.push({ taskId: task.id, start: new Date(start), end: new Date(end) });
-      take(free, start, end);
-    }
-    flags[task.id] = flagFor(task, need, pieces, keptForTask.length > 0, now);
-  }
+  for (const p of placed) flags[p.task.id] = p.flag;
+  const blocks = placed.flatMap((p) =>
+    p.pieces.map(([start, end]) => ({ taskId: p.task.id, start: new Date(start), end: new Date(end) })),
+  );
   return {
     blocks: blocks.sort((a, b) => a.start.getTime() - b.start.getTime()),
     flags,
@@ -165,6 +162,124 @@ export function findConflicts<B extends ScheduledBlock, E extends Interval>(pinn
       .filter((e) => e.start.getTime() < block.end.getTime() && e.end.getTime() > block.start.getTime())
       .map((event) => ({ block, event })),
   );
+}
+
+interface Context {
+  now: number;
+  /** The first grid mark a new Block may start at. */
+  from: number;
+  /** Minimum Block Length, in ms. */
+  minimum: number;
+  /** Pinned and fixed Blocks still in the future. */
+  kept: ScheduledBlock[];
+  /** Free time before any Task is placed. */
+  free: Span[];
+}
+
+interface Placement {
+  task: SchedulerTask;
+  pieces: Span[];
+  flag: TaskFlag | null;
+  /** The Task can't get all of its Remaining Duration in before its (future) deadline. */
+  misses: boolean;
+}
+
+/**
+ * Swapping two neighbouring Tasks of equal standing in the order makes an equally good Schedule.
+ * Make whichever such swaps keep more of the previous Schedule's Blocks where they were, without
+ * flagging more Tasks.
+ */
+function closestToPrevious(ctx: Context, order: SchedulerTask[], previous: ScheduledBlock[]): Placement[] {
+  const tied = (a: SchedulerTask, b: SchedulerTask) =>
+    a.priority === b.priority && (a.deadline?.getTime() ?? null) === (b.deadline?.getTime() ?? null);
+  let best = place(ctx, order);
+  if (previous.length === 0) return best;
+  let bestKept = keptTime(best, previous);
+  for (let improved = true; improved; ) {
+    improved = false;
+    for (let i = 0; i + 1 < order.length; i++) {
+      if (!tied(order[i], order[i + 1])) continue;
+      const swapped = [...order];
+      [swapped[i], swapped[i + 1]] = [swapped[i + 1], swapped[i]];
+      const placed = place(ctx, swapped);
+      const kept = keptTime(placed, previous);
+      if (kept > bestKept && flagged(placed) <= flagged(best)) {
+        [order, best, bestKept, improved] = [swapped, placed, kept, true];
+      }
+    }
+  }
+  return best;
+}
+
+function flagged(placed: Placement[]): number {
+  return placed.filter((p) => p.flag !== null).length;
+}
+
+/** How much of the previous Schedule's time each Task still has in `placed`. */
+function keptTime(placed: Placement[], previous: ScheduledBlock[]): number {
+  let kept = 0;
+  for (const p of placed) {
+    for (const b of previous) {
+      if (b.taskId !== p.task.id) continue;
+      for (const [s, e] of p.pieces) kept += Math.max(0, Math.min(e, b.end.getTime()) - Math.max(s, b.start.getTime()));
+    }
+  }
+  return kept;
+}
+
+/** Places Tasks one at a time in `order`, each in the earliest free time those before it left. */
+function place(ctx: Context, order: SchedulerTask[]): Placement[] {
+  const free = ctx.free.map((s): Span => [s[0], s[1]]);
+  return order.map((task) => {
+    const keptForTask = ctx.kept.filter((b) => b.taskId === task.id);
+    const covered = keptForTask.reduce((sum, b) => sum + b.end.getTime() - Math.max(b.start.getTime(), ctx.now), 0);
+    const need = Math.max(0, task.remainingMinutes * MINUTE_MS - covered);
+    const available = startingFrom(free, task.earliestStart ? roundUp(task.earliestStart.getTime()) : ctx.from);
+    const pieces = task.dontSplit ? placeWhole(available, need) : placeSplit(available, need, ctx.minimum);
+    for (const [start, end] of pieces) take(free, start, end);
+    const flag = flagFor(task, need, pieces, keptForTask.length > 0, ctx.now);
+    return { task, pieces, flag, misses: flag === "at-risk" || (flag === "unscheduled" && task.deadline !== null) };
+  });
+}
+
+function missing(placements: Placement[]): Set<string> {
+  return new Set(placements.filter((p) => p.misses).map((p) => p.task.id));
+}
+
+/**
+ * The order Tasks claim time in (ADR-0003). Overdue Tasks go first. Then, highest Priority first,
+ * each deadlined Task joins the ones that must make their deadlines if they all still can; the
+ * rest (lower Priority) are the ones that miss. Starting from earliest deadline first, each next
+ * slot in the order goes to the highest-Priority Task that can take it without pushing any Task
+ * that must make its deadline past it.
+ */
+function chooseOrder(ctx: Context, tasks: SchedulerTask[]): SchedulerTask[] {
+  const rank = (t: SchedulerTask) => PRIORITIES.indexOf(t.priority);
+  const isOverdue = (t: SchedulerTask) => t.deadline !== null && t.deadline.getTime() <= ctx.now;
+  const base = placementOrder(tasks);
+  const overdue = base.filter(isOverdue);
+  const live = base.filter((t) => !isOverdue(t));
+
+  const mustMeet = new Set<SchedulerTask>();
+  for (const t of live.filter((x) => x.deadline !== null).sort((a, b) => rank(b) - rank(a))) {
+    const trial = live.filter((x) => mustMeet.has(x) || x === t);
+    if (missing(place(ctx, [...overdue, ...trial])).size === 0) mustMeet.add(t);
+  }
+  const allowed = new Set(live.filter((t) => !mustMeet.has(t)).map((t) => t.id));
+
+  const chosen = overdue;
+  let rest = [...live.filter((t) => mustMeet.has(t)), ...live.filter((t) => !mustMeet.has(t))];
+  while (rest.length > 0) {
+    const candidates = [...rest].sort((a, b) => rank(b) - rank(a));
+    const next =
+      candidates.find((c) => {
+        const order = [...chosen, c, ...rest.filter((t) => t !== c)];
+        return [...missing(place(ctx, order))].every((id) => allowed.has(id));
+      }) ?? rest[0];
+    chosen.push(next);
+    rest = rest.filter((t) => t !== next);
+  }
+  return chosen;
 }
 
 /** Overdue outranks Unscheduled, which outranks At Risk. */

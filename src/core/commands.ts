@@ -1,7 +1,8 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { and, eq, gt, gte, isNull, lt, lte, sql } from "drizzle-orm";
-import type { CalendarEvent, CalendarGateway, GoogleCalendar } from "./calendar-gateway";
+import { CalendarAuthError, type CalendarEvent, type CalendarGateway, type GoogleCalendar } from "./calendar-gateway";
 import type { Clock } from "./clock";
+import { watchConnectionHealth } from "./connection-health";
 import {
   remainingMinutes,
   suggestedWorkedMinutes,
@@ -71,13 +72,22 @@ export interface SetupStatus {
   complete: boolean;
 }
 
-export type SyncEventsResult = { ok: true; recalculated: boolean } | { ok: false; reason: "not-connected" };
+export type SyncEventsResult =
+  | { ok: true; recalculated: boolean }
+  | { ok: false; reason: "not-connected" | "connection-broken" };
+
+/** The Google Calendar connection. While it's broken, automatic Recalculation is paused until the owner reconnects. */
+export type GoogleConnectionView =
+  | { status: "not-connected" }
+  | { status: "connected"; email: string }
+  | { status: "broken"; email: string };
 
 export type SetBusyCalendarsResult = { ok: true } | { ok: false; errors: { busyCalendars: string } };
 
 /** The owner's Google calendars, each marked with whether it's a Busy Calendar. */
 export type GoogleCalendarsView =
   | { status: "not-connected" }
+  | { status: "broken"; email: string }
   | { status: "connected"; email: string; calendars: (GoogleCalendar & { busy: boolean })[] };
 
 /** The identity Google vouched for at the end of the OAuth flow. */
@@ -148,13 +158,28 @@ export interface TaskListItem extends Task {
 
 export type CompleteTaskResult = { ok: true } | { ok: false; notFound: true };
 
-export type RecalculateResult = { ok: true } | { ok: false; reason: "needs-time-zone" };
+export type RecalculateResult = { ok: true } | { ok: false; reason: "needs-time-zone" | "connection-broken" };
 
 const MINUTE_MS = 60_000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
 
-export function createCommands({ db, clock, ownerEmail, pushSender, calendar }: CommandDeps) {
+export function createCommands({ db, clock, ownerEmail, pushSender, calendar: gateway }: CommandDeps) {
   const owner = ownerEmail.trim().toLowerCase();
+  /**
+   * All Google access goes through this: any call Google refuses with `CalendarAuthError` marks the connection
+   * broken, then the error is rethrown.
+   */
+  const calendar = watchConnectionHealth(gateway, markConnectionBroken);
+
+  function markConnectionBroken(): void {
+    db.update(googleConnection).set({ brokenAt: clock.now() }).where(eq(googleConnection.id, 1)).run();
+  }
+
+  function getGoogleConnection(): GoogleConnectionView {
+    const row = db.select().from(googleConnection).get();
+    if (!row) return { status: "not-connected" };
+    return row.brokenAt === null ? { status: "connected", email: row.email } : { status: "broken", email: row.email };
+  }
 
   function getSettings(): Settings {
     const row = db.select().from(settings).get();
@@ -263,6 +288,8 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar }: 
     const current = getSettings();
     const { timeZone, workingHours, minimumBlockMinutes } = current;
     if (timeZone === null) return { ok: false, reason: "needs-time-zone" };
+    // Paused while Google access is broken: Events may have changed unseen, so the last Schedule stands.
+    if (getGoogleConnection().status === "broken") return { ok: false, reason: "connection-broken" };
     const busy = busyTime(current, timeZone);
     const now = clock.now();
     db.transaction((tx) => {
@@ -286,7 +313,12 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar }: 
         .where(isNull(tasks.completedAt))
         .orderBy(tasks.createdAt, sql`rowid`)
         .all();
-      const previousSchedule = tx.select().from(blocks).where(gte(blocks.start, now)).all();
+      // Pinned Blocks stay where they are anyway, so only unpinned ones are worth keeping in place.
+      const previousSchedule = tx
+        .select()
+        .from(blocks)
+        .where(and(gte(blocks.start, now), eq(blocks.pinned, false)))
+        .all();
 
       const result = schedule({
         now,
@@ -374,6 +406,8 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar }: 
         accessToken: grant.accessToken,
         accessTokenExpiresAt: grant.accessTokenExpiresAt,
         connectedAt: clock.now(),
+        // Connecting again is how the owner mends a broken connection.
+        brokenAt: null,
       };
       db.insert(googleConnection)
         .values({ id: 1, ...row })
@@ -411,12 +445,22 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar }: 
      * Gateway failures are thrown to the caller.
      */
     async syncEvents(): Promise<SyncEventsResult> {
-      if (!db.select({ id: googleConnection.id }).from(googleConnection).get()) {
-        return { ok: false, reason: "not-connected" };
+      const connection = getGoogleConnection().status;
+      if (connection === "not-connected") return { ok: false, reason: "not-connected" };
+      // Credentials Google has refused stay refused; only reconnecting (connectGoogle) recovers.
+      if (connection === "broken") return { ok: false, reason: "connection-broken" };
+      let changed: boolean;
+      try {
+        changed = await readEvents();
+      } catch (error) {
+        if (error instanceof CalendarAuthError) return { ok: false, reason: "connection-broken" };
+        throw error;
       }
-      if (!(await readEvents())) return { ok: true, recalculated: false };
+      if (!changed) return { ok: true, recalculated: false };
       return { ok: true, recalculated: recalculate().ok };
     },
+
+    getGoogleConnection,
 
     /** First-run setup: connect Google (and choose Busy Calendars), then set Working Hours and time zone. */
     getSetupStatus(): SetupStatus {
@@ -426,10 +470,16 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar }: 
     },
 
     async getGoogleCalendars(): Promise<GoogleCalendarsView> {
-      const connection = db.select().from(googleConnection).get();
-      if (!connection) return { status: "not-connected" };
+      const connection = getGoogleConnection();
+      if (connection.status !== "connected") return connection;
       const busy = new Set(db.select().from(busyCalendars).all().map((b) => b.calendarId));
-      const calendars = await calendar.listCalendars();
+      let calendars: GoogleCalendar[];
+      try {
+        calendars = await calendar.listCalendars();
+      } catch (error) {
+        if (error instanceof CalendarAuthError) return { status: "broken", email: connection.email };
+        throw error;
+      }
       return {
         status: "connected",
         email: connection.email,

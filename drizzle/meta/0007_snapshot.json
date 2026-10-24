@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "a35df658-6a42-4821-82dd-c89298ad943b",
+  "id": "f2570cf7-c8a8-4a46-88ed-3304daf30691",
   "prevId": "b1b3a6c1-1545-4593-a382-e51c794e13f8",
   "tables": {
     "blocks": {
@@ -48,14 +48,6 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
-        },
-        "pinned": {
-          "name": "pinned",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": false
         }
       },
       "indexes": {},
@@ -219,6 +211,13 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false
+        },
+        "broken_at": {
+          "name": "broken_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         }
       },

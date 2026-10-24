@@ -114,6 +114,7 @@ export function Calendar({
   events,
   conflicts,
   workingHours,
+  recalculationPaused = false,
 }: {
   timeZone: string;
   horizon: { start: string; end: string };
@@ -121,6 +122,8 @@ export function Calendar({
   events: CalendarEvent[];
   conflicts: CalendarConflict[];
   workingHours: WorkingHours;
+  /** While Google access is broken, Recalculation is paused. */
+  recalculationPaused?: boolean;
 }) {
   const today = toZoned(new Date(horizon.start), timeZone).date;
   const lastDay = toZoned(new Date(horizon.end), timeZone).date;
@@ -291,7 +294,8 @@ export function Calendar({
         <button
           type="button"
           className="button secondary"
-          disabled={pending}
+          disabled={pending || recalculationPaused}
+          title={recalculationPaused ? "Paused until you reconnect Google" : undefined}
           onClick={() => startTransition(async () => void (await recalculate()))}
         >
           {pending ? "Recalculating…" : "Recalculate"}
