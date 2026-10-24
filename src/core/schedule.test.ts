@@ -43,6 +43,24 @@ describe("the Schedule", () => {
     ]);
   });
 
+  it("keeps an unaffected Task's Blocks where they were when another Task changes", () => {
+    const { commands } = appInLondon();
+    createTask(commands, { title: "First" });
+    const second = createTask(commands, { title: "Second", deadline: { date: "2026-01-06", time: null } });
+    expect(blocks(commands)).toEqual([
+      ["Second", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"],
+      ["First", "2026-01-05T10:00:00.000Z", "2026-01-05T11:00:00.000Z"],
+    ]);
+
+    // Now the two are equally good in either order, so neither moves.
+    commands.updateTask(second.id, { ...oneHour, title: "Second" });
+
+    expect(blocks(commands)).toEqual([
+      ["Second", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"],
+      ["First", "2026-01-05T10:00:00.000Z", "2026-01-05T11:00:00.000Z"],
+    ]);
+  });
+
   it("doesn't exist until the owner saves a time zone, and appears once they do", () => {
     const { commands } = createTestApp();
     createTask(commands);
