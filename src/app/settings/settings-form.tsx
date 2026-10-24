@@ -41,7 +41,14 @@ function browserTimeZone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone;
 }
 
-export function SettingsForm({ initial }: { initial: Settings }) {
+export function SettingsForm({
+  initial,
+  showEventToggles = true,
+}: {
+  initial: Settings;
+  /** First-run setup asks only for Working Hours and time zone; the toggles live in Settings. */
+  showEventToggles?: boolean;
+}) {
   const [settings, setSettings] = useState(initial);
   const [errors, setErrors] = useState<SettingsErrors>({});
   const [status, setStatus] = useState<"idle" | "saved">("idle");
@@ -177,6 +184,29 @@ export function SettingsForm({ initial }: { initial: Settings }) {
         <span className="muted">How long before a Block starts you're reminded.</span>
         {errors.reminderLeadMinutes && <span className="field-error">{errors.reminderLeadMinutes}</span>}
       </label>
+
+      {showEventToggles && (
+        <fieldset>
+          <legend>Which Events count as busy</legend>
+          <label className="checkbox">
+            <input
+              type="checkbox"
+              checked={settings.countFreeEvents}
+              onChange={(e) => update({ countFreeEvents: e.target.checked })}
+            />
+            Count Events marked “free” in Google
+          </label>
+          <label className="checkbox">
+            <input
+              type="checkbox"
+              checked={settings.countAllDayEvents}
+              onChange={(e) => update({ countAllDayEvents: e.target.checked })}
+            />
+            Count all-day Events
+          </label>
+          <p className="muted">By default both are ignored, so holidays and informational entries don&apos;t block your time.</p>
+        </fieldset>
+      )}
 
       <div className="actions">
         <button className="button" type="submit" disabled={saving}>

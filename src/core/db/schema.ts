@@ -1,4 +1,4 @@
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import type { TaskFlag } from "../scheduler";
 import type { WorkingHours } from "../settings";
 import type { Priority } from "../tasks";
@@ -17,6 +17,10 @@ export const settings = sqliteTable("settings", {
   timeZone: text("time_zone"),
   minimumBlockMinutes: integer("minimum_block_minutes").notNull(),
   reminderLeadMinutes: integer("reminder_lead_minutes").notNull(),
+  /** Whether Events marked "free" in Google count as busy time. */
+  countFreeEvents: integer("count_free_events", { mode: "boolean" }).notNull().default(false),
+  /** Whether all-day Events count as busy time. */
+  countAllDayEvents: integer("count_all_day_events", { mode: "boolean" }).notNull().default(false),
 });
 
 export const tasks = sqliteTable("tasks", {
@@ -44,3 +48,38 @@ export const blocks = sqliteTable("blocks", {
   start: integer("start", { mode: "timestamp_ms" }).notNull(),
   end: integer("end", { mode: "timestamp_ms" }).notNull(),
 });
+
+/** A single row (id = 1) holding the owner's Google Calendar connection; absent until they connect. */
+export const googleConnection = sqliteTable("google_connection", {
+  id: integer("id").primaryKey(),
+  email: text("email").notNull(),
+  refreshToken: text("refresh_token").notNull(),
+  accessToken: text("access_token"),
+  accessTokenExpiresAt: integer("access_token_expires_at", { mode: "timestamp_ms" }),
+  connectedAt: integer("connected_at", { mode: "timestamp_ms" }).notNull(),
+});
+
+/** The Google calendars the owner counts as busy time. */
+export const busyCalendars = sqliteTable("busy_calendars", {
+  calendarId: text("calendar_id").primaryKey(),
+});
+
+/**
+ * Events from Busy Calendars over the Planning Horizon, as last read from Google. Timed Events have
+ * `start`/`end`; all-day Events have local `startDate`/`endDate` (exclusive), resolved in the owner's time zone.
+ */
+export const events = sqliteTable(
+  "events",
+  {
+    calendarId: text("calendar_id").notNull(),
+    eventId: text("event_id").notNull(),
+    title: text("title").notNull(),
+    free: integer("free", { mode: "boolean" }).notNull(),
+    allDay: integer("all_day", { mode: "boolean" }).notNull(),
+    start: integer("start", { mode: "timestamp_ms" }),
+    end: integer("end", { mode: "timestamp_ms" }),
+    startDate: text("start_date"),
+    endDate: text("end_date"),
+  },
+  (t) => [primaryKey({ columns: [t.calendarId, t.eventId] })],
+);

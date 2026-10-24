@@ -5,6 +5,7 @@ import { systemClock } from "@/core/clock";
 import { createCommands, type Commands } from "@/core/commands";
 import { openDatabase } from "@/core/db";
 import { loadConfig, type Config } from "./config";
+import { createGoogleCalendarGateway } from "./google-calendar";
 
 export interface Runtime {
   config: Config;
@@ -22,14 +23,17 @@ export function getRuntime(): Runtime {
     const db = openDatabase(config.DATABASE_PATH);
     // Closing checkpoints SQLite's write-ahead log into the main file, so a stopped container leaves one complete file.
     process.once("exit", () => db.$client.close());
+    // Sign-in and the Google Calendar connection share one OAuth client and one redirect URI.
+    const google = new Google(
+      config.GOOGLE_CLIENT_ID,
+      config.GOOGLE_CLIENT_SECRET,
+      `${config.PUBLIC_BASE_URL}/api/auth/google/callback`,
+    );
+    const calendar = createGoogleCalendarGateway({ db, google, clock: systemClock });
     globalForRuntime.dynacalRuntime = {
       config,
-      commands: createCommands({ db, clock: systemClock, ownerEmail: config.OWNER_EMAIL }),
-      google: new Google(
-        config.GOOGLE_CLIENT_ID,
-        config.GOOGLE_CLIENT_SECRET,
-        `${config.PUBLIC_BASE_URL}/api/auth/google/callback`,
-      ),
+      commands: createCommands({ db, clock: systemClock, ownerEmail: config.OWNER_EMAIL, calendar }),
+      google,
     };
   }
   return globalForRuntime.dynacalRuntime;

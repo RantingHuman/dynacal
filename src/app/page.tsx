@@ -9,6 +9,7 @@ export default async function HomePage() {
   if (!session) redirect("/sign-in");
 
   const { commands } = getRuntime();
+  if (!commands.getSetupStatus().complete) redirect("/setup");
   const scheduleView = commands.getSchedule();
 
   return (
@@ -49,6 +50,13 @@ export default async function HomePage() {
                 taskTitle: b.taskTitle,
                 start: b.start.toISOString(),
                 end: b.end.toISOString(),
+              }))}
+              events={scheduleView.events.map((e) => ({
+                id: e.id,
+                title: e.title,
+                allDay: e.allDay,
+                start: e.start.toISOString(),
+                end: e.end.toISOString(),
               }))}
               workingHours={commands.getSettings().workingHours}
             />

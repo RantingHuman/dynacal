@@ -4,7 +4,7 @@ import { createTestApp } from "./testing";
 const nineToFive = [{ start: 9 * 60, end: 17 * 60 }];
 
 describe("settings", () => {
-  it("starts with weekday 9–5 Working Hours, 30-minute Minimum Block Length and 10-minute reminders", () => {
+  it("starts with weekday 9–5 Working Hours, 30-minute Minimum Block Length, 10-minute reminders, and free and all-day Events ignored", () => {
     const { commands } = createTestApp();
 
     expect(commands.getSettings()).toEqual({
@@ -20,6 +20,8 @@ describe("settings", () => {
       timeZone: null,
       minimumBlockMinutes: 30,
       reminderLeadMinutes: 10,
+      countFreeEvents: false,
+      countAllDayEvents: false,
     });
   });
 

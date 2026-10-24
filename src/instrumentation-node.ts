@@ -1,5 +1,6 @@
 // Refuse to boot with incomplete config, and open/migrate the database before serving requests.
 import { ConfigError } from "./server/config";
+import { startEventPolling } from "./server/polling";
 import { getRuntime } from "./server/runtime";
 
 try {
@@ -11,6 +12,8 @@ try {
   }
   throw error;
 }
+
+startEventPolling();
 
 // As PID 1 in a container, Node ignores SIGTERM unless something handles it; exiting runs the database's close hook.
 for (const signal of ["SIGTERM", "SIGINT"] as const) {

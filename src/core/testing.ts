@@ -1,6 +1,7 @@
 import type { Clock } from "./clock";
 import { createCommands } from "./commands";
 import { openDatabase } from "./db";
+import { FakeCalendarGateway } from "./fake-calendar-gateway";
 
 /** A clock that only moves when a test tells it to. */
 export class FakeClock implements Clock {
@@ -16,10 +17,11 @@ export class FakeClock implements Clock {
   }
 }
 
-/** The command layer wired to an in-memory database and a fake clock. */
+/** The command layer wired to an in-memory database, a fake clock and a fake Google account. */
 export function createTestApp({ ownerEmail = "owner@example.com" }: { ownerEmail?: string } = {}) {
   const db = openDatabase(":memory:");
   const clock = new FakeClock();
-  const commands = createCommands({ db, clock, ownerEmail });
-  return { commands, clock, db };
+  const calendar = new FakeCalendarGateway();
+  const commands = createCommands({ db, clock, ownerEmail, calendar });
+  return { commands, clock, db, calendar };
 }

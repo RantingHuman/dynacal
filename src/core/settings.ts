@@ -15,6 +15,10 @@ export interface Settings {
   timeZone: string | null;
   minimumBlockMinutes: number;
   reminderLeadMinutes: number;
+  /** Whether Events marked "free" in Google count as busy time. */
+  countFreeEvents: boolean;
+  /** Whether all-day Events count as busy time. */
+  countAllDayEvents: boolean;
 }
 
 const nineToFive = (): TimeWindow[] => [{ start: 9 * 60, end: 17 * 60 }];
@@ -32,6 +36,8 @@ export const DEFAULT_SETTINGS: Settings = {
   timeZone: null,
   minimumBlockMinutes: 30,
   reminderLeadMinutes: 10,
+  countFreeEvents: false,
+  countAllDayEvents: false,
 };
 
 export type SettingsUpdate = Partial<Settings>;
