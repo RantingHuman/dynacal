@@ -6,9 +6,9 @@
 
 **Status:** ready-for-agent
 
-- [ ] Working Hours can be set per weekday as one or more time windows, with a sensible default
-- [ ] The time zone can be set, defaulting to the browser's time zone during setup
-- [ ] Minimum Block Length can be set, defaulting to 30 minutes, in 15-minute steps
-- [ ] Reminder lead time can be set, defaulting to 10 minutes
-- [ ] Invalid input is rejected with a clear message (e.g. overlapping or inverted windows)
-- [ ] Command-layer tests cover reading and updating settings, and validation
+- [x] Working Hours can be set per weekday as one or more time windows, with a sensible default
+- [x] The time zone can be set, defaulting to the browser's time zone during setup
+- [x] Minimum Block Length can be set, defaulting to 30 minutes, in 15-minute steps
+- [x] Reminder lead time can be set, defaulting to 10 minutes
+- [x] Invalid input is rejected with a clear message (e.g. overlapping or inverted windows)
+- [x] Command-layer tests cover reading and updating settings, and validation

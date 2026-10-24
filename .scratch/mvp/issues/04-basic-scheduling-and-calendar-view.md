@@ -11,6 +11,7 @@
 - [ ] Tasks are placed earliest-deadline-first; Tasks without a deadline come after all deadlined ones, ordered by Priority
 - [ ] Tasks are split as needed with no Block shorter than the Minimum Block Length; a "don't split" Task gets exactly one Block
 - [ ] No Block for a Task is placed before its Earliest Start
+- [ ] Until the owner has saved a time zone (Settings leaves it unset before then), scheduling doesn't run and the main screen asks them to set one in Settings
 - [ ] A date-only deadline is turned into the end of that day's Working Hours, and a date-only Earliest Start into the start, before scheduling
 - [ ] At Risk: a Task that can't fully fit before its deadline gets as much time as fits before the deadline, and the remainder is scheduled after it
 - [ ] Overdue: an incomplete Task whose deadline has passed is scheduled as soon as possible

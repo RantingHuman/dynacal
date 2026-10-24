@@ -60,6 +60,10 @@ _Avoid_: Min chunk, minimum slot
 Anything on a connected calendar that is not a Block; it is busy time the app never moves.
 _Avoid_: Meeting, appointment, busy slot
 
+**Reminder Lead Time**:
+How long before a Block starts the user is reminded about it.
+_Avoid_: Notification offset, alert time
+
 **Busy Calendar**:
 A connected calendar the user has chosen to count as busy time; its Events constrain the Schedule.
 _Avoid_: Source calendar, blocking calendar

@@ -9,6 +9,9 @@ export default async function HomePage() {
     <main>
       <h1>dynacal</h1>
       <p className="muted">Signed in as {session.email}.</p>
+      <p>
+        <a href="/settings">Settings</a>
+      </p>
       <form action="/api/auth/sign-out" method="post">
         <button className="button" type="submit">
           Sign out
