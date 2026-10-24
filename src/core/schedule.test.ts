@@ -43,17 +43,21 @@ describe("the Schedule", () => {
     ]);
   });
 
-  it("keeps other Tasks' Blocks where they were when a Task is deleted", () => {
+  it("keeps an unaffected Task's Blocks where they were when another Task changes", () => {
     const { commands } = appInLondon();
-    const first = createTask(commands, { title: "First" });
-    createTask(commands, { title: "Second" });
-    createTask(commands, { title: "Third" });
+    createTask(commands, { title: "First" });
+    const second = createTask(commands, { title: "Second", deadline: { date: "2026-01-06", time: null } });
+    expect(blocks(commands)).toEqual([
+      ["Second", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"],
+      ["First", "2026-01-05T10:00:00.000Z", "2026-01-05T11:00:00.000Z"],
+    ]);
 
-    commands.deleteTask(first.id);
+    // Now the two are equally good in either order, so neither moves.
+    commands.updateTask(second.id, { ...oneHour, title: "Second" });
 
     expect(blocks(commands)).toEqual([
-      ["Second", "2026-01-05T10:00:00.000Z", "2026-01-05T11:00:00.000Z"],
-      ["Third", "2026-01-05T11:00:00.000Z", "2026-01-05T12:00:00.000Z"],
+      ["Second", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"],
+      ["First", "2026-01-05T10:00:00.000Z", "2026-01-05T11:00:00.000Z"],
     ]);
   });
 

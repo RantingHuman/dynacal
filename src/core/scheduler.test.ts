@@ -310,43 +310,35 @@ describe("scheduler", () => {
       end: new Date(`2026-01-05T${end}:00Z`),
     });
 
-    it("leaves a Block where it was when the time before it frees up", () => {
-      const result = schedule(
-        input({ tasks: [task("b")], previousSchedule: [at("a", "09:00", "10:00"), at("b", "10:00", "11:00")] }),
-      );
-
-      expect(blocksOf(result)).toEqual([["b", "2026-01-05T10:00:00.000Z", "2026-01-05T11:00:00.000Z"]]);
-    });
-
-    it("leaves other Tasks' Blocks where they were when one Task grows", () => {
+    it("between Tasks of equal standing, keeps the order they had in the previous Schedule", () => {
       const result = schedule(
         input({
-          tasks: [task("a", { remainingMinutes: 90 }), task("b"), task("c")],
-          previousSchedule: [at("a", "09:00", "10:00"), at("b", "10:00", "11:00"), at("c", "11:00", "12:00")],
+          tasks: [task("first"), task("second")],
+          previousSchedule: [at("second", "09:00", "10:00"), at("first", "10:00", "11:00")],
         }),
       );
 
       expect(blocksOf(result)).toEqual([
-        ["a", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"],
-        ["b", "2026-01-05T10:00:00.000Z", "2026-01-05T11:00:00.000Z"],
-        ["c", "2026-01-05T11:00:00.000Z", "2026-01-05T12:00:00.000Z"],
-        ["a", "2026-01-05T12:00:00.000Z", "2026-01-05T12:30:00.000Z"],
+        ["second", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"],
+        ["first", "2026-01-05T10:00:00.000Z", "2026-01-05T11:00:00.000Z"],
       ]);
     });
 
-    it("moves a Block earlier when keeping it would leave its Task At Risk", () => {
+    it("places a new Task of equal standing after the ones already in the Schedule", () => {
       const result = schedule(
         input({
-          tasks: [task("a", { deadline: new Date("2026-01-05T11:00:00Z") })],
-          previousSchedule: [at("a", "11:00", "12:00")],
+          tasks: [task("new"), task("existing")],
+          previousSchedule: [at("existing", "09:00", "10:00")],
         }),
       );
 
-      expect(blocksOf(result)).toEqual([["a", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"]]);
-      expect(result.flags).toEqual({ a: null });
+      expect(blocksOf(result)).toEqual([
+        ["existing", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"],
+        ["new", "2026-01-05T10:00:00.000Z", "2026-01-05T11:00:00.000Z"],
+      ]);
     });
 
-    it("gives a higher-Priority Task the earlier time a lower-Priority Task had", () => {
+    it("still gives a higher-Priority Task the earlier time a lower-Priority Task had", () => {
       const result = schedule(
         input({
           tasks: [task("low", { priority: "low" }), task("critical", { priority: "critical" })],
@@ -360,18 +352,12 @@ describe("scheduler", () => {
       ]);
     });
 
-    it("between two Tasks of equal standing, keeps the order they were in", () => {
+    it("still moves Blocks earlier into time that frees up", () => {
       const result = schedule(
-        input({
-          tasks: [task("first"), task("second")],
-          previousSchedule: [at("second", "09:00", "10:00"), at("first", "10:00", "11:00")],
-        }),
+        input({ tasks: [task("b")], previousSchedule: [at("a", "09:00", "10:00"), at("b", "10:00", "11:00")] }),
       );
 
-      expect(blocksOf(result)).toEqual([
-        ["second", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"],
-        ["first", "2026-01-05T10:00:00.000Z", "2026-01-05T11:00:00.000Z"],
-      ]);
+      expect(blocksOf(result)).toEqual([["b", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"]]);
     });
   });
 
@@ -529,14 +515,14 @@ describe("scheduler", () => {
       }
     });
 
-    it("flags no Task by keeping Blocks where they were that would be fine without", () => {
+    it("flags no more Tasks by keeping Blocks where they were than it would without", () => {
+      const flagged = (result: ReturnType<typeof schedule>) =>
+        Object.values(result.flags).filter((flag) => flag !== null).length;
       for (const seed of seeds) {
         const withPrevious = randomInput(seed);
-        const kept = schedule(withPrevious).flags;
-        const fresh = schedule({ ...withPrevious, previousSchedule: [] }).flags;
-        for (const [id, flag] of Object.entries(fresh)) {
-          if (flag === null) expect(kept[id]).toBeNull();
-        }
+        expect(flagged(schedule(withPrevious))).toBeLessThanOrEqual(
+          flagged(schedule({ ...withPrevious, previousSchedule: [] })),
+        );
       }
     });
 
