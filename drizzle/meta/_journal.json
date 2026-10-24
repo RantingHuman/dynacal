@@ -15,6 +15,13 @@
       "when": 1792870176183,
       "tag": "0001_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1792870728223,
+      "tag": "0002_tasks",
+      "breakpoints": true
     }
   ]
 }

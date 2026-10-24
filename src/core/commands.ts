@@ -1,9 +1,18 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import type { Clock } from "./clock";
 import type { Db } from "./db";
-import { sessions, settings } from "./db/schema";
+import { sessions, settings, tasks } from "./db/schema";
 import { DEFAULT_SETTINGS, validateSettings, type Settings, type SettingsUpdate, type UpdateSettingsResult } from "./settings";
+import {
+  compareTasks,
+  validateTask,
+  type DateOrDateTime,
+  type Task,
+  type TaskInput,
+  type TaskResult,
+  type UpdateTaskResult,
+} from "./tasks";
 
 const SESSION_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -39,6 +48,35 @@ export function createCommands({ db, clock, ownerEmail }: CommandDeps) {
     return saved;
   }
 
+  function taskRow(input: TaskInput) {
+    return {
+      title: input.title.trim(),
+      notes: input.notes,
+      estimatedMinutes: input.estimatedMinutes,
+      deadlineDate: input.deadline?.date ?? null,
+      deadlineTime: input.deadline?.time ?? null,
+      earliestStartDate: input.earliestStart?.date ?? null,
+      earliestStartTime: input.earliestStart?.time ?? null,
+      priority: input.priority,
+      dontSplit: input.dontSplit,
+    };
+  }
+
+  function toTask(row: typeof tasks.$inferSelect): Task {
+    const dateOrDateTime = (date: string | null, time: string | null): DateOrDateTime | null =>
+      date === null ? null : { date, time };
+    return {
+      id: row.id,
+      title: row.title,
+      notes: row.notes,
+      estimatedMinutes: row.estimatedMinutes,
+      deadline: dateOrDateTime(row.deadlineDate, row.deadlineTime),
+      earliestStart: dateOrDateTime(row.earliestStartDate, row.earliestStartTime),
+      priority: row.priority,
+      dontSplit: row.dontSplit,
+    };
+  }
+
   return {
     /** Only the deployment's owner (ADR-0001) may sign in, and only with an email Google has verified. */
     signIn(identity: GoogleIdentity): SignInResult {
@@ -67,6 +105,37 @@ export function createCommands({ db, clock, ownerEmail }: CommandDeps) {
     },
 
     getSettings,
+
+    createTask(input: TaskInput): TaskResult {
+      const errors = validateTask(input);
+      if (errors) return { ok: false, errors };
+      const row = { id: randomUUID(), createdAt: clock.now(), ...taskRow(input) };
+      db.insert(tasks).values(row).run();
+      return { ok: true, task: toTask(row) };
+    },
+
+    updateTask(id: string, input: TaskInput): UpdateTaskResult {
+      if (!db.select({ id: tasks.id }).from(tasks).where(eq(tasks.id, id)).get()) return { ok: false, notFound: true };
+      const errors = validateTask(input);
+      if (errors) return { ok: false, errors };
+      const row = db.update(tasks).set(taskRow(input)).where(eq(tasks.id, id)).returning().get();
+      return { ok: true, task: toTask(row) };
+    },
+
+    deleteTask(id: string): void {
+      db.delete(tasks).where(eq(tasks.id, id)).run();
+    },
+
+    /** Every Task, in Task list order. */
+    listTasks(): Task[] {
+      return db
+        .select()
+        .from(tasks)
+        .all()
+        .map((row) => ({ ...toTask(row), createdAt: row.createdAt }))
+        .sort(compareTasks)
+        .map(({ createdAt: _createdAt, ...task }) => task);
+    },
 
     updateSettings(update: SettingsUpdate): UpdateSettingsResult {
       const next = { ...getSettings(), ...update };

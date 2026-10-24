@@ -9,6 +9,11 @@ export function secureCookies(): boolean {
   return getRuntime().config.PUBLIC_BASE_URL.startsWith("https://");
 }
 
+/** For server actions: refuse to act unless the owner is signed in. */
+export async function requireOwner(): Promise<void> {
+  if (!(await currentSession())) throw new Error("Not signed in.");
+}
+
 /** The signed-in owner's session for the current request, or null. */
 export async function currentSession() {
   const sessionId = (await cookies()).get(SESSION_COOKIE)?.value;
