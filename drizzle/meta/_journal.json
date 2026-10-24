@@ -64,6 +64,13 @@
       "when": 1792873620413,
       "tag": "0008_dynacal-calendar",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1792874034176,
+      "tag": "0009_pinned-blocks",
+      "breakpoints": true
     }
   ]
 }

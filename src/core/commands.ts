@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { and, eq, gt, gte, isNull, lt, lte, sql } from "drizzle-orm";
+import { and, eq, gt, gte, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { CalendarAuthError, type CalendarEvent, type CalendarGateway, type GoogleCalendar } from "./calendar-gateway";
 import type { Clock } from "./clock";
 import { watchConnectionHealth } from "./connection-health";
@@ -26,10 +26,12 @@ import {
 import { planBlockEventWrites, type WantedBlockEvent } from "./block-events";
 import { countsAsBusy, eventInterval, eventsFingerprint } from "./events";
 import { validatePushSubscription, type PushSender, type PushSubscriptionInput, type SubscribeToPushResult } from "./push";
+import { validateBlockTime, type MoveBlockResult, type UnpinBlockResult } from "./pinning";
 import { dueReminders, reminderMessage } from "./reminders";
 import {
   PLANNING_HORIZON_DAYS,
   resolveDeadline,
+  findConflicts,
   resolveEarliestStart,
   schedule,
   type TaskFlag,
@@ -125,6 +127,8 @@ export interface BlockView {
   taskTitle: string;
   start: Date;
   end: Date;
+  /** A Pinned Block: Recalculation plans around it instead of moving it. */
+  pinned: boolean;
 }
 
 /** Until the owner saves a time zone, there's no Schedule. */
@@ -139,6 +143,8 @@ export type ScheduleView =
       /** Events that count as busy time, in time order. */
       events: EventView[];
       flags: Record<string, TaskFlag | null>;
+      /** Events overlapping Pinned Blocks that haven't ended, for the owner to resolve. */
+      conflicts: { blockId: string; eventId: string }[];
     };
 
 /** An Unreviewed Block as the review banner shows it. */
@@ -305,8 +311,9 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
   /**
    * Makes the dynacal calendar match the Schedule: each future Block of an incomplete Task becomes an event
    * with the Task title and a popup reminder at the Reminder Lead Time. Blocks that have started are left as
-   * they were written. Does nothing until Google is connected, or while the connection is broken: Google would
-   * refuse the writes, and the next poll after reconnecting catches up.
+   * they were written, except a Pinned Block in progress, whose end the owner can still change. Does nothing
+   * until Google is connected, or while the connection is broken: Google would refuse the writes, and the next
+   * poll after reconnecting catches up.
    */
   async function reconcileBlockEvents(): Promise<void> {
     if (getGoogleConnection().status !== "connected") return;
@@ -316,18 +323,32 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     const { reminderLeadMinutes } = getSettings();
     // Events that have ended will never change again.
     db.delete(blockEvents).where(lte(blockEvents.end, now)).run();
-    const wanted = db
-      .select({ taskId: blocks.taskId, title: tasks.title, start: blocks.start, end: blocks.end })
+    const wantedBlocks = db
+      .select({
+        taskId: blocks.taskId,
+        blockId: blocks.id,
+        title: tasks.title,
+        start: blocks.start,
+        end: blocks.end,
+      })
       .from(blocks)
       .innerJoin(tasks, eq(blocks.taskId, tasks.id))
-      .where(and(gte(blocks.start, now), isNull(tasks.completedAt)))
-      .all()
-      .map((b) => ({ ...b, reminderMinutes: reminderLeadMinutes }));
+      .where(
+        and(
+          isNull(tasks.completedAt),
+          or(gte(blocks.start, now), and(eq(blocks.pinned, true), gt(blocks.end, now))),
+        ),
+      )
+      .all();
+    const wanted = wantedBlocks.map((b) => ({ ...b, reminderMinutes: reminderLeadMinutes }));
+    // A Task with a Pinned Block in progress has its in-progress event in play too, so a resize updates it.
+    const resizable = new Set(wantedBlocks.filter((b) => b.start < now).map((b) => b.taskId));
     const written = db
       .select()
       .from(blockEvents)
-      .where(and(eq(blockEvents.calendarId, calendarId), gte(blockEvents.start, now)))
-      .all();
+      .where(eq(blockEvents.calendarId, calendarId))
+      .all()
+      .filter((e) => e.start >= now || resizable.has(e.taskId));
     const writes = planBlockEventWrites(wanted, written);
 
     const record = (eventId: string, event: WantedBlockEvent) =>
@@ -335,17 +356,23 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         .values({ calendarId, eventId, ...event })
         .onConflictDoUpdate({ target: [blockEvents.calendarId, blockEvents.eventId], set: event })
         .run();
+    const relink = (eventId: string, blockId: string) =>
+      db.update(blockEvents)
+        .set({ blockId })
+        .where(and(eq(blockEvents.calendarId, calendarId), eq(blockEvents.eventId, eventId)))
+        .run();
     const forget = (eventId: string) =>
       db.delete(blockEvents)
         .where(and(eq(blockEvents.calendarId, calendarId), eq(blockEvents.eventId, eventId)))
         .run();
+    for (const { eventId, blockId } of writes.relink) relink(eventId, blockId);
     // Each write is recorded as soon as Google has it, so a failure part-way leaves an accurate record.
     for (const event of writes.delete) {
       await calendar.deleteBlockEvent(calendarId, event.eventId);
       forget(event.eventId);
     }
     for (const { eventId, event } of writes.update) {
-      const { taskId: _taskId, ...blockEvent } = event;
+      const { taskId: _taskId, blockId: _blockId, ...blockEvent } = event;
       if ((await calendar.updateBlockEvent(calendarId, eventId, blockEvent)) === "updated") {
         record(eventId, event);
       } else {
@@ -355,7 +382,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       }
     }
     for (const event of writes.create) {
-      const { taskId: _taskId, ...blockEvent } = event;
+      const { taskId: _taskId, blockId: _blockId, ...blockEvent } = event;
       record(await calendar.createBlockEvent(calendarId, blockEvent), event);
     }
   }
@@ -392,6 +419,11 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     db.transaction((tx) => {
       const started = tx.select().from(blocks).where(lt(blocks.start, now)).all();
       const inProgress = started.filter((b) => b.end > now);
+      const pinnedAhead = tx
+        .select()
+        .from(blocks)
+        .where(and(gte(blocks.start, now), eq(blocks.pinned, true)))
+        .all();
       // The elapsed part of an in-progress Block; the scheduler accounts for the rest of it.
       const elapsedMs = new Map<string, number>();
       for (const b of inProgress) {
@@ -405,7 +437,12 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         .where(isNull(tasks.completedAt))
         .orderBy(tasks.createdAt, sql`rowid`)
         .all();
-      const previousSchedule = tx.select().from(blocks).where(gte(blocks.start, now)).all();
+      // Pinned Blocks stay where they are anyway, so only unpinned ones are worth keeping in place.
+      const previousSchedule = tx
+        .select()
+        .from(blocks)
+        .where(and(gte(blocks.start, now), eq(blocks.pinned, false)))
+        .all();
 
       const result = schedule({
         now,
@@ -432,12 +469,14 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
           dontSplit: row.dontSplit,
         })),
         busy,
-        pinnedBlocks: [],
-        fixedBlocks: inProgress,
+        pinnedBlocks: [...inProgress.filter((b) => b.pinned), ...pinnedAhead],
+        fixedBlocks: inProgress.filter((b) => !b.pinned),
         previousSchedule,
       });
 
-      tx.delete(blocks).where(gte(blocks.start, now)).run();
+      tx.delete(blocks)
+        .where(and(gte(blocks.start, now), eq(blocks.pinned, false)))
+        .run();
       for (const block of result.blocks) tx.insert(blocks).values({ id: randomUUID(), ...block }).run();
       for (const row of taskRows) {
         tx.update(tasks)
@@ -673,6 +712,31 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       return { ok: true };
     },
 
+    /** Moves or resizes a Block, which makes it a Pinned Block at its new time, then recalculates. */
+    moveBlock(id: string, to: { start: Date; end: Date }): MoveBlockResult {
+      const block = db.select().from(blocks).where(eq(blocks.id, id)).get();
+      if (!block) return { ok: false, notFound: true };
+      const now = clock.now();
+      const errors = validateBlockTime(to, {
+        now,
+        horizonEnd: new Date(now.getTime() + PLANNING_HORIZON_DAYS * DAY_MS),
+        horizonDays: PLANNING_HORIZON_DAYS,
+        current: block,
+      });
+      if (errors) return { ok: false, errors };
+      db.update(blocks).set({ start: to.start, end: to.end, pinned: true }).where(eq(blocks.id, id)).run();
+      recalculate();
+      return { ok: true };
+    },
+
+    /** Unpins a Block, so Recalculation manages it again (a Block that hasn't started is placed afresh). */
+    unpinBlock(id: string): UnpinBlockResult {
+      const row = db.update(blocks).set({ pinned: false }).where(eq(blocks.id, id)).returning().get();
+      if (!row) return { ok: false, notFound: true };
+      recalculate();
+      return { ok: true };
+    },
+
     /** Records whether a past Block's work happened, then recalculates so any time added back is scheduled. */
     reviewBlock(id: string, outcome: ReviewOutcome): ReviewBlockResult {
       const block = db.select().from(blocks).where(eq(blocks.id, id)).get();
@@ -707,6 +771,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
           taskTitle,
           start: block.start,
           end: block.end,
+          pinned: block.pinned,
           suggestedWorkedMinutes: suggestedWorkedMinutes(block),
         }));
     },
@@ -729,16 +794,30 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
           .all()
           .map(({ id, flag }) => [id, flag]),
       );
+      const blockViews: BlockView[] = rows.map(({ block, taskTitle }) => ({
+        id: block.id,
+        taskId: block.taskId,
+        taskTitle,
+        start: block.start,
+        end: block.end,
+        pinned: block.pinned,
+      }));
+      const eventViews: EventView[] = cachedEvents()
+        .filter((e) => countsAsBusy(e, current))
+        .map((e) => ({ id: `${e.calendarId}/${e.id}`, title: e.title, allDay: e.allDay, ...eventInterval(e, timeZone) }))
+        .sort((a, b) => a.start.getTime() - b.start.getTime());
+      const pinnedAhead = blockViews.filter((b) => b.pinned && b.end > now);
       return {
         status: "ready",
         timeZone,
         horizon: { start: now, end: new Date(now.getTime() + PLANNING_HORIZON_DAYS * DAY_MS) },
-        blocks: rows.map(({ block, taskTitle }) => ({ ...block, taskTitle })),
-        events: cachedEvents()
-          .filter((e) => countsAsBusy(e, current))
-          .map((e) => ({ id: `${e.calendarId}/${e.id}`, title: e.title, allDay: e.allDay, ...eventInterval(e, timeZone) }))
-          .sort((a, b) => a.start.getTime() - b.start.getTime()),
+        blocks: blockViews,
+        events: eventViews,
         flags,
+        conflicts: findConflicts(pinnedAhead, eventViews).map(({ block, event }) => ({
+          blockId: block.id,
+          eventId: event.id,
+        })),
       };
     },
 

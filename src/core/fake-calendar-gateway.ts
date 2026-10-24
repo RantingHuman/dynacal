@@ -77,6 +77,12 @@ export class FakeCalendarGateway implements CalendarGateway {
       .map((e) => [e.title, e.start, e.end, this.reminders.get(e.id)]);
   }
 
+  /** One timed event by its ID, as [title, start, end]; undefined once it's gone. */
+  blockEvent(eventId: string): [string, Date, Date] | undefined {
+    const e = this.events.find((e) => e.id === eventId);
+    return e && !e.allDay ? [e.title, e.start, e.end] : undefined;
+  }
+
   async listCalendars(): Promise<GoogleCalendar[]> {
     this.checkCredentials();
     return structuredClone(this.calendars);

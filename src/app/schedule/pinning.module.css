@@ -1,0 +1,156 @@
+/* Pinned Blocks, Conflicts, dragging and the Block editor. */
+
+.movable {
+  cursor: grab;
+  touch-action: auto;
+}
+
+.movable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.dragging {
+  cursor: grabbing;
+  opacity: 0.85;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.25);
+  z-index: 3;
+}
+
+/* A Pinned Block: a solid accent fill and a thick left rule, so it reads as placed by hand. */
+.pinned {
+  border-left-width: 6px;
+  background: color-mix(in srgb, var(--accent) 38%, var(--bg));
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.pinnedMark {
+  font-weight: 600;
+}
+
+/* A Conflict: a red outline on both the Pinned Block and the Event it overlaps. */
+.conflict {
+  outline: 2px solid var(--error-fg);
+  outline-offset: -1px;
+  border-left-color: var(--error-fg);
+  /* Leaves the overlapped Event visible beside it. */
+  left: 45%;
+}
+
+.conflictMark {
+  color: var(--error-fg);
+}
+
+.eventConflict {
+  border: 2px solid var(--error-fg);
+}
+
+.handle {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+.handleTop {
+  top: 0;
+}
+
+.handleBottom {
+  bottom: 0;
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.conflicts {
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--error-fg);
+  border-radius: 0.4rem;
+  background: var(--error-bg);
+}
+
+.conflicts h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+  color: var(--error-fg);
+}
+
+.conflicts ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.conflicts li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  align-items: baseline;
+}
+
+.editor {
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--accent);
+  border-radius: 0.4rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.editor h2 {
+  margin: 0;
+  font-size: 1rem;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.editor p {
+  margin: 0;
+}
+
+.pinnedTag {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.05rem 0.4rem;
+  border-radius: 0.3rem;
+  background: var(--accent);
+  color: white;
+}
+
+.conflictNote {
+  color: var(--error-fg);
+}
+
+.editorForm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.editorForm label {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+}
+
+.editorForm input {
+  font: inherit;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.3rem;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.editorActions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}

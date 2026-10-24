@@ -54,6 +54,8 @@ export const blocks = sqliteTable("blocks", {
   review: text("review").$type<BlockReview>(),
   /** Minutes worked, for a "did part of it" review. */
   workedMinutes: integer("worked_minutes"),
+  /** A Pinned Block: the owner placed it by hand, so Recalculation plans around it instead of moving it. */
+  pinned: integer("pinned", { mode: "boolean" }).notNull().default(false),
 });
 
 /** A single row (id = 1) holding the owner's Google Calendar connection; absent until they connect. */
@@ -82,6 +84,11 @@ export const blockEvents = sqliteTable(
     eventId: text("event_id").notNull(),
     /** No foreign key: a deleted Task's events must still be found so they can be deleted from Google. */
     taskId: text("task_id").notNull(),
+    /**
+     * The Block the event was last matched to. Only a Pinned Block keeps its ID through Recalculations, so
+     * this is what lets a moved Pinned Block update its own event. No foreign key, for the same reason as Task.
+     */
+    blockId: text("block_id"),
     title: text("title").notNull(),
     start: integer("start", { mode: "timestamp_ms" }).notNull(),
     end: integer("end", { mode: "timestamp_ms" }).notNull(),

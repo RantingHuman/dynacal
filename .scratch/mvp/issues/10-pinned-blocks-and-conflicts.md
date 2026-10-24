@@ -6,10 +6,10 @@
 
 **Status:** ready-for-agent
 
-- [ ] Dragging or resizing a Block in the Day or Week view makes it a Pinned Block at its new time
-- [ ] A Pinned Block can be unpinned, after which Recalculation manages it again
-- [ ] A Pinned Block can be placed outside Working Hours
-- [ ] Time in Pinned Blocks counts toward the Task, so the scheduler places only the rest
-- [ ] An Event overlapping a Pinned Block is flagged as a Conflict; the app never moves the Pinned Block itself
-- [ ] Pinned Blocks and Conflicts look visually distinct in the calendar
-- [ ] Scheduler tests cover planning around Pinned Blocks and detecting Conflicts; command-layer tests cover pinning, unpinning and the Recalculation that follows
+- [x] Dragging or resizing a Block in the Day or Week view makes it a Pinned Block at its new time
+- [x] A Pinned Block can be unpinned, after which Recalculation manages it again
+- [x] A Pinned Block can be placed outside Working Hours
+- [x] Time in Pinned Blocks counts toward the Task, so the scheduler places only the rest
+- [x] An Event overlapping a Pinned Block is flagged as a Conflict; the app never moves the Pinned Block itself
+- [x] Pinned Blocks and Conflicts look visually distinct in the calendar
+- [x] Scheduler tests cover planning around Pinned Blocks and detecting Conflicts; command-layer tests cover pinning, unpinning and the Recalculation that follows

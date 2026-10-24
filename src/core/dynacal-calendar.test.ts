@@ -283,3 +283,101 @@ describe("Blocks in the dynacal calendar", () => {
     logged.mockRestore();
   });
 });
+
+describe("A moved Block in the dynacal calendar", () => {
+  /** The ID of the event written for the Task's first Block. */
+  function onlyWrittenEvent(app: App): string {
+    const created = app.calendar.writes.filter((w) => w.kind === "create-event");
+    if (created.length !== 1 || !("eventId" in created[0])) throw new Error("expected one written event");
+    return created[0].eventId;
+  }
+
+  function blockOf(app: App, index = 0) {
+    const view = app.commands.getSchedule();
+    if (view.status !== "ready") throw new Error("Schedule not ready");
+    return view.blocks[index];
+  }
+
+  it("moves its own event to the new time, and the rest of the Task gets a new event", async () => {
+    const app = appInLondon();
+    const dynacal = await connect(app);
+    createTask(app, { estimatedMinutes: 120 });
+    await app.commands.writeBlocksToGoogle();
+    const eventId = onlyWrittenEvent(app);
+    app.calendar.writes = [];
+
+    app.commands.moveBlock(blockOf(app).id, { start: at("10:00"), end: at("11:00") });
+    await app.commands.writeBlocksToGoogle();
+
+    expect(app.calendar.blockEvent(eventId)).toEqual(["Write report", at("10:00"), at("11:00")]);
+    expect(app.calendar.writes.map((w) => w.kind)).toEqual(["update-event", "create-event"]);
+    expect(app.calendar.blockEventsOn(dynacal)).toEqual([
+      ["Write report", at("09:00"), at("10:00"), 10],
+      ["Write report", at("10:00"), at("11:00"), 10],
+    ]);
+  });
+
+  it("gets its new end in Google when it's resized after it started", async () => {
+    const app = appInLondon();
+    const dynacal = await connect(app);
+    createTask(app, { estimatedMinutes: 120 });
+    await app.commands.writeBlocksToGoogle();
+    const eventId = onlyWrittenEvent(app);
+    app.clock.set(at("09:30"));
+
+    app.commands.moveBlock(blockOf(app).id, { start: at("09:00"), end: at("10:00") });
+    await app.commands.writeBlocksToGoogle();
+
+    expect(app.calendar.blockEvent(eventId)).toEqual(["Write report", at("09:00"), at("10:00")]);
+    expect(app.calendar.blockEventsOn(dynacal)).toEqual([
+      ["Write report", at("09:00"), at("10:00"), 10],
+      ["Write report", at("10:00"), at("11:00"), 10],
+    ]);
+  });
+
+  it("keeps its event when it's moved after a Recalculation replaced the Task's Blocks", async () => {
+    const app = appInLondon();
+    await connect(app);
+    createTask(app, { estimatedMinutes: 120 });
+    await app.commands.writeBlocksToGoogle();
+    const eventId = onlyWrittenEvent(app);
+    app.commands.recalculate();
+    await app.commands.writeBlocksToGoogle();
+
+    app.commands.moveBlock(blockOf(app).id, { start: at("10:00"), end: at("11:00") });
+    await app.commands.writeBlocksToGoogle();
+
+    expect(app.calendar.blockEvent(eventId)).toEqual(["Write report", at("10:00"), at("11:00")]);
+  });
+
+  it("isn't written again when it's unpinned and Recalculation leaves it where it is", async () => {
+    const app = appInLondon();
+    await connect(app);
+    createTask(app);
+    app.commands.moveBlock(blockOf(app).id, { start: at("09:00"), end: at("10:00") });
+    await app.commands.writeBlocksToGoogle();
+    app.calendar.writes = [];
+
+    app.commands.unpinBlock(blockOf(app).id);
+    await app.commands.writeBlocksToGoogle();
+
+    expect(app.calendar.writes).toEqual([]);
+  });
+
+  it("moves its own event back when it's unpinned and Recalculation places it again", async () => {
+    const app = appInLondon();
+    const dynacal = await connect(app);
+    createTask(app);
+    await app.commands.writeBlocksToGoogle();
+    const eventId = onlyWrittenEvent(app);
+    app.commands.moveBlock(blockOf(app).id, { start: at("15:00"), end: at("16:00") });
+    await app.commands.writeBlocksToGoogle();
+    app.calendar.writes = [];
+
+    app.commands.unpinBlock(blockOf(app).id);
+    await app.commands.writeBlocksToGoogle();
+
+    expect(app.calendar.writes).toEqual([{ kind: "update-event", calendarId: dynacal, eventId }]);
+    expect(app.calendar.blockEvent(eventId)).toEqual(["Write report", at("09:00"), at("10:00")]);
+  });
+});

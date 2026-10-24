@@ -68,6 +68,7 @@ export default async function HomePage() {
                 taskTitle: b.taskTitle,
                 start: b.start.toISOString(),
                 end: b.end.toISOString(),
+                pinned: b.pinned,
               }))}
               events={scheduleView.events.map((e) => ({
                 id: e.id,
@@ -76,6 +77,7 @@ export default async function HomePage() {
                 start: e.start.toISOString(),
                 end: e.end.toISOString(),
               }))}
+              conflicts={scheduleView.conflicts}
               workingHours={commands.getSettings().workingHours}
               recalculationPaused={connection.status === "broken"}
             />
