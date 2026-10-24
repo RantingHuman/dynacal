@@ -6,6 +6,7 @@ import { createCommands, type Commands } from "@/core/commands";
 import { openDatabase } from "@/core/db";
 import { loadConfig, type Config } from "./config";
 import { createGoogleCalendarGateway } from "./google-calendar";
+import { createWebPushSender } from "./web-push-sender";
 
 export interface Runtime {
   config: Config;
@@ -32,7 +33,13 @@ export function getRuntime(): Runtime {
     const calendar = createGoogleCalendarGateway({ db, google, clock: systemClock });
     globalForRuntime.dynacalRuntime = {
       config,
-      commands: createCommands({ db, clock: systemClock, ownerEmail: config.OWNER_EMAIL, calendar }),
+      commands: createCommands({
+        db,
+        clock: systemClock,
+        ownerEmail: config.OWNER_EMAIL,
+        pushSender: createWebPushSender(config),
+        calendar,
+      }),
       google,
     };
   }

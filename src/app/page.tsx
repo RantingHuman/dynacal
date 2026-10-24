@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { getRuntime } from "@/server/runtime";
 import { currentSession } from "@/server/session";
+import { RemindersToggle } from "./reminders/reminders-toggle";
+import { UnreviewedBanner } from "./review/unreviewed-banner";
 import { Calendar } from "./schedule/calendar";
 import { TaskPanel } from "./tasks/task-panel";
 
@@ -17,6 +19,7 @@ export default async function HomePage() {
       <header className="app-header">
         <span className="brand">dynacal</span>
         <nav>
+          <RemindersToggle vapidPublicKey={getRuntime().config.VAPID_PUBLIC_KEY} />
           <a href="/settings">Settings</a>
           <form action="/api/auth/sign-out" method="post">
             <button className="link" type="submit">
@@ -25,6 +28,18 @@ export default async function HomePage() {
           </form>
         </nav>
       </header>
+      {scheduleView.status === "ready" && (
+        <UnreviewedBanner
+          timeZone={scheduleView.timeZone}
+          blocks={commands.listUnreviewedBlocks().map((b) => ({
+            id: b.id,
+            taskTitle: b.taskTitle,
+            start: b.start.toISOString(),
+            end: b.end.toISOString(),
+            suggestedWorkedMinutes: b.suggestedWorkedMinutes,
+          }))}
+        />
+      )}
       <div className="app-body">
         <TaskPanel
           tasks={commands.listTasks()}

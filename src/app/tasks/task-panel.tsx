@@ -1,8 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import type { TaskListItem } from "@/core/commands";
 import { PRIORITY_LABELS, formatDateOrDateTime, formatDuration, type Task } from "@/core/tasks";
 import type { TaskFlag } from "@/core/scheduler";
+import { CompleteTaskButton } from "./complete-task-button";
+import completion from "./completion.module.css";
 import { TaskForm } from "./task-form";
 
 const FLAG_LABELS: Record<TaskFlag, string> = {
@@ -13,7 +16,7 @@ const FLAG_LABELS: Record<TaskFlag, string> = {
 
 type Editing = { mode: "closed" } | { mode: "new" } | { mode: "edit"; task: Task };
 
-export function TaskPanel({ tasks, flags }: { tasks: Task[]; flags: Record<string, TaskFlag | null> }) {
+export function TaskPanel({ tasks, flags }: { tasks: TaskListItem[]; flags: Record<string, TaskFlag | null> }) {
   const [editing, setEditing] = useState<Editing>({ mode: "closed" });
 
   return (
@@ -40,7 +43,8 @@ export function TaskPanel({ tasks, flags }: { tasks: Task[]; flags: Record<strin
       ) : (
         <ul className="task-list">
           {tasks.map((task) => (
-            <li key={task.id}>
+            <li key={task.id} className={`${completion.item}${task.completedAt ? ` ${completion.completed}` : ""}`}>
+              <CompleteTaskButton id={task.id} title={task.title} completed={task.completedAt !== null} />
               <button
                 type="button"
                 className={`task-row${editing.mode === "edit" && editing.task.id === task.id ? " selected" : ""}`}
@@ -54,7 +58,13 @@ export function TaskPanel({ tasks, flags }: { tasks: Task[]; flags: Record<strin
                 </span>
                 <span className="task-meta">
                   <span className={`priority priority-${task.priority}`}>{PRIORITY_LABELS[task.priority]}</span>
-                  <span>{formatDuration(task.estimatedMinutes)}</span>
+                  {task.completedAt ? (
+                    <span>Complete</span>
+                  ) : (
+                    <span title="Remaining Duration of the estimated duration">
+                      {formatDuration(task.remainingMinutes)} of {formatDuration(task.estimatedMinutes)} remaining
+                    </span>
+                  )}
                   {task.deadline && <span>Due {formatDateOrDateTime(task.deadline)}</span>}
                   {task.earliestStart && <span>From {formatDateOrDateTime(task.earliestStart)}</span>}
                   {task.dontSplit && <span>Don’t split</span>}
