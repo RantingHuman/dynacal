@@ -8,7 +8,7 @@
 
 - [x] A Next.js (TypeScript) app with SQLite via Drizzle runs in a single Docker container; its data lives in one mounted file that survives restarts
 - [x] The app refuses to start, with a clear message, if any required config is missing: Google OAuth client ID and secret, owner email, public base URL, web push (VAPID) keys
-- [ ] Signing in with the configured owner's Google account works _(implemented; not yet tried against a real Google OAuth client)_
+- [x] Signing in with the configured owner's Google account works
 - [x] Signing in with any other Google account is refused with a clear message
 - [x] A command-layer test harness exists: in-memory SQLite and an injected fake clock, with one passing test of the owner-only sign-in check
 - [x] A self-hosting guide covers building and running the container, creating the Google OAuth client, and switching it to "In production" so refresh tokens don't expire after 7 days
