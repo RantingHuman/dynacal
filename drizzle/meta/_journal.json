@@ -57,6 +57,13 @@
       "when": 1792873019719,
       "tag": "0007_connection-health",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1792873620413,
+      "tag": "0008_dynacal-calendar",
+      "breakpoints": true
     }
   ]
 }

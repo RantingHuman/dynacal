@@ -2,6 +2,7 @@ import { OAuth2RequestError, type Google } from "arctic";
 import { eq } from "drizzle-orm";
 import {
   CalendarAuthError,
+  type BlockEvent,
   type CalendarEvent,
   type CalendarGateway,
   type GoogleCalendar,
@@ -15,7 +16,7 @@ const API = "https://www.googleapis.com/calendar/v3";
 /** Refresh an access token this long before Google says it expires. */
 const EXPIRY_MARGIN_MS = 60_000;
 
-/** The scope for connecting Google Calendar: read the owner's calendars, and (from ticket 09) write the dynacal calendar. */
+/** The scope for connecting Google Calendar: read the owner's calendars, and create and write the dynacal calendar. */
 export const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar";
 
 /** The real calendar gateway: the Google Calendar REST API, authorised with the stored refresh token. */
@@ -60,18 +61,42 @@ export function createGoogleCalendarGateway({
     return tokens.accessToken();
   }
 
-  /** A GET against the Calendar API; on a 401 it refreshes the access token once and retries. */
-  async function get<T>(path: string, params: Record<string, string> = {}): Promise<T> {
+  /**
+   * A request to the Calendar API; on a 401 it refreshes the access token once and retries. Statuses in
+   * `allow` are returned to the caller rather than thrown.
+   */
+  async function send(
+    method: "GET" | "POST" | "PUT" | "DELETE",
+    path: string,
+    { params = {}, body, allow = [] }: { params?: Record<string, string>; body?: unknown; allow?: number[] } = {},
+  ): Promise<Response> {
     const url = new URL(`${API}${path}`);
     for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
-    let response = await fetch(url, { headers: { Authorization: `Bearer ${await accessToken()}` } });
+    const attempt = async (token: string) =>
+      fetch(url, {
+        method,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+    let response = await attempt(await accessToken());
     if (response.status === 401) {
-      response = await fetch(url, { headers: { Authorization: `Bearer ${await accessToken(true)}` } });
+      response = await attempt(await accessToken(true));
       if (response.status === 401) throw new CalendarAuthError("Google rejected dynacal's access token.");
     }
-    if (!response.ok) throw new Error(`Google Calendar API ${path} failed: ${response.status} ${await response.text()}`);
-    return (await response.json()) as T;
+    if (!response.ok && !allow.includes(response.status)) {
+      throw new Error(`Google Calendar API ${method} ${path} failed: ${response.status} ${await response.text()}`);
+    }
+    return response;
   }
+
+  async function get<T>(path: string, params: Record<string, string> = {}): Promise<T> {
+    return (await (await send("GET", path, { params })).json()) as T;
+  }
+
+  const eventsPath = (calendarId: string) => `/calendars/${encodeURIComponent(calendarId)}/events`;
 
   /** Follows `nextPageToken` until every page is read. */
   async function getAll<Item>(path: string, params: Record<string, string>): Promise<Item[]> {
@@ -95,7 +120,7 @@ export function createGoogleCalendarGateway({
     },
 
     async listEvents(calendarId: string, range: TimeRange): Promise<CalendarEvent[]> {
-      const items = await getAll<GoogleEvent>(`/calendars/${encodeURIComponent(calendarId)}/events`, {
+      const items = await getAll<GoogleEvent>(eventsPath(calendarId), {
         timeMin: range.start.toISOString(),
         timeMax: range.end.toISOString(),
         singleEvents: "true",
@@ -111,6 +136,43 @@ export function createGoogleCalendarGateway({
         return [];
       });
     },
+
+    async createCalendar(name: string): Promise<GoogleCalendar> {
+      // Google adds a calendar the owner creates to their calendar list.
+      const created = (await (await send("POST", "/calendars", { body: { summary: name } })).json()) as { id: string };
+      return { id: created.id, name, primary: false };
+    },
+
+    async createBlockEvent(calendarId: string, event: BlockEvent): Promise<string> {
+      const created = (await (await send("POST", eventsPath(calendarId), { body: googleEvent(event) })).json()) as {
+        id: string;
+      };
+      return created.id;
+    },
+
+    async updateBlockEvent(calendarId: string, eventId: string, event: BlockEvent): Promise<"updated" | "gone"> {
+      const response = await send("PUT", `${eventsPath(calendarId)}/${encodeURIComponent(eventId)}`, {
+        body: googleEvent(event),
+        allow: [404, 410],
+      });
+      return response.ok ? "updated" : "gone";
+    },
+
+    async deleteBlockEvent(calendarId: string, eventId: string): Promise<void> {
+      await send("DELETE", `${eventsPath(calendarId)}/${encodeURIComponent(eventId)}`, { allow: [404, 410] });
+    },
+  };
+}
+
+/** A Block as a Google `Event`: the Task title, its time, and only a popup reminder at the Reminder Lead Time. */
+function googleEvent(event: BlockEvent) {
+  return {
+    summary: event.title,
+    start: { dateTime: event.start.toISOString() },
+    end: { dateTime: event.end.toISOString() },
+    // A full replacement (PUT) also revives an event the owner deleted, which Google keeps as "cancelled".
+    status: "confirmed",
+    reminders: { useDefault: false, overrides: [{ method: "popup", minutes: event.reminderMinutes }] },
   };
 }
 

@@ -112,6 +112,21 @@ describe("a broken Google connection", () => {
     expect(blocks(app)).toEqual([["Write report", at("09:00"), at("10:00")]]);
   });
 
+  it("stops writing Blocks to Google until the owner reconnects", async () => {
+    const app = await connectedApp();
+    const task = createTask(app);
+    await app.commands.writeBlocksToGoogle();
+    app.calendar.breakConnection();
+    await app.commands.syncEvents();
+    app.calendar.restoreConnection();
+    const writesBefore = app.calendar.writes.length;
+
+    app.commands.completeTask(task.id);
+    await app.commands.writeBlocksToGoogle();
+
+    expect(app.calendar.writes.length).toBe(writesBefore);
+  });
+
   it("is mended by reconnecting, which rereads Events and recalculates", async () => {
     const app = await connectedApp();
     createTask(app, { title: "Write report" });

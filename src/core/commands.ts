@@ -12,6 +12,7 @@ import {
 } from "./completion";
 import type { Db } from "./db";
 import {
+  blockEvents,
   blocks,
   busyCalendars,
   events,
@@ -22,6 +23,7 @@ import {
   settings,
   tasks,
 } from "./db/schema";
+import { planBlockEventWrites, type WantedBlockEvent } from "./block-events";
 import { countsAsBusy, eventInterval, eventsFingerprint } from "./events";
 import { validatePushSubscription, type PushSender, type PushSubscriptionInput, type SubscribeToPushResult } from "./push";
 import { dueReminders, reminderMessage } from "./reminders";
@@ -44,6 +46,9 @@ import {
 } from "./tasks";
 
 const SESSION_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
+
+/** The name of the calendar dynacal owns in the owner's Google account (ADR-0002). */
+export const DYNACAL_CALENDAR_NAME = "dynacal";
 
 export interface CommandDeps {
   db: Db;
@@ -241,7 +246,14 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
   async function readEvents(): Promise<boolean> {
     const now = clock.now();
     const range = { start: now, end: new Date(now.getTime() + PLANNING_HORIZON_DAYS * DAY_MS) };
-    const calendarIds = db.select().from(busyCalendars).all().map((b) => b.calendarId);
+    // The dynacal calendar's events are Blocks, never Events (ADR-0002).
+    const dynacal = dynacalCalendarId();
+    const calendarIds = db
+      .select()
+      .from(busyCalendars)
+      .all()
+      .map((b) => b.calendarId)
+      .filter((id) => id !== dynacal);
     const fresh = (await Promise.all(calendarIds.map((id) => calendar.listEvents(id, range)))).flat();
     const changed = eventsFingerprint(fresh) !== eventsFingerprint(cachedEvents());
     db.transaction((tx) => {
@@ -264,6 +276,97 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       }
     });
     return changed;
+  }
+
+  /** The ID of the calendar dynacal writes Blocks to, once Google is connected. */
+  function dynacalCalendarId(): string | null {
+    return db.select({ id: googleConnection.dynacalCalendarId }).from(googleConnection).get()?.id ?? null;
+  }
+
+  /**
+   * Records the dynacal calendar: the one already recorded if it's still in the owner's account, else one
+   * named "dynacal" (from an earlier install), else a new one.
+   */
+  async function ensureDynacalCalendar(calendars: GoogleCalendar[]): Promise<void> {
+    const recorded = dynacalCalendarId();
+    const id =
+      calendars.find((c) => c.id === recorded)?.id ??
+      calendars.find((c) => c.name === DYNACAL_CALENDAR_NAME && !c.primary)?.id ??
+      (await calendar.createCalendar(DYNACAL_CALENDAR_NAME)).id;
+    if (id === recorded) return;
+    db.transaction((tx) => {
+      tx.update(googleConnection).set({ dynacalCalendarId: id }).run();
+      // Events written to a calendar that's gone are gone with it; a reused calendar's events aren't known.
+      tx.delete(blockEvents).run();
+      tx.delete(busyCalendars).where(eq(busyCalendars.calendarId, id)).run();
+    });
+  }
+
+  /**
+   * Makes the dynacal calendar match the Schedule: each future Block of an incomplete Task becomes an event
+   * with the Task title and a popup reminder at the Reminder Lead Time. Blocks that have started are left as
+   * they were written. Does nothing until Google is connected, or while the connection is broken: Google would
+   * refuse the writes, and the next poll after reconnecting catches up.
+   */
+  async function reconcileBlockEvents(): Promise<void> {
+    if (getGoogleConnection().status !== "connected") return;
+    const calendarId = dynacalCalendarId();
+    if (calendarId === null) return;
+    const now = clock.now();
+    const { reminderLeadMinutes } = getSettings();
+    // Events that have ended will never change again.
+    db.delete(blockEvents).where(lte(blockEvents.end, now)).run();
+    const wanted = db
+      .select({ taskId: blocks.taskId, title: tasks.title, start: blocks.start, end: blocks.end })
+      .from(blocks)
+      .innerJoin(tasks, eq(blocks.taskId, tasks.id))
+      .where(and(gte(blocks.start, now), isNull(tasks.completedAt)))
+      .all()
+      .map((b) => ({ ...b, reminderMinutes: reminderLeadMinutes }));
+    const written = db
+      .select()
+      .from(blockEvents)
+      .where(and(eq(blockEvents.calendarId, calendarId), gte(blockEvents.start, now)))
+      .all();
+    const writes = planBlockEventWrites(wanted, written);
+
+    const record = (eventId: string, event: WantedBlockEvent) =>
+      db.insert(blockEvents)
+        .values({ calendarId, eventId, ...event })
+        .onConflictDoUpdate({ target: [blockEvents.calendarId, blockEvents.eventId], set: event })
+        .run();
+    const forget = (eventId: string) =>
+      db.delete(blockEvents)
+        .where(and(eq(blockEvents.calendarId, calendarId), eq(blockEvents.eventId, eventId)))
+        .run();
+    // Each write is recorded as soon as Google has it, so a failure part-way leaves an accurate record.
+    for (const event of writes.delete) {
+      await calendar.deleteBlockEvent(calendarId, event.eventId);
+      forget(event.eventId);
+    }
+    for (const { eventId, event } of writes.update) {
+      const { taskId: _taskId, ...blockEvent } = event;
+      if ((await calendar.updateBlockEvent(calendarId, eventId, blockEvent)) === "updated") {
+        record(eventId, event);
+      } else {
+        // The owner deleted it in Google; write it again.
+        forget(eventId);
+        record(await calendar.createBlockEvent(calendarId, blockEvent), event);
+      }
+    }
+    for (const event of writes.create) {
+      const { taskId: _taskId, ...blockEvent } = event;
+      record(await calendar.createBlockEvent(calendarId, blockEvent), event);
+    }
+  }
+
+  /** The latest write of Blocks to Google; writes run one at a time, each against the Schedule as it is then. */
+  let writing: Promise<void> = Promise.resolve();
+
+  /** Queues a write of Blocks to Google, after any write already running. */
+  function writeBlocks(): Promise<void> {
+    writing = writing.catch(() => {}).then(reconcileBlockEvents);
+    return writing;
   }
 
   /** The time taken up by Events that count as busy under the owner's settings. */
@@ -343,6 +446,9 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
           .run();
       }
     });
+    // Commands stay synchronous, so the write to Google runs in the background. A failed write is retried
+    // by the next one (polling writes every few minutes), and errors reach the caller of `writeBlocksToGoogle`.
+    writeBlocks().catch((error) => console.error("Writing Blocks to Google failed:", error));
     return { ok: true };
   }
 
@@ -395,10 +501,12 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         .values({ id: 1, ...row })
         .onConflictDoUpdate({ target: googleConnection.id, set: row })
         .run();
+      const calendars = await calendar.listCalendars();
       if (!db.select().from(busyCalendars).get()) {
-        const primary = (await calendar.listCalendars()).find((c) => c.primary);
+        const primary = calendars.find((c) => c.primary);
         if (primary) db.insert(busyCalendars).values({ calendarId: primary.id }).run();
       }
+      await ensureDynacalCalendar(calendars);
       await readEvents();
       recalculate();
       return { ok: true };
@@ -407,6 +515,13 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     /** Chooses which of the owner's Google calendars count as busy time, then rereads Events and recalculates. */
     async setBusyCalendars(calendarIds: string[]): Promise<SetBusyCalendarsResult> {
       const known = new Set((await calendar.listCalendars()).map((c) => c.id));
+      const dynacal = dynacalCalendarId();
+      if (dynacal !== null && calendarIds.includes(dynacal)) {
+        return {
+          ok: false,
+          errors: { busyCalendars: "The dynacal calendar holds your Blocks, so it can't be a Busy Calendar." },
+        };
+      }
       if (!calendarIds.every((id) => known.has(id))) {
         return {
           ok: false,
@@ -424,6 +539,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
 
     /**
      * Polling: rereads Events from the Busy Calendars, and recalculates if any were added, moved or deleted.
+     * Then brings the dynacal calendar up to date, which also retries any earlier write that failed.
      * Gateway failures are thrown to the caller.
      */
     async syncEvents(): Promise<SyncEventsResult> {
@@ -438,8 +554,14 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         if (error instanceof CalendarAuthError) return { ok: false, reason: "connection-broken" };
         throw error;
       }
-      if (!changed) return { ok: true, recalculated: false };
-      return { ok: true, recalculated: recalculate().ok };
+      const recalculated = changed && recalculate().ok;
+      try {
+        await writeBlocks();
+      } catch (error) {
+        if (error instanceof CalendarAuthError) return { ok: false, reason: "connection-broken" };
+        throw error;
+      }
+      return { ok: true, recalculated };
     },
 
     getGoogleConnection,
@@ -465,7 +587,9 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       return {
         status: "connected",
         email: connection.email,
-        calendars: calendars.map((c) => ({ ...c, busy: busy.has(c.id) })),
+        calendars: calendars
+          .filter((c) => c.id !== dynacalCalendarId())
+          .map((c) => ({ ...c, busy: busy.has(c.id) })),
       };
     },
 
@@ -523,6 +647,12 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
 
     /** The Recalculate button. */
     recalculate,
+
+    /**
+     * Makes the dynacal calendar match the Schedule, after any write already under way. Every Recalculation
+     * starts one in the background; this waits for it, and throws if writing to Google fails.
+     */
+    writeBlocksToGoogle: writeBlocks,
 
     /**
      * Marks a Task complete: its future Blocks are removed and its past Blocks kept as history.

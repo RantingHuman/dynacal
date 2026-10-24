@@ -66,7 +66,29 @@ export const googleConnection = sqliteTable("google_connection", {
   connectedAt: integer("connected_at", { mode: "timestamp_ms" }).notNull(),
   /** When Google last refused dynacal's credentials; null while the connection is healthy. Reconnecting clears it. */
   brokenAt: integer("broken_at", { mode: "timestamp_ms" }),
+  /** The calendar dynacal owns and writes Blocks to (ADR-0002); null until it's created. */
+  dynacalCalendarId: text("dynacal_calendar_id"),
 });
+
+/**
+ * The Block events dynacal has written to the dynacal calendar, as they stand in Google. Kept apart from
+ * `blocks` because a Recalculation replaces every future Block: afterwards each Block is matched to these
+ * by Task and time, so unchanged Blocks need no write and moved ones are updated in place.
+ */
+export const blockEvents = sqliteTable(
+  "block_events",
+  {
+    calendarId: text("calendar_id").notNull(),
+    eventId: text("event_id").notNull(),
+    /** No foreign key: a deleted Task's events must still be found so they can be deleted from Google. */
+    taskId: text("task_id").notNull(),
+    title: text("title").notNull(),
+    start: integer("start", { mode: "timestamp_ms" }).notNull(),
+    end: integer("end", { mode: "timestamp_ms" }).notNull(),
+    reminderMinutes: integer("reminder_minutes").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.calendarId, t.eventId] })],
+);
 
 /** The Google calendars the owner counts as busy time. */
 export const busyCalendars = sqliteTable("busy_calendars", {
