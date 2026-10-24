@@ -17,7 +17,9 @@ import {
 export async function GET(request: Request) {
   const { config, google } = getRuntime();
   if (!(await currentSession())) return Response.redirect(`${config.PUBLIC_BASE_URL}/sign-in`);
-  const returnTo = new URL(request.url).searchParams.get("from") === "settings" ? "settings" : "setup";
+  const from = new URL(request.url).searchParams.get("from");
+  // "home" is the reconnect banner on the main screen.
+  const returnTo = from === "settings" || from === "home" ? from : "setup";
 
   const state = generateState();
   const codeVerifier = generateCodeVerifier();

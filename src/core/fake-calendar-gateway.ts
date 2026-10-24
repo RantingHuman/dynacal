@@ -1,4 +1,11 @@
-import type { CalendarEvent, CalendarGateway, EventTiming, GoogleCalendar, TimeRange } from "./calendar-gateway";
+import {
+  CalendarAuthError,
+  type CalendarEvent,
+  type CalendarGateway,
+  type EventTiming,
+  type GoogleCalendar,
+  type TimeRange,
+} from "./calendar-gateway";
 
 type NewEvent = { title?: string; free?: boolean } & (
   | { start: Date; end: Date }
@@ -10,6 +17,21 @@ export class FakeCalendarGateway implements CalendarGateway {
   private calendars: GoogleCalendar[] = [];
   private events: CalendarEvent[] = [];
   private nextId = 1;
+  private broken = false;
+
+  /** From now on Google refuses dynacal's credentials, as when the owner revokes access or the refresh token expires. */
+  breakConnection(): void {
+    this.broken = true;
+  }
+
+  /** Google accepts dynacal's credentials again, as after the owner reconnects. */
+  restoreConnection(): void {
+    this.broken = false;
+  }
+
+  private checkCredentials(): void {
+    if (this.broken) throw new CalendarAuthError();
+  }
 
   addCalendar(calendar: { id: string; name?: string; primary?: boolean }): void {
     this.calendars.push({ name: calendar.id, primary: false, ...calendar });
@@ -31,10 +53,12 @@ export class FakeCalendarGateway implements CalendarGateway {
   }
 
   async listCalendars(): Promise<GoogleCalendar[]> {
+    this.checkCredentials();
     return structuredClone(this.calendars);
   }
 
   async listEvents(calendarId: string, range: TimeRange): Promise<CalendarEvent[]> {
+    this.checkCredentials();
     return structuredClone(
       this.events.filter((e) => {
         if (e.calendarId !== calendarId) return false;

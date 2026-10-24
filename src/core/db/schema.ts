@@ -64,6 +64,8 @@ export const googleConnection = sqliteTable("google_connection", {
   accessToken: text("access_token"),
   accessTokenExpiresAt: integer("access_token_expires_at", { mode: "timestamp_ms" }),
   connectedAt: integer("connected_at", { mode: "timestamp_ms" }).notNull(),
+  /** When Google last refused dynacal's credentials; null while the connection is healthy. Reconnecting clears it. */
+  brokenAt: integer("broken_at", { mode: "timestamp_ms" }),
 });
 
 /** The Google calendars the owner counts as busy time. */

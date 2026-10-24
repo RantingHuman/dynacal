@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getRuntime } from "@/server/runtime";
 import { currentSession } from "@/server/session";
+import { ReconnectBanner } from "./google/reconnect-banner";
 import { RemindersToggle } from "./reminders/reminders-toggle";
 import { UnreviewedBanner } from "./review/unreviewed-banner";
 import { Calendar } from "./schedule/calendar";
@@ -13,6 +14,7 @@ export default async function HomePage() {
   const { commands } = getRuntime();
   if (!commands.getSetupStatus().complete) redirect("/setup");
   const scheduleView = commands.getSchedule();
+  const connection = commands.getGoogleConnection();
 
   return (
     <div className="app">
@@ -28,6 +30,7 @@ export default async function HomePage() {
           </form>
         </nav>
       </header>
+      {connection.status === "broken" && <ReconnectBanner email={connection.email} />}
       {scheduleView.status === "ready" && (
         <UnreviewedBanner
           timeZone={scheduleView.timeZone}
@@ -74,6 +77,7 @@ export default async function HomePage() {
                 end: e.end.toISOString(),
               }))}
               workingHours={commands.getSettings().workingHours}
+              recalculationPaused={connection.status === "broken"}
             />
           )}
         </section>

@@ -30,6 +30,16 @@ export async function GoogleCalendarSection({ from, error }: { from: "setup" | "
           dynacal couldn&apos;t reach your Google calendars just now.{" "}
           <a href={connectHref}>Reconnect Google Calendar</a>
         </p>
+      ) : view.status === "broken" ? (
+        <>
+          <p className="error" role="alert">
+            Google stopped accepting dynacal&apos;s access to <strong>{view.email}</strong>. Recalculation is paused
+            until you reconnect.
+          </p>
+          <a className="button" href={connectHref}>
+            Reconnect Google Calendar
+          </a>
+        </>
       ) : view.status === "not-connected" ? (
         <>
           <p className="muted">dynacal reads your calendars so it can plan around your Events.</p>
