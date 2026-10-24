@@ -5,7 +5,10 @@ export const POLL_INTERVAL_MS = 5 * 60 * 1000;
 
 const globalForPolling = globalThis as unknown as { dynacalPolling?: NodeJS.Timeout };
 
-/** Rereads Events from Google now and every few minutes; added, moved or deleted Events trigger a Recalculation. */
+/**
+ * Rereads Events from Google now and every few minutes; added, moved or deleted Events trigger a Recalculation.
+ * Each poll also brings the dynacal calendar up to date, retrying any write of Blocks that failed.
+ */
 export function startEventPolling(): void {
   if (globalForPolling.dynacalPolling) return;
   let running = false;
@@ -15,7 +18,7 @@ export function startEventPolling(): void {
     try {
       await getRuntime().commands.syncEvents();
     } catch (error) {
-      console.error("Reading Events from Google failed:", error);
+      console.error("Syncing with Google failed:", error);
     } finally {
       running = false;
     }

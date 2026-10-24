@@ -1,15 +1,31 @@
-import type { CalendarEvent, CalendarGateway, EventTiming, GoogleCalendar, TimeRange } from "./calendar-gateway";
+import type {
+  BlockEvent,
+  CalendarEvent,
+  CalendarGateway,
+  EventTiming,
+  GoogleCalendar,
+  TimeRange,
+} from "./calendar-gateway";
 
 type NewEvent = { title?: string; free?: boolean } & (
   | { start: Date; end: Date }
   | { startDate: string; endDate: string }
 );
 
+/** A write dynacal made to Google, as recorded by the fake. */
+export type CalendarWrite =
+  | { kind: "create-calendar"; name: string }
+  | { kind: "create-event" | "update-event" | "delete-event"; calendarId: string; eventId: string };
+
 /** An in-memory Google account for tests: set up calendars and Events, then change them as Google would. */
 export class FakeCalendarGateway implements CalendarGateway {
   private calendars: GoogleCalendar[] = [];
   private events: CalendarEvent[] = [];
+  /** Popup reminders, in minutes, on events dynacal wrote. */
+  private reminders = new Map<string, number>();
   private nextId = 1;
+  /** Every write dynacal has made, in order. */
+  writes: CalendarWrite[] = [];
 
   addCalendar(calendar: { id: string; name?: string; primary?: boolean }): void {
     this.calendars.push({ name: calendar.id, primary: false, ...calendar });
@@ -30,6 +46,20 @@ export class FakeCalendarGateway implements CalendarGateway {
     this.events = this.events.filter((e) => e.id !== id);
   }
 
+  /** The owner deletes a calendar in Google. */
+  deleteCalendar(id: string): void {
+    this.calendars = this.calendars.filter((c) => c.id !== id);
+    this.events = this.events.filter((e) => e.calendarId !== id);
+  }
+
+  /** The timed events on a calendar, in time order, as [title, start, end, popup reminder minutes]. */
+  blockEventsOn(calendarId: string): [string, Date, Date, number | undefined][] {
+    return this.events
+      .filter((e): e is CalendarEvent & { allDay: false } => e.calendarId === calendarId && !e.allDay)
+      .sort((a, b) => a.start.getTime() - b.start.getTime())
+      .map((e) => [e.title, e.start, e.end, this.reminders.get(e.id)]);
+  }
+
   async listCalendars(): Promise<GoogleCalendar[]> {
     return structuredClone(this.calendars);
   }
@@ -45,6 +75,36 @@ export class FakeCalendarGateway implements CalendarGateway {
         return start < range.end.getTime() && end > range.start.getTime();
       }),
     );
+  }
+
+  async createCalendar(name: string): Promise<GoogleCalendar> {
+    const calendar = { id: `calendar-${this.nextId++}`, name, primary: false };
+    this.calendars.push(calendar);
+    this.writes.push({ kind: "create-calendar", name });
+    return structuredClone(calendar);
+  }
+
+  async createBlockEvent(calendarId: string, event: BlockEvent): Promise<string> {
+    if (!this.calendars.some((c) => c.id === calendarId)) throw new Error(`No calendar ${calendarId}`);
+    const eventId = this.addEvent(calendarId, { title: event.title, start: event.start, end: event.end });
+    this.reminders.set(eventId, event.reminderMinutes);
+    this.writes.push({ kind: "create-event", calendarId, eventId });
+    return eventId;
+  }
+
+  async updateBlockEvent(calendarId: string, eventId: string, event: BlockEvent): Promise<"updated" | "gone"> {
+    this.writes.push({ kind: "update-event", calendarId, eventId });
+    if (!this.events.some((e) => e.id === eventId && e.calendarId === calendarId)) return "gone";
+    this.events = this.events.map((e) =>
+      e.id === eventId ? { ...e, title: event.title, allDay: false, start: event.start, end: event.end } : e,
+    );
+    this.reminders.set(eventId, event.reminderMinutes);
+    return "updated";
+  }
+
+  async deleteBlockEvent(calendarId: string, eventId: string): Promise<void> {
+    this.writes.push({ kind: "delete-event", calendarId, eventId });
+    this.events = this.events.filter((e) => !(e.id === eventId && e.calendarId === calendarId));
   }
 }
 

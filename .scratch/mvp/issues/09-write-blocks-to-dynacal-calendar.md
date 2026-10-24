@@ -6,8 +6,8 @@
 
 **Status:** ready-for-agent
 
-- [ ] On connecting, dynacal creates the dynacal calendar (or reuses it if it already exists) and records its ID
-- [ ] The dynacal calendar can never be chosen as a Busy Calendar, and its events are never treated as Events
-- [ ] After each Recalculation, the Google events for each Block are created, updated or deleted so the dynacal calendar matches the Schedule
-- [ ] Each Block event carries the Task title and a popup reminder at the reminder lead time
-- [ ] Command-layer tests with the fake gateway check the Google writes after Recalculation, including no writes when nothing changed
+- [x] On connecting, dynacal creates the dynacal calendar (or reuses it if it already exists) and records its ID
+- [x] The dynacal calendar can never be chosen as a Busy Calendar, and its events are never treated as Events
+- [x] After each Recalculation, the Google events for each Block are created, updated or deleted so the dynacal calendar matches the Schedule
+- [x] Each Block event carries the Task title and a popup reminder at the reminder lead time
+- [x] Command-layer tests with the fake gateway check the Google writes after Recalculation, including no writes when nothing changed
