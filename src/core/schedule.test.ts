@@ -86,6 +86,16 @@ describe("the Schedule", () => {
     ]);
   });
 
+  it("is recalculated when a Task is deleted", () => {
+    const { commands } = appInLondon();
+    const first = createTask(commands, { title: "First" });
+    createTask(commands, { title: "Second" });
+
+    commands.deleteTask(first.id);
+
+    expect(blocks(commands)).toEqual([["Second", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"]]);
+  });
+
   it("is recalculated when settings change", () => {
     const { commands } = appInLondon();
     createTask(commands, { estimatedMinutes: 120 });
