@@ -3,10 +3,12 @@ import { eq } from "drizzle-orm";
 import {
   CalendarAuthError,
   type BlockEvent,
+  type BlockEventInGoogle,
   type CalendarEvent,
   type CalendarGateway,
   type GoogleCalendar,
   type TimeRange,
+  type WatchChannel,
 } from "@/core/calendar-gateway";
 import type { Clock } from "@/core/clock";
 import type { Db } from "@/core/db";
@@ -161,6 +163,48 @@ export function createGoogleCalendarGateway({
     async deleteBlockEvent(calendarId: string, eventId: string): Promise<void> {
       await send("DELETE", `${eventsPath(calendarId)}/${encodeURIComponent(eventId)}`, { allow: [404, 410] });
     },
+
+    async watchEvents(calendarId: string, channel: WatchChannel): Promise<{ resourceId: string; expiresAt: Date }> {
+      const ttlSeconds = Math.max(1, Math.round((channel.expiresAt.getTime() - clock.now().getTime()) / 1000));
+      const response = await send("POST", `${eventsPath(calendarId)}/watch`, {
+        body: {
+          id: channel.id,
+          type: "web_hook",
+          address: channel.address,
+          token: channel.token,
+          params: { ttl: String(ttlSeconds) },
+        },
+      });
+      const opened = (await response.json()) as { resourceId: string; expiration?: string };
+      // `expiration` is milliseconds since the epoch, as a string.
+      return { resourceId: opened.resourceId, expiresAt: opened.expiration ? new Date(Number(opened.expiration)) : channel.expiresAt };
+    },
+
+    async stopWatching(channelId: string, resourceId: string): Promise<void> {
+      await send("POST", "/channels/stop", { body: { id: channelId, resourceId }, allow: [404] });
+    },
+
+    async listBlockEvents(calendarId: string, range: TimeRange): Promise<BlockEventInGoogle[]> {
+      const items = await getAll<GoogleEvent>(eventsPath(calendarId), {
+        timeMin: range.start.toISOString(),
+        timeMax: range.end.toISOString(),
+        singleEvents: "true",
+        maxResults: "2500",
+      });
+      return items.flatMap((e): BlockEventInGoogle[] =>
+        e.status !== "cancelled" && e.start?.dateTime && e.end?.dateTime
+          ? [
+              {
+                id: e.id,
+                title: e.summary ?? "",
+                description: e.description ?? "",
+                start: new Date(e.start.dateTime),
+                end: new Date(e.end.dateTime),
+              },
+            ]
+          : [],
+      );
+    },
   };
 }
 
@@ -189,6 +233,7 @@ interface GoogleEvent {
   id: string;
   status?: "confirmed" | "tentative" | "cancelled";
   summary?: string;
+  description?: string;
   transparency?: "opaque" | "transparent";
   start?: { date?: string; dateTime?: string };
   end?: { date?: string; dateTime?: string };

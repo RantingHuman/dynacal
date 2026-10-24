@@ -6,9 +6,9 @@
 
 **Status:** ready-for-agent
 
-- [ ] dynacal registers Google push notification channels for the Busy Calendars and the dynacal calendar, and renews them before they expire; polling stays as a fallback
-- [ ] A Block event moved or resized in Google pins that Block at its new time
-- [ ] A Block event deleted in Google removes the Block and puts its time back to be scheduled; the Task is not deleted
-- [ ] Title or description edits to a Block event in Google are overwritten at the next sync
-- [ ] Event changes arriving through push notifications trigger a Recalculation
-- [ ] Command-layer tests with the fake gateway simulate edits made in Google and cover pinning, "not then" and overwriting
+- [x] dynacal registers Google push notification channels for the Busy Calendars and the dynacal calendar, and renews them before they expire; polling stays as a fallback
+- [x] A Block event moved or resized in Google pins that Block at its new time
+- [x] A Block event deleted in Google removes the Block and puts its time back to be scheduled; the Task is not deleted
+- [x] Title or description edits to a Block event in Google are overwritten at the next sync
+- [x] Event changes arriving through push notifications trigger a Recalculation
+- [x] Command-layer tests with the fake gateway simulate edits made in Google and cover pinning, "not then" and overwriting

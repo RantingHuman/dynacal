@@ -1,7 +1,7 @@
 /**
  * The calendar gateway (the port): the only way dynacal reaches Google Calendar. The real adapter lives in
  * `src/server/google-calendar.ts`; tests use `FakeCalendarGateway`. Methods are added here as tickets need
- * them: reading Block edits made in Google and push channels (12).
+ * them.
  */
 
 /** One of the owner's Google calendars. */
@@ -34,6 +34,27 @@ export interface BlockEvent {
   reminderMinutes: number;
 }
 
+/** A Block event as it stands in Google, which the owner may have edited there. */
+export interface BlockEventInGoogle {
+  id: string;
+  title: string;
+  /** dynacal writes none, so any text here was added in Google. */
+  description: string;
+  start: Date;
+  end: Date;
+}
+
+/** A push notification channel dynacal asks Google to open: Google then POSTs to `address` when events change. */
+export interface WatchChannel {
+  id: string;
+  /** Google echoes this back on every notification, so dynacal can tell real ones from forgeries. */
+  token: string;
+  /** A public HTTPS URL; Google won't deliver anywhere else. */
+  address: string;
+  /** When dynacal would like the channel to close; Google may choose sooner. */
+  expiresAt: Date;
+}
+
 export interface TimeRange {
   start: Date;
   end: Date;
@@ -63,4 +84,13 @@ export interface CalendarGateway {
   updateBlockEvent(calendarId: string, eventId: string, event: BlockEvent): Promise<"updated" | "gone">;
   /** Deletes a Block's event; an event that's already gone counts as deleted. */
   deleteBlockEvent(calendarId: string, eventId: string): Promise<void>;
+  /**
+   * The timed events on the dynacal calendar that overlap `range`, as they stand in Google. Deleted events,
+   * and events the owner turned into all-day ones, aren't included.
+   */
+  listBlockEvents(calendarId: string, range: TimeRange): Promise<BlockEventInGoogle[]>;
+  /** Opens a push notification channel for changes to a calendar's events; returns Google's ID for the calendar and when the channel closes. */
+  watchEvents(calendarId: string, channel: WatchChannel): Promise<{ resourceId: string; expiresAt: Date }>;
+  /** Closes a push notification channel; one that has already closed counts as closed. */
+  stopWatching(channelId: string, resourceId: string): Promise<void>;
 }

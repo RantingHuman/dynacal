@@ -33,6 +33,8 @@ export interface SchedulerTask {
   earliestStart: Date | null;
   priority: Priority;
   dontSplit: boolean;
+  /** Times this Task's Blocks must stay out of ("not then"), though other Tasks may use them. */
+  avoid?: Interval[];
 }
 
 export interface SchedulerInput {
@@ -234,7 +236,8 @@ function place(ctx: Context, order: SchedulerTask[]): Placement[] {
     const keptForTask = ctx.kept.filter((b) => b.taskId === task.id);
     const covered = keptForTask.reduce((sum, b) => sum + b.end.getTime() - Math.max(b.start.getTime(), ctx.now), 0);
     const need = Math.max(0, task.remainingMinutes * MINUTE_MS - covered);
-    const available = startingFrom(free, task.earliestStart ? roundUp(task.earliestStart.getTime()) : ctx.from);
+    const earliest = task.earliestStart ? roundUp(task.earliestStart.getTime()) : ctx.from;
+    const available = subtract(startingFrom(free, earliest), task.avoid ?? []);
     const pieces = task.dontSplit ? placeWhole(available, need) : placeSplit(available, need, ctx.minimum);
     for (const [start, end] of pieces) take(free, start, end);
     const flag = flagFor(task, need, pieces, keptForTask.length > 0, ctx.now);

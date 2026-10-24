@@ -1,11 +1,13 @@
 import {
   type BlockEvent,
+  type BlockEventInGoogle,
   CalendarAuthError,
   type CalendarEvent,
   type CalendarGateway,
   type EventTiming,
   type GoogleCalendar,
   type TimeRange,
+  type WatchChannel,
 } from "./calendar-gateway";
 
 type NewEvent = { title?: string; free?: boolean } & (
@@ -24,6 +26,8 @@ export class FakeCalendarGateway implements CalendarGateway {
   private events: CalendarEvent[] = [];
   /** Popup reminders, in minutes, on events dynacal wrote. */
   private reminders = new Map<string, number>();
+  /** Descriptions the owner added in Google. */
+  private descriptions = new Map<string, string>();
   private nextId = 1;
   private broken = false;
 
@@ -39,6 +43,16 @@ export class FakeCalendarGateway implements CalendarGateway {
 
   private checkCredentials(): void {
     if (this.broken) throw new CalendarAuthError();
+  }
+
+  /** Open push notification channels. */
+  channels: (WatchChannel & { calendarId: string; resourceId: string })[] = [];
+
+  /** The notification Google would send for a change on a watched calendar, as dynacal receives it. */
+  notificationFor(calendarId: string): { channelId: string; token: string; resourceId: string; resourceState: string } {
+    const channel = this.channels.findLast((c) => c.calendarId === calendarId);
+    if (!channel) throw new Error(`${calendarId} isn't watched`);
+    return { channelId: channel.id, token: channel.token, resourceId: channel.resourceId, resourceState: "exists" };
   }
 
   /** Every write dynacal has made, in order. */
@@ -57,6 +71,17 @@ export class FakeCalendarGateway implements CalendarGateway {
 
   moveEvent(id: string, to: { start: Date; end: Date }): void {
     this.events = this.events.map((e) => (e.id === id ? { ...e, allDay: false, start: to.start, end: to.end } : e));
+  }
+
+  /** The owner retitles an event, or gives it a description, in Google. */
+  editEvent(id: string, edit: { title?: string; description?: string }): void {
+    if (edit.title !== undefined) this.events = this.events.map((e) => (e.id === id ? { ...e, title: edit.title! } : e));
+    if (edit.description !== undefined) this.descriptions.set(id, edit.description);
+  }
+
+  /** One event's description, as Google holds it. */
+  descriptionOf(id: string): string {
+    return this.descriptions.get(id) ?? "";
   }
 
   deleteEvent(id: string): void {
@@ -127,6 +152,8 @@ export class FakeCalendarGateway implements CalendarGateway {
       e.id === eventId ? { ...e, title: event.title, allDay: false, start: event.start, end: event.end } : e,
     );
     this.reminders.set(eventId, event.reminderMinutes);
+    // A full replacement, as the real adapter does it: anything the owner added in Google goes.
+    this.descriptions.delete(eventId);
     return "updated";
   }
 
@@ -134,6 +161,32 @@ export class FakeCalendarGateway implements CalendarGateway {
     this.checkCredentials();
     this.writes.push({ kind: "delete-event", calendarId, eventId });
     this.events = this.events.filter((e) => !(e.id === eventId && e.calendarId === calendarId));
+  }
+
+  async watchEvents(calendarId: string, channel: WatchChannel): Promise<{ resourceId: string; expiresAt: Date }> {
+    this.checkCredentials();
+    const resourceId = `resource-${calendarId}`;
+    this.channels.push({ ...structuredClone(channel), calendarId, resourceId });
+    return { resourceId, expiresAt: new Date(channel.expiresAt) };
+  }
+
+  async stopWatching(channelId: string, resourceId: string): Promise<void> {
+    this.checkCredentials();
+    this.channels = this.channels.filter((c) => !(c.id === channelId && c.resourceId === resourceId));
+  }
+
+  async listBlockEvents(calendarId: string, range: TimeRange): Promise<BlockEventInGoogle[]> {
+    this.checkCredentials();
+    return this.events
+      .filter((e): e is CalendarEvent & { allDay: false } => e.calendarId === calendarId && !e.allDay)
+      .filter((e) => e.start < range.end && e.end > range.start)
+      .map((e) => ({
+        id: e.id,
+        title: e.title,
+        description: this.descriptions.get(e.id) ?? "",
+        start: new Date(e.start),
+        end: new Date(e.end),
+      }));
   }
 }
 

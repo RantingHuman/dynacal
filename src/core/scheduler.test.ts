@@ -652,3 +652,15 @@ describe("scheduler", () => {
     });
   });
 });
+
+describe('"not then" times', () => {
+  it("keep a Task out of them, while other Tasks may use them", () => {
+    const notThen = { start: new Date("2026-01-05T09:00:00Z"), end: new Date("2026-01-05T10:00:00Z") };
+    const result = schedule(input({ tasks: [task("a", { avoid: [notThen] }), task("b")] }));
+
+    expect(blocksOf(result)).toEqual([
+      ["b", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"],
+      ["a", "2026-01-05T10:00:00.000Z", "2026-01-05T11:00:00.000Z"],
+    ]);
+  });
+});

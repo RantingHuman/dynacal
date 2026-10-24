@@ -97,6 +97,31 @@ export const blockEvents = sqliteTable(
   (t) => [primaryKey({ columns: [t.calendarId, t.eventId] })],
 );
 
+/**
+ * "Not then": the times of Blocks the owner deleted in Google. Recalculation keeps each Task out of its own
+ * such times; other Tasks may still use them.
+ */
+export const notThenTimes = sqliteTable("not_then_times", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  taskId: text("task_id")
+    .notNull()
+    .references(() => tasks.id, { onDelete: "cascade" }),
+  start: integer("start", { mode: "timestamp_ms" }).notNull(),
+  end: integer("end", { mode: "timestamp_ms" }).notNull(),
+});
+
+/** Open Google push notification channels, one per watched calendar (two briefly, while one is renewed). */
+export const calendarWatches = sqliteTable("calendar_watches", {
+  channelId: text("channel_id").primaryKey(),
+  calendarId: text("calendar_id").notNull(),
+  /** Google's ID for the watched calendar; needed to close the channel, and checked on every notification. */
+  resourceId: text("resource_id").notNull(),
+  /** The secret Google echoes back on every notification from this channel. */
+  token: text("token").notNull(),
+  address: text("address").notNull(),
+  expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+});
+
 /** The Google calendars the owner counts as busy time. */
 export const busyCalendars = sqliteTable("busy_calendars", {
   calendarId: text("calendar_id").primaryKey(),

@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { and, eq, gt, gte, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { CalendarAuthError, type CalendarEvent, type CalendarGateway, type GoogleCalendar } from "./calendar-gateway";
 import type { Clock } from "./clock";
@@ -15,8 +15,10 @@ import {
   blockEvents,
   blocks,
   busyCalendars,
+  calendarWatches,
   events,
   googleConnection,
+  notThenTimes,
   pushSubscriptions,
   remindersSent,
   sessions,
@@ -86,6 +88,24 @@ export type GoogleConnectionView =
   | { status: "not-connected" }
   | { status: "connected"; email: string }
   | { status: "broken"; email: string };
+
+export type WatchCalendarsResult =
+  | { ok: true }
+  | { ok: false; reason: "needs-https" | "not-connected" | "connection-broken" };
+
+/** Where Google sends push notifications, under `PUBLIC_BASE_URL`. */
+export const CALENDAR_NOTIFICATIONS_PATH = "/api/google/calendar-notifications";
+
+/** A push notification as Google delivers it, in its X-Goog-* headers. */
+export interface CalendarNotification {
+  channelId: string;
+  token: string;
+  resourceId: string;
+  /** "sync" when a channel opens; "exists" or "not_exists" when something changed. */
+  resourceState: string;
+}
+
+export type ReceiveCalendarNotificationResult = { ok: true } | { ok: false; reason: "unknown-channel" };
 
 export type SetBusyCalendarsResult = { ok: true } | { ok: false; errors: { busyCalendars: string } };
 
@@ -165,8 +185,20 @@ export type CompleteTaskResult = { ok: true } | { ok: false; notFound: true };
 
 export type RecalculateResult = { ok: true } | { ok: false; reason: "needs-time-zone" | "connection-broken" };
 
+/** Compares secrets in constant time, so timing reveals nothing about the right one. */
+function sameSecret(given: string, expected: string): boolean {
+  const digest = (value: string) => createHash("sha256").update(value).digest();
+  return timingSafeEqual(digest(given), digest(expected));
+}
+
 const MINUTE_MS = 60_000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
+/** How far either side of the Planning Horizon Block events are read back from Google; one moved further looks deleted. */
+const EDIT_WINDOW_DAYS = 30;
+/** How long dynacal asks Google to keep a push notification channel open. */
+const CHANNEL_LIFETIME_MS = 7 * DAY_MS;
+/** A channel closing sooner than this is renewed. Polling runs far more often, so there's no gap. */
+const CHANNEL_RENEWAL_MS = DAY_MS;
 
 export function createCommands({ db, clock, ownerEmail, pushSender, calendar: gateway }: CommandDeps) {
   const owner = ownerEmail.trim().toLowerCase();
@@ -387,13 +419,104 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     }
   }
 
-  /** The latest write of Blocks to Google; writes run one at a time, each against the Schedule as it is then. */
-  let writing: Promise<void> = Promise.resolve();
+  /**
+   * The latest work on the dynacal calendar. Writes of Blocks and reads of edits made in Google run one at a
+   * time, so `block_events` always records exactly what dynacal last wrote when edits are looked for, and
+   * dynacal's own writes are never mistaken for the owner's.
+   */
+  let dynacalCalendarWork: Promise<unknown> = Promise.resolve();
 
-  /** Queues a write of Blocks to Google, after any write already running. */
+  function onDynacalCalendar<T>(work: () => Promise<T>): Promise<T> {
+    const next = dynacalCalendarWork.catch(() => {}).then(work);
+    dynacalCalendarWork = next;
+    return next;
+  }
+
+  /** Queues a write of Blocks to Google, after any work on the dynacal calendar already running. */
   function writeBlocks(): Promise<void> {
-    writing = writing.catch(() => {}).then(reconcileBlockEvents);
-    return writing;
+    return onDynacalCalendar(reconcileBlockEvents);
+  }
+
+  /** The Block a recorded event stands for: the one it was last matched to, else its Task's Block at the same time. */
+  function blockFor(record: typeof blockEvents.$inferSelect) {
+    const linked =
+      record.blockId === null
+        ? undefined
+        : db.select().from(blocks).where(and(eq(blocks.id, record.blockId), eq(blocks.taskId, record.taskId))).get();
+    return (
+      linked ??
+      db
+        .select()
+        .from(blocks)
+        .where(and(eq(blocks.taskId, record.taskId), eq(blocks.start, record.start), eq(blocks.end, record.end)))
+        .get()
+    );
+  }
+
+  /**
+   * Edits made in Google: compares the dynacal calendar's events with what dynacal last wrote. A moved or
+   * resized event pins its Block at the new time; a deleted one means "not then"; a changed title or
+   * description is overwritten. Returns whether the Schedule changed, so it needs a
+   * Recalculation.
+   */
+  async function applyGoogleEdits(): Promise<boolean> {
+    if (getGoogleConnection().status !== "connected") return false;
+    const calendarId = dynacalCalendarId();
+    if (calendarId === null) return false;
+    const now = clock.now();
+    const range = {
+      start: new Date(now.getTime() - EDIT_WINDOW_DAYS * DAY_MS),
+      end: new Date(now.getTime() + (PLANNING_HORIZON_DAYS + EDIT_WINDOW_DAYS) * DAY_MS),
+    };
+    const inGoogle = new Map((await calendar.listBlockEvents(calendarId, range)).map((e) => [e.id, e]));
+    const recorded = db
+      .select()
+      .from(blockEvents)
+      .where(and(eq(blockEvents.calendarId, calendarId), gt(blockEvents.end, now)))
+      .all();
+    let changed = false;
+    for (const record of recorded) {
+      const event = inGoogle.get(record.eventId);
+      if (!event) {
+        // Deleted in Google: "not then". The Task keeps its Remaining Duration, to be scheduled elsewhere.
+        const block = blockFor(record);
+        if (block) {
+          db.delete(blocks).where(eq(blocks.id, block.id)).run();
+          db.insert(notThenTimes).values({ taskId: block.taskId, start: block.start, end: block.end }).run();
+          changed = true;
+        }
+        db.delete(blockEvents)
+          .where(and(eq(blockEvents.calendarId, calendarId), eq(blockEvents.eventId, record.eventId)))
+          .run();
+        continue;
+      }
+      const to = { start: event.start, end: event.end };
+      if (event.title !== record.title || event.description !== "") {
+        // dynacal is the source of truth for a Block's content: put back what it wrote, wherever the event now is.
+        const { title, reminderMinutes } = record;
+        await calendar.updateBlockEvent(calendarId, record.eventId, { title, reminderMinutes, ...to });
+      }
+      if (to.start.getTime() === record.start.getTime() && to.end.getTime() === record.end.getTime()) continue;
+      const task = db.select({ completedAt: tasks.completedAt }).from(tasks).where(eq(tasks.id, record.taskId)).get();
+      let blockId = record.blockId;
+      // A completed or deleted Task's event is only recorded where it now is, for the next write to delete.
+      if (task && task.completedAt === null) {
+        const block = blockFor(record);
+        if (block) {
+          db.update(blocks).set({ ...to, pinned: true }).where(eq(blocks.id, block.id)).run();
+          blockId = block.id;
+        } else {
+          blockId = randomUUID();
+          db.insert(blocks).values({ id: blockId, taskId: record.taskId, ...to, pinned: true }).run();
+        }
+        changed = true;
+      }
+      db.update(blockEvents)
+        .set({ ...to, blockId })
+        .where(and(eq(blockEvents.calendarId, calendarId), eq(blockEvents.eventId, record.eventId)))
+        .run();
+    }
+    return changed;
   }
 
   /** The time taken up by Events that count as busy under the owner's settings. */
@@ -437,6 +560,8 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         .where(isNull(tasks.completedAt))
         .orderBy(tasks.createdAt, sql`rowid`)
         .all();
+      tx.delete(notThenTimes).where(lte(notThenTimes.end, now)).run();
+      const notThen = tx.select().from(notThenTimes).all();
       // Pinned Blocks stay where they are anyway, so only unpinned ones are worth keeping in place.
       const previousSchedule = tx
         .select()
@@ -467,6 +592,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
                 ),
           priority: row.priority,
           dontSplit: row.dontSplit,
+          avoid: notThen.filter((t) => t.taskId === row.id),
         })),
         busy,
         pinnedBlocks: [...inProgress.filter((b) => b.pinned), ...pinnedAhead],
@@ -489,6 +615,36 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     // by the next one (polling writes every few minutes), and errors reach the caller of `writeBlocksToGoogle`.
     writeBlocks().catch((error) => console.error("Writing Blocks to Google failed:", error));
     return { ok: true };
+  }
+
+  /**
+   * Syncing with Google, on every poll and every push notification: rereads Events from the Busy Calendars,
+   * applies edits the owner made to Block events in Google, and recalculates if either changed anything.
+   * Then brings the dynacal calendar up to date, which also retries any earlier write that failed.
+   * Gateway failures are thrown to the caller.
+   */
+  async function syncEvents(): Promise<SyncEventsResult> {
+    const connection = getGoogleConnection().status;
+    if (connection === "not-connected") return { ok: false, reason: "not-connected" };
+    // Credentials Google has refused stay refused; only reconnecting (connectGoogle) recovers.
+    if (connection === "broken") return { ok: false, reason: "connection-broken" };
+    let changed: boolean;
+    try {
+      const eventsChanged = await readEvents();
+      const blocksEdited = await onDynacalCalendar(applyGoogleEdits);
+      changed = eventsChanged || blocksEdited;
+    } catch (error) {
+      if (error instanceof CalendarAuthError) return { ok: false, reason: "connection-broken" };
+      throw error;
+    }
+    const recalculated = changed && recalculate().ok;
+    try {
+      await writeBlocks();
+    } catch (error) {
+      if (error instanceof CalendarAuthError) return { ok: false, reason: "connection-broken" };
+      throw error;
+    }
+    return { ok: true, recalculated };
   }
 
   return {
@@ -576,31 +732,86 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       return { ok: true };
     },
 
+    syncEvents,
+
     /**
-     * Polling: rereads Events from the Busy Calendars, and recalculates if any were added, moved or deleted.
-     * Then brings the dynacal calendar up to date, which also retries any earlier write that failed.
-     * Gateway failures are thrown to the caller.
+     * Push notifications: keeps a Google push notification channel open for each Busy Calendar and the
+     * dynacal calendar, renewing any that close within a day and closing ones no longer needed. Google only
+     * delivers to a public HTTPS address, so nothing is registered unless `publicBaseUrl` is https; polling
+     * carries on either way. Polling calls this every time, and it only reaches Google when something's due.
      */
-    async syncEvents(): Promise<SyncEventsResult> {
+    async watchCalendars(publicBaseUrl: string): Promise<WatchCalendarsResult> {
+      if (!/^https:\/\//i.test(publicBaseUrl)) return { ok: false, reason: "needs-https" };
       const connection = getGoogleConnection().status;
       if (connection === "not-connected") return { ok: false, reason: "not-connected" };
-      // Credentials Google has refused stay refused; only reconnecting (connectGoogle) recovers.
       if (connection === "broken") return { ok: false, reason: "connection-broken" };
-      let changed: boolean;
+      const address = `${publicBaseUrl.replace(/\/+$/, "")}${CALENDAR_NOTIFICATIONS_PATH}`;
+      const now = clock.now();
+      const dynacal = dynacalCalendarId();
+      const wanted = new Set([
+        ...db.select().from(busyCalendars).all().map((b) => b.calendarId),
+        ...(dynacal === null ? [] : [dynacal]),
+      ]);
+      const open = db.select().from(calendarWatches).all();
+      const keep = new Set<string>();
       try {
-        changed = await readEvents();
+        for (const calendarId of wanted) {
+          const current = open.find(
+            (w) =>
+              w.calendarId === calendarId &&
+              w.address === address &&
+              w.expiresAt.getTime() - now.getTime() > CHANNEL_RENEWAL_MS,
+          );
+          if (current) {
+            keep.add(current.channelId);
+            continue;
+          }
+          const channel = {
+            id: randomUUID(),
+            token: randomBytes(32).toString("base64url"),
+            address,
+            expiresAt: new Date(now.getTime() + CHANNEL_LIFETIME_MS),
+          };
+          const { resourceId, expiresAt } = await calendar.watchEvents(calendarId, channel);
+          db.insert(calendarWatches)
+            .values({ channelId: channel.id, calendarId, resourceId, token: channel.token, address, expiresAt })
+            .run();
+          keep.add(channel.id);
+        }
+        // Replaced channels are closed only once their replacements are open, so no change goes unnoticed.
+        for (const w of open.filter((w) => !keep.has(w.channelId))) {
+          if (w.expiresAt > now) await calendar.stopWatching(w.channelId, w.resourceId);
+          db.delete(calendarWatches).where(eq(calendarWatches.channelId, w.channelId)).run();
+        }
       } catch (error) {
         if (error instanceof CalendarAuthError) return { ok: false, reason: "connection-broken" };
         throw error;
       }
-      const recalculated = changed && recalculate().ok;
-      try {
-        await writeBlocks();
-      } catch (error) {
-        if (error instanceof CalendarAuthError) return { ok: false, reason: "connection-broken" };
-        throw error;
+      return { ok: true };
+    },
+
+    /**
+     * A push notification from Google: something changed on a watched calendar, so sync now rather than at
+     * the next poll. Google sends no details, so it's a full sync either way.
+     */
+    async receiveCalendarNotification(notification: CalendarNotification): Promise<ReceiveCalendarNotificationResult> {
+      const channel = db
+        .select()
+        .from(calendarWatches)
+        .where(eq(calendarWatches.channelId, notification.channelId))
+        .get();
+      // Only Google and dynacal know a channel's token; the rest guards against a notification for the wrong calendar.
+      if (
+        !channel ||
+        !sameSecret(notification.token, channel.token) ||
+        notification.resourceId !== channel.resourceId ||
+        channel.expiresAt <= clock.now()
+      ) {
+        return { ok: false, reason: "unknown-channel" };
       }
-      return { ok: true, recalculated };
+      // "sync" only confirms the channel has opened.
+      if (notification.resourceState !== "sync") await syncEvents();
+      return { ok: true };
     },
 
     getGoogleConnection,
