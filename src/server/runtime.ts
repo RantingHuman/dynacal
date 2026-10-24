@@ -5,6 +5,7 @@ import { systemClock } from "@/core/clock";
 import { createCommands, type Commands } from "@/core/commands";
 import { openDatabase } from "@/core/db";
 import { loadConfig, type Config } from "./config";
+import { createWebPushSender } from "./web-push-sender";
 
 export interface Runtime {
   config: Config;
@@ -24,7 +25,12 @@ export function getRuntime(): Runtime {
     process.once("exit", () => db.$client.close());
     globalForRuntime.dynacalRuntime = {
       config,
-      commands: createCommands({ db, clock: systemClock, ownerEmail: config.OWNER_EMAIL }),
+      commands: createCommands({
+        db,
+        clock: systemClock,
+        ownerEmail: config.OWNER_EMAIL,
+        pushSender: createWebPushSender(config),
+      }),
       google: new Google(
         config.GOOGLE_CLIENT_ID,
         config.GOOGLE_CLIENT_SECRET,

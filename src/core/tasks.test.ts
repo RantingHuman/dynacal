@@ -20,7 +20,9 @@ describe("Tasks", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(commands.listTasks()).toEqual([{ id: result.task.id, ...minimal }]);
+    expect(commands.listTasks()).toEqual([
+      { id: result.task.id, ...minimal, remainingMinutes: 90, completedAt: null },
+    ]);
   });
 
   it("remembers whether a deadline or Earliest Start was a date only or a date and time", () => {
@@ -70,7 +72,9 @@ describe("Tasks", () => {
     const result = commands.updateTask(created.task.id, edited);
 
     expect(result).toEqual({ ok: true, task: { id: created.task.id, ...edited } });
-    expect(commands.listTasks()).toEqual([{ id: created.task.id, ...edited }]);
+    expect(commands.listTasks()).toEqual([
+      { id: created.task.id, ...edited, remainingMinutes: 180, completedAt: null },
+    ]);
   });
 
   it("doesn't save an invalid edit", () => {

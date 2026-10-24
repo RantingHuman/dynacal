@@ -1,6 +1,7 @@
 import type { Clock } from "./clock";
 import { createCommands } from "./commands";
 import { openDatabase } from "./db";
+import type { PushMessage, PushOutcome, PushSender, PushSubscriptionInput } from "./push";
 
 /** A clock that only moves when a test tells it to. */
 export class FakeClock implements Clock {
@@ -16,10 +17,22 @@ export class FakeClock implements Clock {
   }
 }
 
-/** The command layer wired to an in-memory database and a fake clock. */
+/** Records every push instead of sending it. Endpoints added to `gone` answer as expired subscriptions. */
+export class FakePushSender implements PushSender {
+  sent: { endpoint: string; message: PushMessage }[] = [];
+  gone = new Set<string>();
+  async send(subscription: PushSubscriptionInput, message: PushMessage): Promise<PushOutcome> {
+    if (this.gone.has(subscription.endpoint)) return "gone";
+    this.sent.push({ endpoint: subscription.endpoint, message });
+    return "sent";
+  }
+}
+
+/** The command layer wired to an in-memory database, a fake clock and a fake push sender. */
 export function createTestApp({ ownerEmail = "owner@example.com" }: { ownerEmail?: string } = {}) {
   const db = openDatabase(":memory:");
   const clock = new FakeClock();
-  const commands = createCommands({ db, clock, ownerEmail });
-  return { commands, clock, db };
+  const pushSender = new FakePushSender();
+  const commands = createCommands({ db, clock, ownerEmail, pushSender });
+  return { commands, clock, db, pushSender };
 }

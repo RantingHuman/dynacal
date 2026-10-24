@@ -1,0 +1,53 @@
+.item {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
+.item > :global(.task-row) {
+  flex: 1;
+  min-width: 0;
+}
+
+.completed :global(.task-row) {
+  opacity: 0.6;
+}
+
+.completed :global(.task-title) {
+  text-decoration: line-through;
+}
+
+.toggle {
+  flex: none;
+  width: 1.6rem;
+  height: 1.6rem;
+  margin-top: 0.55rem;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  background: none;
+  color: transparent;
+  font: inherit;
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.toggle:hover,
+.toggle:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.toggle:disabled {
+  cursor: progress;
+}
+
+.done,
+.done:hover {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--bg);
+  cursor: default;
+}
