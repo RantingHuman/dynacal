@@ -1,4 +1,4 @@
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import type { TaskFlag } from "../scheduler";
 import type { WorkingHours } from "../settings";
 import type { Priority } from "../tasks";
@@ -44,3 +44,27 @@ export const blocks = sqliteTable("blocks", {
   start: integer("start", { mode: "timestamp_ms" }).notNull(),
   end: integer("end", { mode: "timestamp_ms" }).notNull(),
 });
+
+/** Where the owner's browsers and installed apps receive web push notifications. */
+export const pushSubscriptions = sqliteTable("push_subscriptions", {
+  endpoint: text("endpoint").primaryKey(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+});
+
+/**
+ * Reminders already pushed, keyed by Task and Block start rather than Block id, because a
+ * Recalculation replaces every future Block. A Block that moves gets a new start, so it's reminded again.
+ */
+export const remindersSent = sqliteTable(
+  "reminders_sent",
+  {
+    taskId: text("task_id")
+      .notNull()
+      .references(() => tasks.id, { onDelete: "cascade" }),
+    blockStart: integer("block_start", { mode: "timestamp_ms" }).notNull(),
+    sentAt: integer("sent_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.taskId, t.blockStart] })],
+);

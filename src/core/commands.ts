@@ -2,7 +2,9 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { eq, gte, lt, sql } from "drizzle-orm";
 import type { Clock } from "./clock";
 import type { Db } from "./db";
-import { blocks, sessions, settings, tasks } from "./db/schema";
+import { blocks, pushSubscriptions, remindersSent, sessions, settings, tasks } from "./db/schema";
+import { validatePushSubscription, type PushSender, type PushSubscriptionInput, type SubscribeToPushResult } from "./push";
+import { dueReminders, reminderMessage } from "./reminders";
 import {
   PLANNING_HORIZON_DAYS,
   resolveDeadline,
@@ -27,6 +29,7 @@ export interface CommandDeps {
   db: Db;
   clock: Clock;
   ownerEmail: string;
+  pushSender: PushSender;
 }
 
 /** The identity Google vouched for at the end of the OAuth flow. */
@@ -71,7 +74,7 @@ export type RecalculateResult = { ok: true } | { ok: false; reason: "needs-time-
 const MINUTE_MS = 60_000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
 
-export function createCommands({ db, clock, ownerEmail }: CommandDeps) {
+export function createCommands({ db, clock, ownerEmail, pushSender }: CommandDeps) {
   const owner = ownerEmail.trim().toLowerCase();
 
   function getSettings(): Settings {
@@ -274,6 +277,62 @@ export function createCommands({ db, clock, ownerEmail }: CommandDeps) {
         blocks: rows.map(({ block, taskTitle }) => ({ ...block, taskTitle })),
         flags,
       };
+    },
+
+    /** Stores a browser's push subscription so reminders reach it. */
+    subscribeToPush(subscription: PushSubscriptionInput): SubscribeToPushResult {
+      const errors = validatePushSubscription(subscription);
+      if (errors) return { ok: false, errors };
+      const keys = { p256dh: subscription.keys.p256dh, auth: subscription.keys.auth };
+      db.insert(pushSubscriptions)
+        .values({ endpoint: subscription.endpoint, createdAt: clock.now(), ...keys })
+        .onConflictDoUpdate({ target: pushSubscriptions.endpoint, set: keys })
+        .run();
+      return { ok: true };
+    },
+
+    unsubscribeFromPush(endpoint: string): void {
+      db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, endpoint)).run();
+    },
+
+    /** Called by the periodic reminder job: pushes a reminder for each Block starting within the Reminder Lead Time. */
+    async sendDueReminders(): Promise<void> {
+      const { timeZone, reminderLeadMinutes } = getSettings();
+      if (timeZone === null) return;
+      const now = clock.now();
+      // Only Blocks that haven't started can be reminded, so older records are no longer needed.
+      db.delete(remindersSent).where(lt(remindersSent.blockStart, now)).run();
+      const candidates = db
+        .select({ taskId: blocks.taskId, start: blocks.start, taskTitle: tasks.title })
+        .from(blocks)
+        .innerJoin(tasks, eq(blocks.taskId, tasks.id))
+        .where(gte(blocks.start, now))
+        .all();
+      const alreadySent = new Set(
+        db
+          .select()
+          .from(remindersSent)
+          .all()
+          .map((r) => `${r.taskId}@${r.blockStart.getTime()}`),
+      );
+      const due = dueReminders(now, reminderLeadMinutes, candidates).filter(
+        (b) => !alreadySent.has(`${b.taskId}@${b.start.getTime()}`),
+      );
+      const subscriptions = db.select().from(pushSubscriptions).all();
+      // Recorded before sending, so a job run that overlaps this one can't send the same reminder.
+      for (const block of due) {
+        db.insert(remindersSent).values({ taskId: block.taskId, blockStart: block.start, sentAt: now }).run();
+      }
+      for (const block of due) {
+        const message = reminderMessage(block, now, timeZone);
+        for (const sub of subscriptions) {
+          const outcome = await pushSender.send(
+            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+            message,
+          );
+          if (outcome === "gone") db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, sub.endpoint)).run();
+        }
+      }
     },
   };
 }
