@@ -54,6 +54,8 @@ export const blocks = sqliteTable("blocks", {
   review: text("review").$type<BlockReview>(),
   /** Minutes worked, for a "did part of it" review. */
   workedMinutes: integer("worked_minutes"),
+  /** A Pinned Block: the owner placed it by hand, so Recalculation plans around it instead of moving it. */
+  pinned: integer("pinned", { mode: "boolean" }).notNull().default(false),
 });
 
 /** A single row (id = 1) holding the owner's Google Calendar connection; absent until they connect. */

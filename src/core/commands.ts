@@ -23,10 +23,12 @@ import {
 } from "./db/schema";
 import { countsAsBusy, eventInterval, eventsFingerprint } from "./events";
 import { validatePushSubscription, type PushSender, type PushSubscriptionInput, type SubscribeToPushResult } from "./push";
+import { validateBlockTime, type MoveBlockResult, type UnpinBlockResult } from "./pinning";
 import { dueReminders, reminderMessage } from "./reminders";
 import {
   PLANNING_HORIZON_DAYS,
   resolveDeadline,
+  findConflicts,
   resolveEarliestStart,
   schedule,
   type TaskFlag,
@@ -110,6 +112,8 @@ export interface BlockView {
   taskTitle: string;
   start: Date;
   end: Date;
+  /** A Pinned Block: Recalculation plans around it instead of moving it. */
+  pinned: boolean;
 }
 
 /** Until the owner saves a time zone, there's no Schedule. */
@@ -124,6 +128,8 @@ export type ScheduleView =
       /** Events that count as busy time, in time order. */
       events: EventView[];
       flags: Record<string, TaskFlag | null>;
+      /** Events overlapping Pinned Blocks that haven't ended, for the owner to resolve. */
+      conflicts: { blockId: string; eventId: string }[];
     };
 
 /** An Unreviewed Block as the review banner shows it. */
@@ -262,6 +268,11 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar }: 
     db.transaction((tx) => {
       const started = tx.select().from(blocks).where(lt(blocks.start, now)).all();
       const inProgress = started.filter((b) => b.end > now);
+      const pinnedAhead = tx
+        .select()
+        .from(blocks)
+        .where(and(gte(blocks.start, now), eq(blocks.pinned, true)))
+        .all();
       // The elapsed part of an in-progress Block; the scheduler accounts for the rest of it.
       const elapsedMs = new Map<string, number>();
       for (const b of inProgress) {
@@ -302,12 +313,14 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar }: 
           dontSplit: row.dontSplit,
         })),
         busy,
-        pinnedBlocks: [],
-        fixedBlocks: inProgress,
+        pinnedBlocks: [...inProgress.filter((b) => b.pinned), ...pinnedAhead],
+        fixedBlocks: inProgress.filter((b) => !b.pinned),
         previousSchedule,
       });
 
-      tx.delete(blocks).where(gte(blocks.start, now)).run();
+      tx.delete(blocks)
+        .where(and(gte(blocks.start, now), eq(blocks.pinned, false)))
+        .run();
       for (const block of result.blocks) tx.insert(blocks).values({ id: randomUUID(), ...block }).run();
       for (const row of taskRows) {
         tx.update(tasks)
@@ -498,6 +511,31 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar }: 
       return { ok: true };
     },
 
+    /** Moves or resizes a Block, which makes it a Pinned Block at its new time, then recalculates. */
+    moveBlock(id: string, to: { start: Date; end: Date }): MoveBlockResult {
+      const block = db.select().from(blocks).where(eq(blocks.id, id)).get();
+      if (!block) return { ok: false, notFound: true };
+      const now = clock.now();
+      const errors = validateBlockTime(to, {
+        now,
+        horizonEnd: new Date(now.getTime() + PLANNING_HORIZON_DAYS * DAY_MS),
+        horizonDays: PLANNING_HORIZON_DAYS,
+        current: block,
+      });
+      if (errors) return { ok: false, errors };
+      db.update(blocks).set({ start: to.start, end: to.end, pinned: true }).where(eq(blocks.id, id)).run();
+      recalculate();
+      return { ok: true };
+    },
+
+    /** Unpins a Block, so Recalculation manages it again (a Block that hasn't started is placed afresh). */
+    unpinBlock(id: string): UnpinBlockResult {
+      const row = db.update(blocks).set({ pinned: false }).where(eq(blocks.id, id)).returning().get();
+      if (!row) return { ok: false, notFound: true };
+      recalculate();
+      return { ok: true };
+    },
+
     /** Records whether a past Block's work happened, then recalculates so any time added back is scheduled. */
     reviewBlock(id: string, outcome: ReviewOutcome): ReviewBlockResult {
       const block = db.select().from(blocks).where(eq(blocks.id, id)).get();
@@ -532,6 +570,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar }: 
           taskTitle,
           start: block.start,
           end: block.end,
+          pinned: block.pinned,
           suggestedWorkedMinutes: suggestedWorkedMinutes(block),
         }));
     },
@@ -554,16 +593,30 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar }: 
           .all()
           .map(({ id, flag }) => [id, flag]),
       );
+      const blockViews: BlockView[] = rows.map(({ block, taskTitle }) => ({
+        id: block.id,
+        taskId: block.taskId,
+        taskTitle,
+        start: block.start,
+        end: block.end,
+        pinned: block.pinned,
+      }));
+      const eventViews: EventView[] = cachedEvents()
+        .filter((e) => countsAsBusy(e, current))
+        .map((e) => ({ id: `${e.calendarId}/${e.id}`, title: e.title, allDay: e.allDay, ...eventInterval(e, timeZone) }))
+        .sort((a, b) => a.start.getTime() - b.start.getTime());
+      const pinnedAhead = blockViews.filter((b) => b.pinned && b.end > now);
       return {
         status: "ready",
         timeZone,
         horizon: { start: now, end: new Date(now.getTime() + PLANNING_HORIZON_DAYS * DAY_MS) },
-        blocks: rows.map(({ block, taskTitle }) => ({ ...block, taskTitle })),
-        events: cachedEvents()
-          .filter((e) => countsAsBusy(e, current))
-          .map((e) => ({ id: `${e.calendarId}/${e.id}`, title: e.title, allDay: e.allDay, ...eventInterval(e, timeZone) }))
-          .sort((a, b) => a.start.getTime() - b.start.getTime()),
+        blocks: blockViews,
+        events: eventViews,
         flags,
+        conflicts: findConflicts(pinnedAhead, eventViews).map(({ block, event }) => ({
+          blockId: block.id,
+          eventId: event.id,
+        })),
       };
     },
 

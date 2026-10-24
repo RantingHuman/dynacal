@@ -55,10 +55,18 @@ export interface SchedulerInput {
 
 export type TaskFlag = "at-risk" | "overdue" | "unscheduled";
 
+/** A Conflict: an Event (busy time) overlapping a Pinned Block. Only the owner can resolve it. */
+export interface Conflict<B extends ScheduledBlock = ScheduledBlock, E extends Interval = Interval> {
+  block: B;
+  event: E;
+}
+
 export interface SchedulerOutput {
   /** New unpinned future Blocks, in time order. */
   blocks: ScheduledBlock[];
   flags: Record<string, TaskFlag | null>;
+  /** Conflicts between Pinned Blocks that haven't ended and busy time, in Pinned Block order. */
+  conflicts: Conflict[];
 }
 
 function minutesOf(time: string): number {
@@ -137,7 +145,26 @@ export function schedule(input: SchedulerInput): SchedulerOutput {
     }
     flags[task.id] = flagFor(task, need, pieces, keptForTask.length > 0, now);
   }
-  return { blocks: blocks.sort((a, b) => a.start.getTime() - b.start.getTime()), flags };
+  return {
+    blocks: blocks.sort((a, b) => a.start.getTime() - b.start.getTime()),
+    flags,
+    conflicts: findConflicts(
+      input.pinnedBlocks.filter((b) => b.end.getTime() > now),
+      input.busy,
+    ),
+  };
+}
+
+/**
+ * Every overlap between a Pinned Block and an Event. Pinned Blocks are never moved to resolve one.
+ * Returns the very objects passed in, so callers can match them back to their own records.
+ */
+export function findConflicts<B extends ScheduledBlock, E extends Interval>(pinnedBlocks: B[], events: E[]): Conflict<B, E>[] {
+  return pinnedBlocks.flatMap((block) =>
+    events
+      .filter((e) => e.start.getTime() < block.end.getTime() && e.end.getTime() > block.start.getTime())
+      .map((event) => ({ block, event })),
+  );
 }
 
 /** Overdue outranks Unscheduled, which outranks At Risk. */

@@ -281,6 +281,64 @@ describe("scheduler", () => {
 
       expect(blocksOf(result)).toEqual([["a", "2026-01-05T10:00:00.000Z", "2026-01-05T11:00:00.000Z"]]);
     });
+
+    it("counts a Pinned Block outside Working Hours toward the Task", () => {
+      const result = schedule(
+        input({
+          tasks: [task("a", { remainingMinutes: 90 })],
+          pinnedBlocks: [at("a", "19:00", "20:00")],
+        }),
+      );
+
+      expect(blocksOf(result)).toEqual([["a", "2026-01-05T09:00:00.000Z", "2026-01-05T09:30:00.000Z"]]);
+      expect(result.flags).toEqual({ a: null });
+    });
+  });
+
+  describe("Conflicts", () => {
+    const at = (taskId: string, start: string, end: string) => ({
+      taskId,
+      start: new Date(`2026-01-05T${start}:00Z`),
+      end: new Date(`2026-01-05T${end}:00Z`),
+    });
+    const event = (start: string, end: string) => ({
+      start: new Date(`2026-01-05T${start}:00Z`),
+      end: new Date(`2026-01-05T${end}:00Z`),
+    });
+
+    it("flags an Event overlapping a Pinned Block, and leaves the Pinned Block where it is", () => {
+      const pinned = at("a", "10:00", "11:00");
+      const meeting = event("10:30", "11:30");
+      const result = schedule(
+        input({ tasks: [task("a", { remainingMinutes: 120 })], pinnedBlocks: [pinned], busy: [meeting] }),
+      );
+
+      expect(result.conflicts).toEqual([{ block: pinned, event: meeting }]);
+      expect(blocksOf(result)).toEqual([
+        ["a", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"],
+      ]);
+    });
+
+    it("doesn't flag Events that only touch a Pinned Block, nor Pinned Blocks that have ended", () => {
+      const result = schedule(
+        input({
+          now: new Date("2026-01-05T12:00:00Z"),
+          tasks: [task("a")],
+          pinnedBlocks: [at("a", "10:00", "11:00"), at("a", "13:00", "14:00")],
+          busy: [event("10:30", "10:45"), event("12:00", "13:00"), event("14:00", "15:00")],
+        }),
+      );
+
+      expect(result.conflicts).toEqual([]);
+    });
+
+    it("doesn't flag Events overlapping a Block that isn't pinned", () => {
+      const result = schedule(
+        input({ tasks: [task("a")], fixedBlocks: [at("a", "08:30", "09:30")], busy: [event("09:00", "10:00")] }),
+      );
+
+      expect(result.conflicts).toEqual([]);
+    });
   });
 
   describe("time zones", () => {
