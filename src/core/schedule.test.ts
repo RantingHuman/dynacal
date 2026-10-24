@@ -43,6 +43,20 @@ describe("the Schedule", () => {
     ]);
   });
 
+  it("keeps other Tasks' Blocks where they were when a Task is deleted", () => {
+    const { commands } = appInLondon();
+    const first = createTask(commands, { title: "First" });
+    createTask(commands, { title: "Second" });
+    createTask(commands, { title: "Third" });
+
+    commands.deleteTask(first.id);
+
+    expect(blocks(commands)).toEqual([
+      ["Second", "2026-01-05T10:00:00.000Z", "2026-01-05T11:00:00.000Z"],
+      ["Third", "2026-01-05T11:00:00.000Z", "2026-01-05T12:00:00.000Z"],
+    ]);
+  });
+
   it("doesn't exist until the owner saves a time zone, and appears once they do", () => {
     const { commands } = createTestApp();
     createTask(commands);
@@ -66,16 +80,6 @@ describe("the Schedule", () => {
     expect(blocks(commands)).toEqual([
       ["Write annual report", "2026-01-05T09:00:00.000Z", "2026-01-05T11:00:00.000Z"],
     ]);
-  });
-
-  it("is recalculated when a Task is deleted", () => {
-    const { commands } = appInLondon();
-    const first = createTask(commands, { title: "First" });
-    createTask(commands, { title: "Second" });
-
-    commands.deleteTask(first.id);
-
-    expect(blocks(commands)).toEqual([["Second", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"]]);
   });
 
   it("is recalculated when settings change", () => {
