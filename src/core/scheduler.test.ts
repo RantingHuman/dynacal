@@ -151,7 +151,7 @@ describe("scheduler", () => {
       ]);
     });
 
-    it("places Tasks without a deadline after all deadlined ones, by Priority", () => {
+    it("places Tasks without a deadline by Priority, after deadlined Tasks of the same Priority", () => {
       const result = schedule(
         input({
           tasks: [
@@ -163,7 +163,64 @@ describe("scheduler", () => {
         }),
       );
 
-      expect(result.blocks.map((b) => b.taskId)).toEqual(["due, low", "open critical", "open high", "open low"]);
+      expect(result.blocks.map((b) => b.taskId)).toEqual(["open critical", "open high", "due, low", "open low"]);
+    });
+  });
+
+  describe("Priority (ADR-0003)", () => {
+    const today5pm = new Date("2026-01-05T17:00:00Z");
+    const friday5pm = new Date("2026-01-09T17:00:00Z");
+
+    it("places a Critical Task due Friday before a Low Task due today when the Low Task still makes its deadline", () => {
+      const result = schedule(
+        input({
+          tasks: [
+            task("low, due today", { priority: "low", deadline: today5pm, remainingMinutes: 120 }),
+            task("critical, due Friday", { priority: "critical", deadline: friday5pm, remainingMinutes: 120 }),
+          ],
+        }),
+      );
+
+      expect(blocksOf(result)).toEqual([
+        ["critical, due Friday", "2026-01-05T09:00:00.000Z", "2026-01-05T11:00:00.000Z"],
+        ["low, due today", "2026-01-05T11:00:00.000Z", "2026-01-05T13:00:00.000Z"],
+      ]);
+      expect(result.flags).toEqual({ "low, due today": null, "critical, due Friday": null });
+    });
+
+    it("keeps a Low Task due today first when going second would make it At Risk", () => {
+      const result = schedule(
+        input({
+          tasks: [
+            task("low, due today", { priority: "low", deadline: today5pm, remainingMinutes: 420 }),
+            task("critical, due Friday", { priority: "critical", deadline: friday5pm, remainingMinutes: 120 }),
+          ],
+        }),
+      );
+
+      expect(blocksOf(result)).toEqual([
+        ["low, due today", "2026-01-05T09:00:00.000Z", "2026-01-05T16:00:00.000Z"],
+        ["critical, due Friday", "2026-01-05T16:00:00.000Z", "2026-01-05T17:00:00.000Z"],
+        ["critical, due Friday", "2026-01-06T09:00:00.000Z", "2026-01-06T10:00:00.000Z"],
+      ]);
+      expect(result.flags).toEqual({ "low, due today": null, "critical, due Friday": null });
+    });
+
+    it("when two Tasks can't both make their deadlines, the lower-Priority one is At Risk", () => {
+      const result = schedule(
+        input({
+          tasks: [
+            task("low", { priority: "low", deadline: new Date("2026-01-05T11:00:00Z"), remainingMinutes: 120 }),
+            task("high", { priority: "high", deadline: new Date("2026-01-05T12:00:00Z"), remainingMinutes: 120 }),
+          ],
+        }),
+      );
+
+      expect(blocksOf(result)).toEqual([
+        ["high", "2026-01-05T09:00:00.000Z", "2026-01-05T11:00:00.000Z"],
+        ["low", "2026-01-05T11:00:00.000Z", "2026-01-05T13:00:00.000Z"],
+      ]);
+      expect(result.flags).toEqual({ low: "at-risk", high: null });
     });
   });
 
@@ -243,6 +300,64 @@ describe("scheduler", () => {
 
       expect(result.blocks.at(-1)?.end.toISOString()).toBe("2026-01-16T17:00:00.000Z");
       expect(result.blocks).toHaveLength(10);
+    });
+  });
+
+  describe("keeping Blocks where they were", () => {
+    const at = (taskId: string, start: string, end: string) => ({
+      taskId,
+      start: new Date(`2026-01-05T${start}:00Z`),
+      end: new Date(`2026-01-05T${end}:00Z`),
+    });
+
+    it("between Tasks of equal standing, keeps the order they had in the previous Schedule", () => {
+      const result = schedule(
+        input({
+          tasks: [task("first"), task("second")],
+          previousSchedule: [at("second", "09:00", "10:00"), at("first", "10:00", "11:00")],
+        }),
+      );
+
+      expect(blocksOf(result)).toEqual([
+        ["second", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"],
+        ["first", "2026-01-05T10:00:00.000Z", "2026-01-05T11:00:00.000Z"],
+      ]);
+    });
+
+    it("places a new Task of equal standing after the ones already in the Schedule", () => {
+      const result = schedule(
+        input({
+          tasks: [task("new"), task("existing")],
+          previousSchedule: [at("existing", "09:00", "10:00")],
+        }),
+      );
+
+      expect(blocksOf(result)).toEqual([
+        ["existing", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"],
+        ["new", "2026-01-05T10:00:00.000Z", "2026-01-05T11:00:00.000Z"],
+      ]);
+    });
+
+    it("still gives a higher-Priority Task the earlier time a lower-Priority Task had", () => {
+      const result = schedule(
+        input({
+          tasks: [task("low", { priority: "low" }), task("critical", { priority: "critical" })],
+          previousSchedule: [at("low", "09:00", "10:00"), at("critical", "10:00", "11:00")],
+        }),
+      );
+
+      expect(blocksOf(result)).toEqual([
+        ["critical", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"],
+        ["low", "2026-01-05T10:00:00.000Z", "2026-01-05T11:00:00.000Z"],
+      ]);
+    });
+
+    it("still moves Blocks earlier into time that frees up", () => {
+      const result = schedule(
+        input({ tasks: [task("b")], previousSchedule: [at("a", "09:00", "10:00"), at("b", "10:00", "11:00")] }),
+      );
+
+      expect(blocksOf(result)).toEqual([["b", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"]]);
     });
   });
 
@@ -368,7 +483,7 @@ describe("scheduler", () => {
           dontSplit: r.next() < 0.3,
         }),
       );
-      return input({
+      const result = input({
         now,
         timeZone: r.pick(["Europe/London", "America/New_York", "Australia/Sydney", "Asia/Kathmandu", "UTC"]),
         workingHours,
@@ -376,6 +491,12 @@ describe("scheduler", () => {
         tasks,
         busy,
       });
+      if (r.next() < 0.5) return result;
+      // Half the runs recalculate after a small change: the previous Schedule had one more Task,
+      // and one Task's Remaining Duration was different.
+      const before = tasks.map((t) => (r.next() < 0.2 ? { ...t, remainingMinutes: quarter(15, 900) } : t));
+      before.splice(r.int(0, before.length), 0, task("gone", { remainingMinutes: quarter(15, 300) }));
+      return { ...result, previousSchedule: schedule({ ...result, tasks: before }).blocks };
     }
 
     const GRID = 15 * 60_000;
@@ -384,6 +505,24 @@ describe("scheduler", () => {
     it("is deterministic", () => {
       for (const seed of seeds) {
         expect(schedule(randomInput(seed))).toEqual(schedule(randomInput(seed)));
+      }
+    });
+
+    it("leaves the Schedule as it was when recalculated with nothing changed", () => {
+      for (const seed of seeds) {
+        const first = schedule(randomInput(seed));
+        expect(schedule({ ...randomInput(seed), previousSchedule: first.blocks })).toEqual(first);
+      }
+    });
+
+    it("flags no more Tasks by keeping Blocks where they were than it would without", () => {
+      const flagged = (result: ReturnType<typeof schedule>) =>
+        Object.values(result.flags).filter((flag) => flag !== null).length;
+      for (const seed of seeds) {
+        const withPrevious = randomInput(seed);
+        expect(flagged(schedule(withPrevious))).toBeLessThanOrEqual(
+          flagged(schedule({ ...withPrevious, previousSchedule: [] })),
+        );
       }
     });
 
