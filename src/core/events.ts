@@ -3,6 +3,7 @@ import type { CalendarEvent, EventTiming } from "./calendar-gateway";
 import { DAY_MS, type Interval } from "./time";
 import type { Settings } from "./settings";
 import { fromZoned } from "./time-zone";
+import { timingKey } from "./event-timing";
 import { DYNACAL_EVENTS_CALENDAR_ID } from "./dynacal-events";
 
 /**
@@ -63,7 +64,7 @@ export function overlaps(a: Interval, b: Interval): boolean {
 export function eventsFingerprint(events: CalendarEvent[]): string {
   return JSON.stringify(
     events
-      .map((e) => [e.calendarId, e.id, e.title, e.free, ...(e.allDay ? [e.startDate, e.endDate] : [e.start.getTime(), e.end.getTime()])])
+      .map((e) => [e.calendarId, e.id, e.title, e.free, timingKey(e)])
       .sort((a, b) => `${a[0]}\u0000${a[1]}`.localeCompare(`${b[0]}\u0000${b[1]}`)),
   );
 }

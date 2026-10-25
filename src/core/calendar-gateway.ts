@@ -4,7 +4,10 @@
  * them.
  */
 
+import type { EventTiming } from "./event-timing";
 import type { Interval } from "./time";
+
+export type { EventTiming } from "./event-timing";
 
 /** One of the owner's Google calendars. */
 export interface GoogleCalendar {
@@ -13,10 +16,6 @@ export interface GoogleCalendar {
   primary: boolean;
 }
 
-/** When an Event happens: timed Events are instants; all-day Events are local dates, `endDate` exclusive. */
-export type EventTiming =
-  | { allDay: false; start: Date; end: Date }
-  | { allDay: true; startDate: string; endDate: string };
 
 /** An Event as read from a Busy Calendar. */
 export type CalendarEvent = {

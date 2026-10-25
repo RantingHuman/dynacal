@@ -12,6 +12,7 @@ import {
 import type { Clock } from "@/core/clock";
 import type { Db } from "@/core/db";
 import { readTokens, saveTokens } from "@/core/google-connection";
+import { fromGoogleTiming, toGoogleTiming, type GoogleEventTime } from "@/core/event-timing";
 import type { Interval } from "@/core/time";
 
 const API = "https://www.googleapis.com/calendar/v3";
@@ -235,9 +236,7 @@ function googleEvent(event: DynacalCalendarEvent) {
   return {
     summary: event.title,
     description: event.description,
-    ...(event.allDay
-      ? { start: { date: event.startDate }, end: { date: event.endDate } }
-      : { start: { dateTime: event.start.toISOString() }, end: { dateTime: event.end.toISOString() } }),
+    ...toGoogleTiming(event),
     // A rewrite also revives an event the owner deleted, which Google keeps as "cancelled".
     status: "confirmed",
     reminders: { useDefault: false, overrides: [{ method: "popup", minutes: event.reminderMinutes }] },
@@ -248,23 +247,17 @@ function googleEvent(event: DynacalCalendarEvent) {
 /** A Google `Event` on a Busy Calendar as dynacal reads it; null for a cancelled (deleted) one, or one with no usable time. */
 function calendarEvent(calendarId: string, e: GoogleEvent): CalendarEvent | null {
   if (e.status === "cancelled") return null;
-  const common = { id: e.id, calendarId, title: e.summary ?? "(No title)", free: e.transparency === "transparent" };
-  if (e.start?.date && e.end?.date) return { ...common, allDay: true, startDate: e.start.date, endDate: e.end.date };
-  if (e.start?.dateTime && e.end?.dateTime) {
-    return { ...common, allDay: false, start: new Date(e.start.dateTime), end: new Date(e.end.dateTime) };
-  }
-  return null;
+  const timing = fromGoogleTiming(e.start, e.end);
+  if (!timing) return null;
+  return { id: e.id, calendarId, title: e.summary ?? "(No title)", free: e.transparency === "transparent", ...timing };
 }
 
 /** A Google `Event` on the dynacal calendar as dynacal reads it; null for a cancelled (deleted) one, or one with no usable time. */
 function dynacalCalendarEvent(e: GoogleEvent): DynacalCalendarEventInGoogle | null {
   if (e.status === "cancelled") return null;
-  const common = { id: e.id, title: e.summary ?? "", description: e.description ?? "", marker: readMarker(e) };
-  if (e.start?.date && e.end?.date) return { ...common, allDay: true, startDate: e.start.date, endDate: e.end.date };
-  if (e.start?.dateTime && e.end?.dateTime) {
-    return { ...common, allDay: false, start: new Date(e.start.dateTime), end: new Date(e.end.dateTime) };
-  }
-  return null;
+  const timing = fromGoogleTiming(e.start, e.end);
+  if (!timing) return null;
+  return { id: e.id, title: e.summary ?? "", description: e.description ?? "", marker: readMarker(e), ...timing };
 }
 
 /** dynacal's marker on a Google `Event`; null if it has none (or not a whole one), as on Blocks written before markers. */
@@ -290,7 +283,7 @@ interface GoogleEvent {
   summary?: string;
   description?: string;
   transparency?: "opaque" | "transparent";
-  start?: { date?: string; dateTime?: string };
-  end?: { date?: string; dateTime?: string };
+  start?: GoogleEventTime;
+  end?: GoogleEventTime;
   extendedProperties?: { private?: Record<string, string> };
 }

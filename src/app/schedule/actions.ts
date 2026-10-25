@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { fromWireTiming } from "@/core/event-timing";
 import type { SetBusyOverrideResult } from "@/core/busy-override";
 import type { RecalculateResult } from "@/core/commands";
 import type {
@@ -59,7 +60,7 @@ const dynacalEventInputSchema = z.discriminatedUnion("allDay", [
 /** A dynacal Event as the form sends it: instants as ISO strings, all-day `endDate` exclusive. */
 function parseDynacalEventInput(input: unknown): DynacalEventInput {
   const parsed = dynacalEventInputSchema.parse(input);
-  return parsed.allDay ? parsed : { ...parsed, start: new Date(parsed.start), end: new Date(parsed.end) };
+  return { title: parsed.title, notes: parsed.notes, ...fromWireTiming(parsed) };
 }
 
 export async function createDynacalEvent(input: unknown): Promise<DynacalEventResult> {

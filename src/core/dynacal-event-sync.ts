@@ -5,6 +5,7 @@
 import type { DynacalCalendarEvent, DynacalCalendarEventInGoogle, EventTiming } from "./calendar-gateway";
 import type { DynacalEvent } from "./dynacal-events";
 import { anyZoneSpan, eventInterval } from "./events";
+import { sameTiming } from "./event-timing";
 import type { Interval } from "./time";
 
 /** What dynacal writes to Google for a dynacal Event: everything but the marker. */
@@ -16,7 +17,7 @@ export type DynacalEventContent = {
 } & EventTiming;
 
 /** A dynacal Event's content as it should stand in Google, with a popup reminder at the Reminder Lead Time. */
-export function wantedContent(event: DynacalEvent, reminderMinutes: number): DynacalEventContent {
+function wantedContent(event: DynacalEvent, reminderMinutes: number): DynacalEventContent {
   const { id: _id, notes, ...rest } = event;
   return { ...rest, description: notes, reminderMinutes };
 }
@@ -160,7 +161,3 @@ export function sameContent(a: DynacalEventContent, b: DynacalEventContent): boo
   return a.title === b.title && a.description === b.description && a.reminderMinutes === b.reminderMinutes && sameTiming(a, b);
 }
 
-export function sameTiming(a: EventTiming, b: EventTiming): boolean {
-  if (a.allDay || b.allDay) return a.allDay && b.allDay && a.startDate === b.startDate && a.endDate === b.endDate;
-  return a.start.getTime() === b.start.getTime() && a.end.getTime() === b.end.getTime();
-}

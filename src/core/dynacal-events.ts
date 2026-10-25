@@ -4,6 +4,7 @@
  */
 import type { CalendarEvent, EventTiming } from "./calendar-gateway";
 import type { dynacalEvents } from "./db/schema";
+import { endsAfterStart, fromTimingColumns, timingOf, toTimingColumns } from "./event-timing";
 
 /**
  * The calendar ID that stands for dynacal itself in an Event's ref, so a dynacal Event can carry a Busy Override
@@ -29,18 +30,14 @@ export type DeleteDynacalEventResult = { ok: true } | { ok: false; notFound: tru
 export function validateDynacalEvent(input: DynacalEventInput): DynacalEventErrors | null {
   const errors: DynacalEventErrors = {};
   if (input.title.trim() === "") errors.title = "Give the Event a title.";
-  const endsAfterStart = input.allDay ? input.endDate > input.startDate : input.end.getTime() > input.start.getTime();
-  if (!endsAfterStart) errors.end = "The end must be after the start.";
+  if (!endsAfterStart(input)) errors.end = "The end must be after the start.";
   return Object.keys(errors).length === 0 ? null : errors;
 }
 
 type DynacalEventRow = typeof dynacalEvents.$inferSelect;
 
 export function toDynacalEvent(row: DynacalEventRow): DynacalEvent {
-  const common = { id: row.id, title: row.title, notes: row.notes };
-  return row.allDay
-    ? { ...common, allDay: true, startDate: row.startDate!, endDate: row.endDate! }
-    : { ...common, allDay: false, start: row.start!, end: row.end! };
+  return { id: row.id, title: row.title, notes: row.notes, ...fromTimingColumns(row) };
 }
 
 /** The stored fields for an Event the owner entered. */
@@ -48,19 +45,11 @@ export function dynacalEventRow(input: DynacalEventInput) {
   return {
     title: input.title.trim(),
     notes: input.notes,
-    allDay: input.allDay,
-    start: input.allDay ? null : input.start,
-    end: input.allDay ? null : input.end,
-    startDate: input.allDay ? input.startDate : null,
-    endDate: input.allDay ? input.endDate : null,
+    ...toTimingColumns(input),
   };
 }
 
 /** A dynacal Event as busy time sees it: never Free, so it blocks unless its Busy Override says otherwise. */
 export function asCalendarEvent(event: DynacalEvent): CalendarEvent {
-  const { id, title } = event;
-  const common = { id, calendarId: DYNACAL_EVENTS_CALENDAR_ID, title, free: false };
-  return event.allDay
-    ? { ...common, allDay: true, startDate: event.startDate, endDate: event.endDate }
-    : { ...common, allDay: false, start: event.start, end: event.end };
+  return { id: event.id, calendarId: DYNACAL_EVENTS_CALENDAR_ID, title: event.title, free: false, ...timingOf(event) };
 }

@@ -2,16 +2,14 @@
 
 import { useState, useTransition } from "react";
 import type { DynacalEventErrors } from "@/core/dynacal-events";
+import type { WireTiming } from "@/core/event-timing";
 import { formatMinutes } from "@/core/settings";
 import { addDays, fromZoned, toZoned } from "@/core/time-zone";
 import { createDynacalEvent, deleteDynacalEvent, updateDynacalEvent } from "./actions";
 import type { NewEventDraft } from "./new-event";
 
 /** A dynacal Event as sent to the browser: instants as ISO strings, all-day `endDate` exclusive. */
-export type DynacalEventDetails = { id: string; title: string; notes: string } & (
-  | { allDay: false; start: string; end: string }
-  | { allDay: true; startDate: string; endDate: string }
-);
+export type DynacalEventDetails = { id: string; title: string; notes: string } & WireTiming;
 
 /** An instant as a datetime-local input shows it, on the owner's wall clock: "YYYY-MM-DDTHH:MM". */
 function localValue(iso: string, timeZone: string): string {

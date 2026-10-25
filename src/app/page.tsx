@@ -5,6 +5,7 @@ import { ReconnectBanner } from "./google/reconnect-banner";
 import { RemindersToggle } from "./reminders/reminders-toggle";
 import { UnreviewedBanner } from "./review/unreviewed-banner";
 import type { DynacalEvent } from "@/core/dynacal-events";
+import { toWireTiming } from "@/core/event-timing";
 import { Calendar } from "./schedule/calendar";
 import type { DynacalEventDetails } from "./schedule/dynacal-event-form";
 import { NewEventProvider } from "./schedule/new-event";
@@ -12,7 +13,7 @@ import { TaskPanel } from "./tasks/task-panel";
 
 /** A dynacal Event as sent to the browser, with instants as ISO strings. */
 function dynacalEventDetails(event: DynacalEvent): DynacalEventDetails {
-  return event.allDay ? event : { ...event, start: event.start.toISOString(), end: event.end.toISOString() };
+  return { id: event.id, title: event.title, notes: event.notes, ...toWireTiming(event) };
 }
 
 export default async function HomePage() {
