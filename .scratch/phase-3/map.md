@@ -21,6 +21,7 @@ A phase 3 spec at `.scratch/phase-3/spec.md`, in the same style as the MVP and p
 
 - [Which visual style should dynacal adopt?](issues/01-visual-style.md): "Editorial, refined". Editorial type and layout with an hourly week calendar, clear Task checkboxes, details in a floating label, Mono's highlighter and expo easing, and Memphis's bouncy presses and squiggles.
 - [Can the motion be built with CSS alone?](issues/03-motion-approach.md): mostly. CSS covers the Block springs, drag tilt, landing and label opening, React's `<ViewTransition>` covers Task reordering and Blocks moving across days, and there's no motion library.
+- [What are the design tokens?](issues/02-design-tokens.md): the prototype's warm palette, adjusted so every text colour passes AA (accent `#ad4527`). Flags share the accent, Instrument Serif for content and Sans for controls, 12px minimum, `next/font/google`, a 4px scale, square panels with pill buttons, keyboard focus rings, and `expo` and `bounce` curves.
 
 ## Not yet specified
 
