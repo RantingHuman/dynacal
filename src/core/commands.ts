@@ -1,3 +1,7 @@
+// Result convention: a command returns `{ ok: true, ... }`, or `{ ok: false, errors: { field: message } }` for input
+// the owner can fix, `{ ok: false, notFound: true }` for a record that's gone, or `{ ok: false, reason }` when it
+// can't run now. Server actions parse their input with zod's `parse`, so malformed input (never sent by the UI)
+// throws, then call a command and `revalidatePath` if it changes anything.
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { and, eq, gt, gte, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { type CalendarEvent, type CalendarGateway, type GoogleCalendar } from "./calendar-gateway";
