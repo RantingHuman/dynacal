@@ -97,6 +97,22 @@ describe("the Google Calendar adapter, on the dynacal calendar", () => {
     });
   });
 
+  it("writes a dynacal Event's notes as the description", async () => {
+    const { gateway, requests } = gatewayReplying({ id: "new-event" });
+
+    await gateway.createDynacalCalendarEvent("dynacal", {
+      title: "Dentist",
+      description: "Bring forms",
+      reminderMinutes: 10,
+      allDay: false,
+      start: new Date("2026-01-05T13:00:00Z"),
+      end: new Date("2026-01-05T14:00:00Z"),
+      marker: { kind: "event", dynacalId: "dynacal-event-1" },
+    });
+
+    expect(requests[0].body).toMatchObject({ summary: "Dentist", description: "Bring forms" });
+  });
+
   it("reads timed and all-day events back with their markers; one without a marker reads as unmarked", async () => {
     const { gateway } = gatewayReplying({
       items: [

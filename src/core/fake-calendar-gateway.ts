@@ -151,6 +151,19 @@ export class FakeCalendarGateway implements CalendarGateway {
     return e && !e.allDay ? [e.title, e.start, e.end] : undefined;
   }
 
+  /** The dynacal Events written to a calendar (events marked as kind "event"), in time order, as Google holds them. */
+  dynacalEventsOn(calendarId: string) {
+    return this.events
+      .filter((e) => e.calendarId === calendarId && this.markers.get(e.id)?.kind === "event")
+      .map(({ calendarId: _calendarId, free: _free, ...e }) => ({
+        ...structuredClone(e),
+        description: this.descriptions.get(e.id) ?? "",
+        reminderMinutes: this.reminders.get(e.id),
+        marker: structuredClone(this.markers.get(e.id)),
+      }))
+      .sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
+  }
+
   async listCalendars(): Promise<GoogleCalendar[]> {
     this.checkCredentials();
     return structuredClone(this.calendars);
@@ -174,6 +187,7 @@ export class FakeCalendarGateway implements CalendarGateway {
     if (!this.calendars.some((c) => c.id === calendarId)) throw new Error(`No calendar ${calendarId}`);
     const eventId = this.addEvent(calendarId, { title: event.title, marker: event.marker, ...timing(event) });
     this.reminders.set(eventId, event.reminderMinutes);
+    if (event.description) this.descriptions.set(eventId, event.description);
     this.writes.push({ kind: "create-event", calendarId, eventId });
     return eventId;
   }
@@ -199,6 +213,7 @@ export class FakeCalendarGateway implements CalendarGateway {
     // A full replacement, as the real adapter does it: anything the owner added in Google goes, and the
     // marker is the one written now.
     this.descriptions.delete(eventId);
+    if (event.description) this.descriptions.set(eventId, event.description);
     this.markers.set(eventId, structuredClone(event.marker));
     return "updated";
   }
@@ -249,4 +264,8 @@ function timing(event: NewTiming | EventTiming): EventTiming {
   return "startDate" in event
     ? { allDay: true, startDate: event.startDate, endDate: event.endDate }
     : { allDay: false, start: event.start, end: event.end };
+}
+
+function sortKey(e: EventTiming): string {
+  return e.allDay ? `${e.startDate}T00:00:00.000Z` : e.start.toISOString();
 }

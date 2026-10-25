@@ -4,7 +4,12 @@
 // throws, then call a command and `revalidatePath` if it changes anything.
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { and, eq, gt, gte, isNull, lt, lte, or, sql } from "drizzle-orm";
-import { type CalendarEvent, type CalendarGateway, type GoogleCalendar } from "./calendar-gateway";
+import {
+  type CalendarEvent,
+  type CalendarGateway,
+  type DynacalCalendarEventInGoogle,
+  type GoogleCalendar,
+} from "./calendar-gateway";
 import type { Clock } from "./clock";
 import { connectionProblem, unlessRefused, watchConnectionHealth } from "./connection-health";
 import {
@@ -33,6 +38,7 @@ import {
   busyOverrides,
   calendarWatches,
   dynacalEvents,
+  dynacalEventWrites,
   events,
   declinedTimes,
   pushSubscriptions,
@@ -55,12 +61,21 @@ import {
   type DynacalEventResult,
   type UpdateDynacalEventResult,
 } from "./dynacal-events";
+import {
+  dynacalEventCalendarEvent,
+  editReadRange,
+  planDynacalEventWrites,
+  readDynacalEventEdit,
+  wantedContent,
+  type DynacalEventContent,
+  type WrittenDynacalEvent,
+} from "./dynacal-event-sync";
 import { eventCountsAsBusy, eventInterval, eventsFingerprint } from "./events";
 import { validatePushSubscription, type PushSender, type PushSubscriptionInput, type SubscribeToPushResult } from "./push";
 import { isHttps } from "./urls";
 import { validateBlockTime, type MoveBlockResult, type UnpinBlockResult } from "./pinning";
 import { dueReminders, reminderKey, reminderMessage } from "./reminders";
-import { blockEventsInGoogle, editWindow, readGoogleEdit } from "./google-edits";
+import { blockEventsInGoogle, editWindow, readGoogleEdit, type BlockEventInGoogle } from "./google-edits";
 import { channelExpiry, planChannels } from "./push-channels";
 import { remainingByTask, schedulerTasks } from "./scheduler-input";
 import {
@@ -326,6 +341,15 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     return db.select().from(dynacalEvents).orderBy(dynacalEvents.createdAt, sql`rowid`).all().map(toDynacalEvent);
   }
 
+  /** Deletes a dynacal Event and its Busy Override; returns the deleted row, if there was one. */
+  function removeDynacalEvent(tx: Pick<Db, "delete">, id: string) {
+    const row = tx.delete(dynacalEvents).where(eq(dynacalEvents.id, id)).returning().get();
+    tx.delete(busyOverrides)
+      .where(and(eq(busyOverrides.calendarId, DYNACAL_EVENTS_CALENDAR_ID), eq(busyOverrides.eventId, id)))
+      .run();
+    return row;
+  }
+
   /** Every Event that might count as busy time: those last read from Busy Calendars, and the dynacal Events. */
   function allEvents(): CalendarEvent[] {
     return [...cachedEvents(), ...listDynacalEvents().map(asCalendarEvent)];
@@ -338,7 +362,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
   async function readEvents(): Promise<boolean> {
     const now = clock.now();
     const range = { start: now, end: planningHorizonEnd(now) };
-    // The dynacal calendar's events are Blocks, never Events (ADR-0002).
+    // The dynacal calendar holds Blocks and dynacal Events, which dynacal already knows; it's never a Busy Calendar (ADR-0002).
     const dynacal = dynacalCalendarId();
     const calendarIds = db
       .select()
@@ -418,6 +442,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       saveDynacalCalendarId(tx, id);
       // Events written to a calendar that's gone are gone with it; a reused calendar's events aren't known.
       tx.delete(blockEvents).run();
+      tx.delete(dynacalEventWrites).run();
       tx.delete(busyCalendars).where(eq(busyCalendars.calendarId, id)).run();
     });
   }
@@ -520,6 +545,84 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     }
   }
 
+  /** What dynacal last wrote to the dynacal calendar for each dynacal Event. */
+  function writtenDynacalEvents(calendarId: string): WrittenDynacalEvent[] {
+    return db
+      .select()
+      .from(dynacalEventWrites)
+      .where(eq(dynacalEventWrites.calendarId, calendarId))
+      .all()
+      .map((row) => {
+        const common = { title: row.title, description: row.description, reminderMinutes: row.reminderMinutes };
+        const content: DynacalEventContent = row.allDay
+          ? { ...common, allDay: true, startDate: row.startDate!, endDate: row.endDate! }
+          : { ...common, allDay: false, start: row.start!, end: row.end! };
+        return { eventId: row.eventId, dynacalEventId: row.dynacalEventId, content };
+      });
+  }
+
+  function forgetDynacalEventWrite(calendarId: string, eventId: string): void {
+    db.delete(dynacalEventWrites)
+      .where(and(eq(dynacalEventWrites.calendarId, calendarId), eq(dynacalEventWrites.eventId, eventId)))
+      .run();
+  }
+
+  /** Records what dynacal wrote, or has seen the owner write, to a dynacal Event's event in Google. */
+  function recordDynacalEventWrite(calendarId: string, written: WrittenDynacalEvent): void {
+    const { content } = written;
+    const fields = {
+      dynacalEventId: written.dynacalEventId,
+      title: content.title,
+      description: content.description,
+      reminderMinutes: content.reminderMinutes,
+      allDay: content.allDay,
+      start: content.allDay ? null : content.start,
+      end: content.allDay ? null : content.end,
+      startDate: content.allDay ? content.startDate : null,
+      endDate: content.allDay ? content.endDate : null,
+    };
+    db.insert(dynacalEventWrites)
+      .values({ calendarId, eventId: written.eventId, ...fields })
+      .onConflictDoUpdate({ target: [dynacalEventWrites.calendarId, dynacalEventWrites.eventId], set: fields })
+      .run();
+  }
+
+  /**
+   * Makes the dynacal calendar match the dynacal Events: each becomes an event with its title, notes, time and a
+   * popup reminder at the Reminder Lead Time. Like Blocks, nothing is written until Google is connected, or while
+   * the connection is broken; the first write after reconnecting catches up.
+   */
+  async function reconcileDynacalEvents(): Promise<void> {
+    if (connectionProblem(getGoogleConnection())) return;
+    const calendarId = dynacalCalendarId();
+    if (calendarId === null) return;
+    const { reminderLeadMinutes } = getSettings();
+    const wanted = listDynacalEvents().map((e) => ({
+      dynacalEventId: e.id,
+      content: wantedContent(e, reminderLeadMinutes),
+    }));
+    const writes = planDynacalEventWrites(wanted, writtenDynacalEvents(calendarId));
+    // Each write is recorded as soon as Google has it, so a failure part-way leaves an accurate record.
+    for (const { eventId } of writes.delete) {
+      await calendar.deleteDynacalCalendarEvent(calendarId, eventId);
+      forgetDynacalEventWrite(calendarId, eventId);
+    }
+    for (const written of writes.update) {
+      const { eventId, dynacalEventId, content } = written;
+      if ((await calendar.updateDynacalCalendarEvent(calendarId, eventId, dynacalEventCalendarEvent(dynacalEventId, content))) === "updated") {
+        recordDynacalEventWrite(calendarId, written);
+      } else {
+        // Deleted in Google since the owner's edits there were applied; it's written again, as a Block's would be.
+        forgetDynacalEventWrite(calendarId, eventId);
+        writes.create.push({ dynacalEventId, content });
+      }
+    }
+    for (const { dynacalEventId, content } of writes.create) {
+      const eventId = await calendar.createDynacalCalendarEvent(calendarId, dynacalEventCalendarEvent(dynacalEventId, content));
+      recordDynacalEventWrite(calendarId, { eventId, dynacalEventId, content });
+    }
+  }
+
   /** Forgets the record of an event dynacal wrote, once it's gone from Google or no longer dynacal's to manage. */
   function forgetBlockEvent(calendarId: string, eventId: string): void {
     db.delete(blockEvents)
@@ -549,6 +652,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     const edited = await applyGoogleEdits();
     const recalculated = (edited || recalculateAnyway) && recalculateSchedule().ok;
     await reconcileBlockEvents();
+    await reconcileDynacalEvents();
     return recalculated;
   }
 
@@ -575,14 +679,56 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
 
   /**
    * Edits made in Google: compares the dynacal calendar's events with what dynacal last wrote, and applies what
-   * each edit means (see `google-edits.ts`). Returns whether the Schedule changed, so it needs a Recalculation.
+   * each edit means, by kind: for a Block, see `google-edits.ts`; for a dynacal Event, Google wins (see
+   * `dynacal-event-sync.ts`). Returns whether the Schedule changed, so it needs a Recalculation.
    */
   async function applyGoogleEdits(): Promise<boolean> {
     if (connectionProblem(getGoogleConnection())) return false;
     const calendarId = dynacalCalendarId();
     if (calendarId === null) return false;
     const now = clock.now();
-    const inGoogle = blockEventsInGoogle(await calendar.listDynacalCalendarEvents(calendarId, editWindow(now)));
+    const written = writtenDynacalEvents(calendarId);
+    const inGoogle = await calendar.listDynacalCalendarEvents(calendarId, editReadRange(editWindow(now), written));
+    const blocksChanged = await applyBlockEdits(calendarId, blockEventsInGoogle(inGoogle), now);
+    const eventsChanged = applyDynacalEventEdits(calendarId, new Map(inGoogle.map((e) => [e.id, e])), written);
+    return blocksChanged || eventsChanged;
+  }
+
+  /**
+   * Takes the owner's edits to dynacal Events' events in Google into dynacal, and records each event as it now
+   * stands there. Returns whether any dynacal Event moved or was deleted, so busy time changed.
+   */
+  function applyDynacalEventEdits(
+    calendarId: string,
+    inGoogle: Map<string, DynacalCalendarEventInGoogle>,
+    written: WrittenDynacalEvent[],
+  ): boolean {
+    const local = new Map(listDynacalEvents().map((e) => [e.id, e]));
+    let changed = false;
+    for (const record of written) {
+      const edit = readDynacalEventEdit(record.content, inGoogle.get(record.eventId));
+      const event = local.get(record.dynacalEventId);
+      if (edit.kind === "deleted") {
+        forgetDynacalEventWrite(calendarId, record.eventId);
+        if (event) {
+          db.transaction((tx) => removeDynacalEvent(tx, event.id));
+          changed = true;
+        }
+        continue;
+      }
+      const { title, notes, timing } = edit.changes;
+      if (event && (title !== undefined || notes !== undefined || timing !== undefined)) {
+        const merged = { ...event, ...(timing ?? {}), title: title ?? event.title, notes: notes ?? event.notes } as DynacalEventInput;
+        db.update(dynacalEvents).set(dynacalEventRow(merged)).where(eq(dynacalEvents.id, event.id)).run();
+        if (timing !== undefined) changed = true;
+      }
+      recordDynacalEventWrite(calendarId, { ...record, content: edit.inGoogle });
+    }
+    return changed;
+  }
+
+  /** Applies the owner's edits to Block events in Google. Returns whether the Schedule changed. */
+  async function applyBlockEdits(calendarId: string, inGoogle: Map<string, BlockEventInGoogle>, now: Date): Promise<boolean> {
     const recorded = db
       .select()
       .from(blockEvents)
@@ -1066,11 +1212,15 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       return { ok: true };
     },
 
-    /** Creates a dynacal Event, which counts as busy time, then recalculates. Nothing reaches Google yet. */
+    /**
+     * Creates a dynacal Event, which counts as busy time, then recalculates; the Recalculation's write to Google
+     * writes it to the dynacal calendar. This and the edits below write nothing while the connection is broken,
+     * and are caught up after reconnecting.
+     */
     createDynacalEvent(input: DynacalEventInput): DynacalEventResult {
       const errors = validateDynacalEvent(input);
       if (errors) return { ok: false, errors };
-      const row = { id: randomUUID(), createdAt: clock.now(), googleEventId: null, ...dynacalEventRow(input) };
+      const row = { id: randomUUID(), createdAt: clock.now(), ...dynacalEventRow(input) };
       db.insert(dynacalEvents).values(row).run();
       recalculateAutomatically();
       return { ok: true, event: toDynacalEvent(row) };
@@ -1090,13 +1240,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
 
     /** Deletes a dynacal Event, and its Busy Override with it, then recalculates so Blocks may use its time. */
     deleteDynacalEvent(id: string): DeleteDynacalEventResult {
-      const deleted = db.transaction((tx) => {
-        const row = tx.delete(dynacalEvents).where(eq(dynacalEvents.id, id)).returning().get();
-        tx.delete(busyOverrides)
-          .where(and(eq(busyOverrides.calendarId, DYNACAL_EVENTS_CALENDAR_ID), eq(busyOverrides.eventId, id)))
-          .run();
-        return row;
-      });
+      const deleted = db.transaction((tx) => removeDynacalEvent(tx, id));
       if (!deleted) return { ok: false, notFound: true };
       recalculateAutomatically();
       return { ok: true };

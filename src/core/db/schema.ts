@@ -207,7 +207,29 @@ export const dynacalEvents = sqliteTable("dynacal_events", {
   end: integer("end", { mode: "timestamp_ms" }),
   startDate: text("start_date"),
   endDate: text("end_date"),
-  /** The event's ID in the dynacal calendar once it's been written to Google; null until then. */
-  googleEventId: text("google_event_id"),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
 });
+
+/**
+ * What dynacal last wrote to the dynacal calendar for each dynacal Event, so sync can tell the owner's edits in
+ * Google from dynacal's own, and delete an event from Google after its dynacal Event is gone. A dynacal Event
+ * with no record here hasn't been written to Google yet.
+ */
+export const dynacalEventWrites = sqliteTable(
+  "dynacal_event_writes",
+  {
+    calendarId: text("calendar_id").notNull(),
+    eventId: text("event_id").notNull(),
+    /** No foreign key: a deleted dynacal Event's record must outlive it, so its event can be deleted from Google. */
+    dynacalEventId: text("dynacal_event_id").notNull(),
+    title: text("title").notNull(),
+    description: text("description").notNull(),
+    allDay: integer("all_day", { mode: "boolean" }).notNull(),
+    start: integer("start", { mode: "timestamp_ms" }),
+    end: integer("end", { mode: "timestamp_ms" }),
+    startDate: text("start_date"),
+    endDate: text("end_date"),
+    reminderMinutes: integer("reminder_minutes").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.calendarId, t.eventId] })],
+);

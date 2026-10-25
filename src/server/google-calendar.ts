@@ -234,6 +234,8 @@ const MARKER_ID = "dynacalId";
 function googleEvent(event: DynacalCalendarEvent) {
   return {
     summary: event.title,
+    // A dynacal Event's notes. A full replacement without one clears any the owner added in Google.
+    ...(event.description ? { description: event.description } : {}),
     ...(event.allDay
       ? { start: { date: event.startDate }, end: { date: event.endDate } }
       : { start: { dateTime: event.start.toISOString() }, end: { dateTime: event.end.toISOString() } }),

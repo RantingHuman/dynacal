@@ -40,9 +40,11 @@ export interface DynacalMarker {
   dynacalId: string;
 }
 
-/** An event as dynacal writes it to the dynacal calendar: title, time, a popup reminder and the private marker. */
+/** An event as dynacal writes it to the dynacal calendar: title, time, a popup reminder, the private marker and any description. */
 export type DynacalCalendarEvent = {
   title: string;
+  /** The event's description in Google: a dynacal Event's notes. Blocks have none. */
+  description?: string;
   /** Minutes before the start that Google pops up a reminder: the Reminder Lead Time. */
   reminderMinutes: number;
   marker: DynacalMarker;
