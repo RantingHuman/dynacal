@@ -4,7 +4,7 @@
 
 **Blocked by:** 04 (Basic scheduling and the calendar view).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] When Tasks compete for the same time, a higher-Priority Task is placed earlier only if no other Task becomes At Risk as a result
 - [x] When not every deadline can be met, Tasks with lower Priority are the ones that become At Risk, rather than higher-Priority ones

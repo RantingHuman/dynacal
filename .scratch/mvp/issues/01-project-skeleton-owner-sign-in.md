@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] A Next.js (TypeScript) app with SQLite via Drizzle runs in a single Docker container; its data lives in one mounted file that survives restarts
 - [x] The app refuses to start, with a clear message, if any required config is missing: Google OAuth client ID and secret, owner email, public base URL, web push (VAPID) keys

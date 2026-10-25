@@ -1,6 +1,6 @@
 # Spec: dynacal MVP — auto-scheduled Tasks around Google Calendar
 
-Status: ready-for-agent
+Status: resolved
 
 ## Problem Statement
 

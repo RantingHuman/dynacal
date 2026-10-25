@@ -4,7 +4,7 @@
 
 **Blocked by:** 04 (Basic scheduling and the calendar view).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] The calendar gateway is defined, with a real Google Calendar API adapter and a fake used by command-layer tests
 - [x] First-run setup asks the owner to connect Google, choose Busy Calendars, and set Working Hours and time zone

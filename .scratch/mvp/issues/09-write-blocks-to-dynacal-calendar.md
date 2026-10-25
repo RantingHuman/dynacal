@@ -4,7 +4,7 @@
 
 **Blocked by:** 08 (Connecting Google and reading Busy Calendars).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] On connecting, dynacal creates the dynacal calendar (or reuses it if it already exists) and records its ID
 - [x] The dynacal calendar can never be chosen as a Busy Calendar, and its events are never treated as Events

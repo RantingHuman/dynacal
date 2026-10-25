@@ -4,7 +4,7 @@
 
 **Blocked by:** 04 (Basic scheduling and the calendar view).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] Remaining Duration = estimated duration − time recorded as worked in past Blocks − length of Unreviewed past Blocks, and it's shown on each Task
 - [x] Completing a Task removes its future Blocks; an in-progress Block is cut short at the moment of completion; past Blocks are kept as history

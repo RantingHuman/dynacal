@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 (Project skeleton with owner-only sign-in).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] Working Hours can be set per weekday as one or more time windows, with a sensible default
 - [x] The time zone can be set, defaulting to the browser's time zone during setup

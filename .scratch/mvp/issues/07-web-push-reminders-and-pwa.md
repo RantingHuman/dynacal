@@ -4,7 +4,7 @@
 
 **Blocked by:** 04 (Basic scheduling and the calendar view).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] The app has a PWA manifest and service worker, so it can be installed on a phone's home screen
 - [x] The owner can turn on push notifications; the subscription is stored

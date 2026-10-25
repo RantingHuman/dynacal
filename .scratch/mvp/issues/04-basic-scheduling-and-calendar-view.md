@@ -4,7 +4,7 @@
 
 **Blocked by:** 02 (Settings: Working Hours and scheduling preferences), 03 (Tasks and the Task list).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] The scheduler is a deterministic pure function. Inputs: now, time zone, Working Hours, Minimum Block Length, Planning Horizon, Tasks, busy time, Pinned Blocks and fixed Blocks. Outputs: Blocks and a flag per Task
 - [x] Blocks sit on the 15-minute grid, inside Working Hours, no earlier than the next grid mark after now, and never overlap busy time

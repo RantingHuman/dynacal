@@ -4,7 +4,7 @@
 
 **Blocked by:** 08 (Connecting Google and reading Busy Calendars).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] Dragging or resizing a Block in the Day or Week view makes it a Pinned Block at its new time
 - [x] A Pinned Block can be unpinned, after which Recalculation manages it again

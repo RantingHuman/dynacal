@@ -4,7 +4,7 @@
 
 **Blocked by:** 09 (Writing Blocks to the dynacal calendar), 10 (Pinning Blocks and Conflicts).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] dynacal registers Google push notification channels for the Busy Calendars and the dynacal calendar, and renews them before they expire; polling stays as a fallback
 - [x] A Block event moved or resized in Google pins that Block at its new time

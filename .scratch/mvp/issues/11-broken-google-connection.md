@@ -4,7 +4,7 @@
 
 **Blocked by:** 08 (Connecting Google and reading Busy Calendars).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] Google auth failures mark the connection as broken
 - [x] While the connection is broken, a "reconnect Google" banner is shown and automatic Recalculation is paused (Recalculations triggered by commands, by syncing and by the passing of time). Only automatic Recalculation pauses: the Recalculate button still works, planning around the Events dynacal last saw, with a note saying so beside it. Writes to Google wait for reconnecting.
