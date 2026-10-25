@@ -1,3 +1,5 @@
 # Blocks are written to a dedicated calendar
 
 The app writes each Block to the user's Google account as an event in a separate calendar that dynacal owns, rather than keeping Blocks only in the app or writing them into the user's primary calendar. This lets the Schedule show up in any Google Calendar client, which matters because the MVP is web-only. Keeping Blocks in their own calendar means the app never edits the user's real Events. The cost is that when reading busy time, the app must exclude its own calendar so it doesn't treat its own Blocks as Events.
+
+**Amendment (phase 2):** Events the user creates in dynacal are written to the same dynacal calendar, not to the user's own calendars, so the app still never writes to calendars it doesn't own. The trade-off: these Events only show as busy to people the dynacal calendar is shared with. Because the dynacal calendar now holds both Blocks and Events, sync must tell the two apart: a moved Block gets pinned, while a moved Event just takes its new time.

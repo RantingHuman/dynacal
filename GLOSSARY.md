@@ -61,8 +61,20 @@ The shortest Block the scheduler may create when splitting a Task.
 _Avoid_: Min chunk, minimum slot
 
 **Event**:
-Anything on a connected calendar that is not a Block; it is busy time the app never moves.
+A commitment on the user's calendar that is not a Block, whether it came from a connected calendar or was created in dynacal; the scheduler plans around it and never moves it.
 _Avoid_: Meeting, appointment, busy slot
+
+**dynacal Event**:
+An Event the user created in dynacal rather than on another calendar; only these can be edited from dynacal.
+_Avoid_: Local event, own event, custom event
+
+**Free Event**:
+An Event its calendar marks as free; it is always shown, but only counts as busy time if the user says so.
+_Avoid_: Transparent event, available event
+
+**Busy Override**:
+The user's choice, for one Event, to count it as busy time or not, regardless of the general setting for Free or all-day Events.
+_Avoid_: Busy flag, block toggle
 
 **Reminder Lead Time**:
 How long before a Block starts the user is reminded about it.
