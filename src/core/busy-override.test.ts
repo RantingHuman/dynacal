@@ -272,4 +272,15 @@ describe("an Event's details", () => {
 
     expect(view(app).events.map((e) => [e.title, e.calendarName])).toEqual([["Flight", "Work"]]);
   });
+
+  it("name the calendar as Google now calls it, after a sync", async () => {
+    const app = await connectedApp((app) => {
+      app.calendar.addEvent("work", { title: "Flight", free: true, start: at("09:00"), end: at("10:00") });
+    });
+
+    app.calendar.renameCalendar("work", "Office");
+    await app.commands.syncEvents();
+
+    expect(view(app).events.map((e) => [e.title, e.calendarName])).toEqual([["Flight", "Office"]]);
+  });
 });

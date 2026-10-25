@@ -981,6 +981,8 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     const problem = connectionProblem(getGoogleConnection());
     if (problem) return problem;
     return unlessRefused(async () => {
+      // Keeps names current after a rename in Google, and fills them in for Busy Calendars saved before names were.
+      saveBusyCalendarNames(await calendar.listCalendars());
       const eventsChanged = await readEvents();
       const recalculated = await onDynacalCalendar(() => updateDynacalCalendar(eventsChanged));
       return { ok: true, recalculated } as const;

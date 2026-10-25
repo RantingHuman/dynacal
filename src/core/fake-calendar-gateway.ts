@@ -82,6 +82,11 @@ export class FakeCalendarGateway implements CalendarGateway {
     this.calendars.push({ name: calendar.id, primary: false, ...calendar });
   }
 
+  /** The owner renames a calendar in Google. */
+  renameCalendar(id: string, name: string): void {
+    this.calendars = this.calendars.map((c) => (c.id === id ? { ...c, name } : c));
+  }
+
   /** Adds an Event to a calendar and returns its ID. */
   addEvent(calendarId: string, event: NewEvent): string {
     const id = `event-${this.nextId++}`;
