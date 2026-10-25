@@ -6,6 +6,7 @@ import { GRID_MINUTES, MINUTE_MS } from "@/core/time";
 import { addDays, fromZoned, toZoned, weekdayOf } from "@/core/time-zone";
 import { moveBlock, recalculate } from "./actions";
 import { BlockEditor, moveError } from "./block-editor";
+import freeStyles from "./free-events.module.css";
 import styles from "./pinning.module.css";
 
 /** A Block as sent to the browser: instants as ISO strings. */
@@ -23,13 +24,15 @@ export interface CalendarConflict {
   eventId: string;
 }
 
-/** An Event as sent to the browser: read-only busy time from a Busy Calendar. */
+/** An Event as sent to the browser: read-only, from a Busy Calendar. */
 export interface CalendarEvent {
   id: string;
   title: string;
   allDay: boolean;
   start: string;
   end: string;
+  /** One that doesn't is drawn greyed out and labelled "Free": Blocks may be placed over it. */
+  countsAsBusy: boolean;
 }
 
 type View = "day" | "week";
@@ -371,7 +374,12 @@ export function Calendar({
             {days.map((day) => (
               <div key={day} className="calendar-all-day">
                 {allDayByDay.get(day)!.map(({ item }) => (
-                  <div key={item.id} className="event all-day" title={`${item.title} (all day)`}>
+                  <div
+                    key={item.id}
+                    className={`event all-day${item.countsAsBusy ? "" : ` ${freeStyles.free}`}`}
+                    title={`${item.title} (all day${item.countsAsBusy ? "" : ", Free"})`}
+                  >
+                    {!item.countsAsBusy && <span className={freeStyles.freeMark}>Free · </span>}
                     {item.title}
                   </div>
                 ))}
@@ -411,11 +419,14 @@ export function Calendar({
               {eventsByDay.get(day)!.map(({ item: event, top, bottom }) => (
                 <div
                   key={`${event.id}-${day}`}
-                  className={`event${conflictingEvents.has(event.id) ? ` ${styles.eventConflict}` : ""}`}
+                  className={`event${event.countsAsBusy ? "" : ` ${freeStyles.free}`}${conflictingEvents.has(event.id) ? ` ${styles.eventConflict}` : ""}`}
                   style={{ top: px(top), height: px(bottom) - px(top) }}
-                  title={`${event.title}, ${formatMinutes(top)}–${formatMinutes(bottom)} (Event${conflictingEvents.has(event.id) ? ", Conflict" : ""})`}
+                  title={`${event.title}, ${formatMinutes(top)}–${formatMinutes(bottom)} (Event${event.countsAsBusy ? "" : ", Free"}${conflictingEvents.has(event.id) ? ", Conflict" : ""})`}
                 >
-                  <span className="block-title">{event.title}</span>
+                  <span className="block-title">
+                    {!event.countsAsBusy && <span className={freeStyles.freeMark}>Free · </span>}
+                    {event.title}
+                  </span>
                   <span className="block-time">
                     {formatMinutes(top)}–{formatMinutes(bottom)}
                   </span>
