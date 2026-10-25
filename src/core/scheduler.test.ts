@@ -17,7 +17,7 @@ function input(change: Partial<SchedulerInput> = {}): SchedulerInput {
     tasks: [],
     busy: [],
     pinnedBlocks: [],
-    fixedBlocks: [],
+    startedBlocks: [],
     previousSchedule: [],
     ...change,
   };
@@ -379,7 +379,7 @@ describe("scheduler", () => {
     });
   });
 
-  describe("fixed and Pinned Blocks", () => {
+  describe("started and Pinned Blocks", () => {
     const at = (taskId: string, start: string, end: string) => ({
       taskId,
       start: new Date(`2026-01-05T${start}:00Z`),
@@ -390,9 +390,9 @@ describe("scheduler", () => {
       const result = schedule(
         input({
           now: new Date("2026-01-05T09:30:00Z"),
-          // 30 minutes already worked; the fixed Block's last 30 and the Pinned Block's 60 cover the rest.
+          // 30 minutes already worked; the started Block's last 30 and the Pinned Block's 60 cover the rest.
           tasks: [task("a", { remainingMinutes: 90 }), task("b")],
-          fixedBlocks: [at("a", "09:00", "10:00")],
+          startedBlocks: [at("a", "09:00", "10:00")],
           pinnedBlocks: [at("a", "10:30", "11:30")],
         }),
       );
@@ -480,7 +480,7 @@ describe("scheduler", () => {
 
     it("doesn't flag Events overlapping a Block that isn't pinned", () => {
       const result = schedule(
-        input({ tasks: [task("a")], fixedBlocks: [at("a", "08:30", "09:30")], busy: [event("09:00", "10:00")] }),
+        input({ tasks: [task("a")], startedBlocks: [at("a", "08:30", "09:30")], busy: [event("09:00", "10:00")] }),
       );
 
       expect(result.conflicts).toEqual([]);

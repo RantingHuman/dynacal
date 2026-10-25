@@ -699,7 +699,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         })),
         busy,
         pinnedBlocks: [...inProgress.filter((b) => b.pinned), ...pinnedAhead],
-        fixedBlocks: inProgress.filter((b) => !b.pinned),
+        startedBlocks: inProgress.filter((b) => !b.pinned),
         previousSchedule,
       });
 
