@@ -4,7 +4,6 @@ import { type CalendarEvent, type CalendarGateway, type GoogleCalendar } from ".
 import type { Clock } from "./clock";
 import { connectionProblem, unlessRefused, watchConnectionHealth } from "./connection-health";
 import {
-  remainingMinutes,
   suggestedWorkedMinutes,
   validateWorkedMinutes,
   type ReviewBlockResult,
@@ -41,15 +40,16 @@ import { countsAsBusy, eventInterval, eventsFingerprint } from "./events";
 import { validatePushSubscription, type PushSender, type PushSubscriptionInput, type SubscribeToPushResult } from "./push";
 import { isHttps } from "./urls";
 import { validateBlockTime, type MoveBlockResult, type UnpinBlockResult } from "./pinning";
-import { dueReminders, reminderMessage } from "./reminders";
+import { dueReminders, reminderKey, reminderMessage } from "./reminders";
+import { editWindow, readGoogleEdit } from "./google-edits";
+import { channelExpiry, planChannels } from "./push-channels";
+import { remainingByTask, schedulerTasks } from "./scheduler-input";
 import {
-  resolveDeadline,
   findConflicts,
-  resolveEarliestStart,
   schedule,
   type TaskFlag,
 } from "./scheduler";
-import { DAY_MS, GRID_MS, MINUTE_MS, PLANNING_HORIZON_DAYS, planningHorizonEnd } from "./time";
+import { GRID_MS, PLANNING_HORIZON_DAYS, planningHorizonEnd } from "./time";
 import { DEFAULT_SETTINGS, validateSettings, type Settings, type SettingsUpdate, type UpdateSettingsResult } from "./settings";
 import {
   compareTasks,
@@ -219,12 +219,6 @@ function sameSecret(given: string, expected: string): boolean {
   return timingSafeEqual(digest(given), digest(expected));
 }
 
-/** How far either side of the Planning Horizon Block events are read back from Google; one moved further looks deleted. */
-const EDIT_WINDOW_DAYS = 30;
-/** How long dynacal asks Google to keep a push notification channel open. */
-const CHANNEL_LIFETIME_MS = 7 * DAY_MS;
-/** A channel closing sooner than this is renewed. Polling runs far more often, so there's no gap. */
-const CHANNEL_RENEWAL_MS = DAY_MS;
 
 export function createCommands({ db, clock, ownerEmail, pushSender, calendar: gateway }: CommandDeps) {
   const owner = ownerEmail.trim().toLowerCase();
@@ -263,13 +257,9 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     };
   }
 
-  /** Each Task's Remaining Duration, from its Blocks that have already ended. */
-  function remainingByTask(tx: Pick<Db, "select">, now: Date): (taskId: string, estimatedMinutes: number) => number {
-    const pastByTask = new Map<string, (typeof blocks.$inferSelect)[]>();
-    for (const b of tx.select().from(blocks).where(lte(blocks.end, now)).all()) {
-      pastByTask.set(b.taskId, [...(pastByTask.get(b.taskId) ?? []), b]);
-    }
-    return (taskId, estimatedMinutes) => remainingMinutes(estimatedMinutes, pastByTask.get(taskId) ?? []);
+  /** Blocks that have ended. */
+  function pastBlocks(tx: Pick<Db, "select">, now: Date) {
+    return tx.select().from(blocks).where(lte(blocks.end, now)).all();
   }
 
   function toTask(row: Omit<typeof tasks.$inferSelect, "scheduleFlag" | "completedAt">): Task {
@@ -525,21 +515,15 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
   }
 
   /**
-   * Edits made in Google: compares the dynacal calendar's events with what dynacal last wrote. A moved or
-   * resized event pins its Block at the new time; a deleted one leaves a Declined Time; a changed title or
-   * description is overwritten. Returns whether the Schedule changed, so it needs a
-   * Recalculation.
+   * Edits made in Google: compares the dynacal calendar's events with what dynacal last wrote, and applies what
+   * each edit means (see `google-edits.ts`). Returns whether the Schedule changed, so it needs a Recalculation.
    */
   async function applyGoogleEdits(): Promise<boolean> {
     if (connectionProblem(getGoogleConnection())) return false;
     const calendarId = dynacalCalendarId();
     if (calendarId === null) return false;
     const now = clock.now();
-    const range = {
-      start: new Date(now.getTime() - EDIT_WINDOW_DAYS * DAY_MS),
-      end: new Date(now.getTime() + (PLANNING_HORIZON_DAYS + EDIT_WINDOW_DAYS) * DAY_MS),
-    };
-    const inGoogle = new Map((await calendar.listBlockEvents(calendarId, range)).map((e) => [e.id, e]));
+    const inGoogle = new Map((await calendar.listBlockEvents(calendarId, editWindow(now))).map((e) => [e.id, e]));
     const recorded = db
       .select()
       .from(blockEvents)
@@ -548,26 +532,24 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     let changed = false;
     for (const record of recorded) {
       const event = inGoogle.get(record.eventId);
-      if (!event) {
-        // Deleted in Google: a Declined Time. The Task keeps its Remaining Duration, to be scheduled elsewhere.
-        // The time declined is the event's, even if a Recalculation has since moved its Block.
+      const edit = readGoogleEdit(record, event);
+      if (edit.kind === "deleted") {
         const block = blockFor(record);
         if (block) db.delete(blocks).where(eq(blocks.id, block.id)).run();
         const task = db.select({ id: tasks.id }).from(tasks).where(eq(tasks.id, record.taskId)).get();
         if (task) {
-          db.insert(declinedTimes).values({ taskId: task.id, start: record.start, end: record.end }).run();
+          db.insert(declinedTimes).values({ taskId: task.id, ...edit.declined }).run();
           changed = true;
         }
         forgetBlockEvent(calendarId, record.eventId);
         continue;
       }
-      const to = { start: event.start, end: event.end };
-      if (event.title !== record.title || event.description !== "") {
-        // dynacal is the source of truth for a Block's content: put back what it wrote, wherever the event now is.
+      if (edit.restoreContent && event) {
         const { title, reminderMinutes } = record;
-        await calendar.updateBlockEvent(calendarId, record.eventId, { title, reminderMinutes, ...to });
+        await calendar.updateBlockEvent(calendarId, record.eventId, { title, reminderMinutes, start: event.start, end: event.end });
       }
-      if (to.start.getTime() === record.start.getTime() && to.end.getTime() === record.end.getTime()) continue;
+      if (edit.movedTo === null) continue;
+      const to = edit.movedTo;
       const task = db.select({ completedAt: tasks.completedAt }).from(tasks).where(eq(tasks.id, record.taskId)).get();
       let blockId = record.blockId;
       // A completed or deleted Task's event is only recorded where it now is, for the next write to delete.
@@ -644,19 +626,12 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     const busy = busyTime(current, timeZone);
     const now = clock.now();
     db.transaction((tx) => {
-      const started = tx.select().from(blocks).where(lt(blocks.start, now)).all();
-      const inProgress = started.filter((b) => b.end > now);
+      const inProgress = tx.select().from(blocks).where(and(lt(blocks.start, now), gt(blocks.end, now))).all();
       const pinnedAhead = tx
         .select()
         .from(blocks)
         .where(and(gte(blocks.start, now), eq(blocks.pinned, true)))
         .all();
-      // The elapsed part of an in-progress Block; the scheduler accounts for the rest of it.
-      const elapsedMs = new Map<string, number>();
-      for (const b of inProgress) {
-        elapsedMs.set(b.taskId, (elapsedMs.get(b.taskId) ?? 0) + now.getTime() - b.start.getTime());
-      }
-      const remaining = remainingByTask(tx, now);
       // Oldest first, so ties in the scheduler go to the Task created first. Completed Tasks aren't scheduled.
       const taskRows = tx
         .select()
@@ -679,25 +654,15 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         workingHours,
         minimumBlockMinutes,
         planningHorizonDays: PLANNING_HORIZON_DAYS,
-        tasks: taskRows.map((row) => ({
-          id: row.id,
-          remainingMinutes: remaining(row.id, row.estimatedMinutes) - (elapsedMs.get(row.id) ?? 0) / MINUTE_MS,
-          deadline:
-            row.deadlineDate === null
-              ? null
-              : resolveDeadline({ date: row.deadlineDate, time: row.deadlineTime }, timeZone, workingHours),
-          earliestStart:
-            row.earliestStartDate === null
-              ? null
-              : resolveEarliestStart(
-                  { date: row.earliestStartDate, time: row.earliestStartTime },
-                  timeZone,
-                  workingHours,
-                ),
-          priority: row.priority,
-          dontSplit: row.dontSplit,
-          declinedTimes: declined.filter((t) => t.taskId === row.id),
-        })),
+        tasks: schedulerTasks({
+          taskRows,
+          pastBlocks: pastBlocks(tx, now),
+          inProgress,
+          declined,
+          now,
+          timeZone,
+          workingHours,
+        }),
         busy,
         pinnedBlocks: [...inProgress.filter((b) => b.pinned), ...pinnedAhead],
         startedBlocks: inProgress.filter((b) => !b.pinned),
@@ -851,34 +816,22 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         ...db.select().from(busyCalendars).all().map((b) => b.calendarId),
         ...(dynacal === null ? [] : [dynacal]),
       ]);
-      const open = db.select().from(calendarWatches).all();
-      const keep = new Set<string>();
+      const { openFor, close } = planChannels(wanted, db.select().from(calendarWatches).all(), address, now);
       return unlessRefused(async () => {
-        for (const calendarId of wanted) {
-          const current = open.find(
-            (w) =>
-              w.calendarId === calendarId &&
-              w.address === address &&
-              w.expiresAt.getTime() - now.getTime() > CHANNEL_RENEWAL_MS,
-          );
-          if (current) {
-            keep.add(current.channelId);
-            continue;
-          }
+        for (const calendarId of openFor) {
           const channel = {
             id: randomUUID(),
             token: randomBytes(32).toString("base64url"),
             address,
-            expiresAt: new Date(now.getTime() + CHANNEL_LIFETIME_MS),
+            expiresAt: channelExpiry(now),
           };
           const { resourceId, expiresAt } = await calendar.watchEvents(calendarId, channel);
           db.insert(calendarWatches)
             .values({ channelId: channel.id, calendarId, resourceId, token: channel.token, address, expiresAt })
             .run();
-          keep.add(channel.id);
         }
         // Replaced channels are closed only once their replacements are open, so no change goes unnoticed.
-        for (const w of open.filter((w) => !keep.has(w.channelId))) {
+        for (const w of close) {
           if (w.expiresAt > now) await calendar.stopWatching(w.channelId, w.resourceId);
           db.delete(calendarWatches).where(eq(calendarWatches.channelId, w.channelId)).run();
         }
@@ -968,7 +921,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     /** Every Task, in Task list order (completed Tasks last), with its Remaining Duration. */
     listTasks(): TaskListItem[] {
       const now = clock.now();
-      const remaining = remainingByTask(db, now);
+      const remaining = remainingByTask(pastBlocks(db, now));
       const declined = db
         .select()
         .from(declinedTimes)
@@ -1168,11 +1121,9 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
           .select()
           .from(remindersSent)
           .all()
-          .map((r) => `${r.taskId}@${r.blockStart.getTime()}`),
+          .map((r) => reminderKey({ taskId: r.taskId, start: r.blockStart })),
       );
-      const due = dueReminders(now, reminderLeadMinutes, candidates).filter(
-        (b) => !alreadySent.has(`${b.taskId}@${b.start.getTime()}`),
-      );
+      const due = dueReminders(now, reminderLeadMinutes, candidates).filter((b) => !alreadySent.has(reminderKey(b)));
       const subscriptions = db.select().from(pushSubscriptions).all();
       // Recorded before sending, so a job run that overlaps this one can't send the same reminder.
       for (const block of due) {

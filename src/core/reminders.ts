@@ -1,7 +1,6 @@
 import type { PushMessage } from "./push";
 import { MINUTE_MS } from "./time";
 
-
 export interface ReminderCandidate {
   taskId: string;
   taskTitle: string;
@@ -18,6 +17,14 @@ export function dueReminders<T extends ReminderCandidate>(now: Date, reminderLea
     const start = b.start.getTime();
     return start > t && start - reminderLeadMinutes * MINUTE_MS <= t;
   });
+}
+
+/**
+ * Which Block a sent reminder was for: its Task and start, not the Block's ID, because a Recalculation replaces
+ * every future Block. A Block that moves gets a new start, so it's reminded again.
+ */
+export function reminderKey(block: { taskId: string; start: Date }): string {
+  return `${block.taskId}@${block.start.getTime()}`;
 }
 
 /** The notification for a Block, with its start shown in the owner's time zone. */

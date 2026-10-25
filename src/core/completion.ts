@@ -16,7 +16,6 @@ export type ReviewBlockResult =
   | { ok: false; notFound: true }
   | { ok: false; errors: { workedMinutes?: string; block?: string } };
 
-
 interface ReviewableBlock {
   start: Date;
   end: Date;

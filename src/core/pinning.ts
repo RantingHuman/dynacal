@@ -1,4 +1,4 @@
-import { GRID_MINUTES, GRID_MS } from "./time";
+import { GRID_MS } from "./time";
 
 /**
  * Pinning Blocks: where the owner may move or resize a Block by hand.
