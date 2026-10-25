@@ -43,8 +43,18 @@ export class FakeCalendarGateway implements CalendarGateway {
     this.broken = false;
   }
 
+  private nextFailure: Error | null = null;
+
+  /** Google's next answer is a passing failure (an outage, or a rate limit) that says nothing about the credentials. */
+  failNextCall(error: Error = new Error("Google Calendar is unavailable")): void {
+    this.nextFailure = error;
+  }
+
   private checkCredentials(): void {
     if (this.broken) throw new CalendarAuthError();
+    const failure = this.nextFailure;
+    this.nextFailure = null;
+    if (failure) throw failure;
   }
 
   /** Open push notification channels. */

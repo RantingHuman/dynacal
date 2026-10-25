@@ -723,14 +723,16 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         accessToken: grant.accessToken,
         accessTokenExpiresAt: grant.accessTokenExpiresAt,
         connectedAt: clock.now(),
-        // Connecting again is how the owner mends a broken connection.
-        brokenAt: null,
       };
+      // Not healthy until Google has answered with the new credentials: a first connection starts out broken,
+      // and a broken one stays so.
       db.insert(googleConnection)
-        .values({ id: 1, ...row })
+        .values({ id: 1, ...row, brokenAt: clock.now() })
         .onConflictDoUpdate({ target: googleConnection.id, set: row })
         .run();
       const calendars = await calendar.listCalendars();
+      // Connecting again is how the owner mends a broken connection.
+      db.update(googleConnection).set({ brokenAt: null }).run();
       if (!db.select().from(busyCalendars).get()) {
         const primary = calendars.find((c) => c.primary);
         if (primary) db.insert(busyCalendars).values({ calendarId: primary.id }).run();

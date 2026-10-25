@@ -89,7 +89,11 @@ export function createGoogleCalendarGateway({
       if (response.status === 401) throw new CalendarAuthError("Google rejected dynacal's access token.");
     }
     if (!response.ok && !allow.includes(response.status)) {
-      throw new Error(`Google Calendar API ${method} ${path} failed: ${response.status} ${await response.text()}`);
+      const text = await response.text();
+      if (response.status === 403 && lostPermission(text)) {
+        throw new CalendarAuthError(`Google refused dynacal access: ${text}`);
+      }
+      throw new Error(`Google Calendar API ${method} ${path} failed: ${response.status} ${text}`);
     }
     return response;
   }
@@ -206,6 +210,20 @@ export function createGoogleCalendarGateway({
       );
     },
   };
+}
+
+/**
+ * Whether a 403 means dynacal has lost permission (the owner revoked the calendar scope or access), which only
+ * reconnecting mends. Other 403s, such as rate limits (`rateLimitExceeded`, `userRateLimitExceeded`), pass.
+ */
+function lostPermission(body: string): boolean {
+  const LOST_PERMISSION = new Set(["insufficientPermissions", "forbidden"]);
+  try {
+    const parsed = JSON.parse(body) as { error?: { errors?: { reason?: string }[] } };
+    return (parsed.error?.errors ?? []).some((e) => e.reason !== undefined && LOST_PERMISSION.has(e.reason));
+  } catch {
+    return false;
+  }
 }
 
 /** A Block as a Google `Event`: the Task title, its time, and only a popup reminder at the Reminder Lead Time. */

@@ -145,4 +145,37 @@ describe("a broken Google connection", () => {
     ]);
     expect(await app.commands.syncEvents()).toEqual({ ok: true, recalculated: false });
   });
+
+  it("isn't marked healthy by reconnecting until Google has answered", async () => {
+    const app = await connectedApp();
+    app.calendar.breakConnection();
+    await app.commands.syncEvents();
+    app.calendar.restoreConnection();
+
+    app.calendar.failNextCall();
+    await expect(app.commands.connectGoogle(grant)).rejects.toThrow();
+
+    expect(app.commands.getGoogleConnection()).toEqual({ status: "broken", email: "owner@example.com" });
+  });
+});
+
+describe("a passing Google failure", () => {
+  it("doesn't mark the connection broken", async () => {
+    const app = await connectedApp();
+
+    app.calendar.failNextCall(new Error("Rate limit exceeded"));
+    await expect(app.commands.syncEvents()).rejects.toThrow("Rate limit exceeded");
+
+    expect(app.commands.getGoogleConnection()).toEqual({ status: "connected", email: "owner@example.com" });
+  });
+
+  it("on the first connection leaves Google not yet healthy", async () => {
+    const app = createTestApp();
+    app.calendar.addCalendar({ id: "work", name: "Work", primary: true });
+
+    app.calendar.failNextCall();
+    await expect(app.commands.connectGoogle(grant)).rejects.toThrow();
+
+    expect(app.commands.getGoogleConnection().status).not.toBe("connected");
+  });
 });
