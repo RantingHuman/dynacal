@@ -24,6 +24,8 @@ export type CalendarWrite =
 export class FakeCalendarGateway implements CalendarGateway {
   private calendars: GoogleCalendar[] = [];
   private events: CalendarEvent[] = [];
+  /** Events deleted from a calendar, which Google keeps as "cancelled": a full rewrite (PUT) brings one back. */
+  private cancelled: CalendarEvent[] = [];
   /** Popup reminders, in minutes, on events dynacal wrote. */
   private reminders = new Map<string, number>();
   /** Descriptions the owner added in Google. */
@@ -85,6 +87,7 @@ export class FakeCalendarGateway implements CalendarGateway {
   }
 
   deleteEvent(id: string): void {
+    this.cancelled.push(...this.events.filter((e) => e.id === id));
     this.events = this.events.filter((e) => e.id !== id);
   }
 
@@ -92,6 +95,7 @@ export class FakeCalendarGateway implements CalendarGateway {
   deleteCalendar(id: string): void {
     this.calendars = this.calendars.filter((c) => c.id !== id);
     this.events = this.events.filter((e) => e.calendarId !== id);
+    this.cancelled = this.cancelled.filter((e) => e.calendarId !== id);
   }
 
   /** The timed events on a calendar, in time order, as [title, start, end, popup reminder minutes]. */
@@ -147,6 +151,12 @@ export class FakeCalendarGateway implements CalendarGateway {
   async updateBlockEvent(calendarId: string, eventId: string, event: BlockEvent): Promise<"updated" | "gone"> {
     this.checkCredentials();
     this.writes.push({ kind: "update-event", calendarId, eventId });
+    // As in Google, rewriting a deleted event revives it.
+    const revived = this.cancelled.find((e) => e.id === eventId && e.calendarId === calendarId);
+    if (revived) {
+      this.cancelled = this.cancelled.filter((e) => e !== revived);
+      this.events.push(revived);
+    }
     if (!this.events.some((e) => e.id === eventId && e.calendarId === calendarId)) return "gone";
     this.events = this.events.map((e) =>
       e.id === eventId ? { ...e, title: event.title, allDay: false, start: event.start, end: event.end } : e,
@@ -160,7 +170,7 @@ export class FakeCalendarGateway implements CalendarGateway {
   async deleteBlockEvent(calendarId: string, eventId: string): Promise<void> {
     this.checkCredentials();
     this.writes.push({ kind: "delete-event", calendarId, eventId });
-    this.events = this.events.filter((e) => !(e.id === eventId && e.calendarId === calendarId));
+    this.deleteEvent(eventId);
   }
 
   async watchEvents(calendarId: string, channel: WatchChannel): Promise<{ resourceId: string; expiresAt: Date }> {

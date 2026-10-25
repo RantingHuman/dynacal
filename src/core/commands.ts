@@ -432,9 +432,21 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     return next;
   }
 
+  /**
+   * Brings the dynacal calendar up to date, in the one safe order: read it and apply the owner's edits made in
+   * Google, then recalculate (if those edits, or `recalculateAnyway`, call for it), then write. Writing first
+   * would undo a move or revive a deletion the owner made in Google. Returns whether it recalculated.
+   */
+  async function updateDynacalCalendar(recalculateAnyway: boolean): Promise<boolean> {
+    const edited = await applyGoogleEdits();
+    const recalculated = (edited || recalculateAnyway) && recalculateSchedule().ok;
+    await reconcileBlockEvents();
+    return recalculated;
+  }
+
   /** Queues a write of Blocks to Google, after any work on the dynacal calendar already running. */
-  function writeBlocks(): Promise<void> {
-    return onDynacalCalendar(reconcileBlockEvents);
+  async function writeBlocks(): Promise<void> {
+    await onDynacalCalendar(() => updateDynacalCalendar(false));
   }
 
   /** The Block a recorded event stands for: the one it was last matched to, else its Task's Block at the same time. */
@@ -478,11 +490,13 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     for (const record of recorded) {
       const event = inGoogle.get(record.eventId);
       if (!event) {
-        // Deleted in Google: "not then". The Task keeps its Remaining Duration, to be scheduled elsewhere.
+        // Deleted in Google: "not then". The Task keeps its Remaining Duration, to be scheduled elsewhere. The
+        // time declined is the event's, even if a Recalculation has since moved its Block.
         const block = blockFor(record);
-        if (block) {
-          db.delete(blocks).where(eq(blocks.id, block.id)).run();
-          db.insert(notThenTimes).values({ taskId: block.taskId, start: block.start, end: block.end }).run();
+        if (block) db.delete(blocks).where(eq(blocks.id, block.id)).run();
+        const task = db.select({ id: tasks.id }).from(tasks).where(eq(tasks.id, record.taskId)).get();
+        if (task) {
+          db.insert(notThenTimes).values({ taskId: task.id, start: record.start, end: record.end }).run();
           changed = true;
         }
         db.delete(blockEvents)
@@ -532,6 +546,15 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
    * Schedule depends on calls this.
    */
   function recalculate(): RecalculateResult {
+    const result = recalculateSchedule();
+    // Commands stay synchronous, so the write to Google runs in the background. A failed write is retried
+    // by the next one (polling writes every few minutes), and errors reach the caller of `writeBlocksToGoogle`.
+    if (result.ok) writeBlocks().catch((error) => console.error("Writing Blocks to Google failed:", error));
+    return result;
+  }
+
+  /** Recalculation in the database only; the caller writes the new Schedule to Google. */
+  function recalculateSchedule(): RecalculateResult {
     const current = getSettings();
     const { timeZone, workingHours, minimumBlockMinutes } = current;
     if (timeZone === null) return { ok: false, reason: "needs-time-zone" };
@@ -611,9 +634,6 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
           .run();
       }
     });
-    // Commands stay synchronous, so the write to Google runs in the background. A failed write is retried
-    // by the next one (polling writes every few minutes), and errors reach the caller of `writeBlocksToGoogle`.
-    writeBlocks().catch((error) => console.error("Writing Blocks to Google failed:", error));
     return { ok: true };
   }
 
@@ -628,23 +648,14 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     if (connection === "not-connected") return { ok: false, reason: "not-connected" };
     // Credentials Google has refused stay refused; only reconnecting (connectGoogle) recovers.
     if (connection === "broken") return { ok: false, reason: "connection-broken" };
-    let changed: boolean;
     try {
       const eventsChanged = await readEvents();
-      const blocksEdited = await onDynacalCalendar(applyGoogleEdits);
-      changed = eventsChanged || blocksEdited;
+      const recalculated = await onDynacalCalendar(() => updateDynacalCalendar(eventsChanged));
+      return { ok: true, recalculated };
     } catch (error) {
       if (error instanceof CalendarAuthError) return { ok: false, reason: "connection-broken" };
       throw error;
     }
-    const recalculated = changed && recalculate().ok;
-    try {
-      await writeBlocks();
-    } catch (error) {
-      if (error instanceof CalendarAuthError) return { ok: false, reason: "connection-broken" };
-      throw error;
-    }
-    return { ok: true, recalculated };
   }
 
   return {
@@ -703,6 +714,8 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       }
       await ensureDynacalCalendar(calendars);
       await readEvents();
+      // Edits the owner made in Google while disconnected come first, so the Recalculation keeps them.
+      await onDynacalCalendar(applyGoogleEdits);
       recalculate();
       return { ok: true };
     },

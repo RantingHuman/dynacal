@@ -194,3 +194,59 @@ describe("dynacal's own writes to the dynacal calendar", () => {
     expect(blocks(app)).toEqual([["Write report", at("10:00"), at("11:00"), false]]);
   });
 });
+
+describe("edits made in Google before dynacal next writes Blocks", () => {
+  it("are applied first, so a local Recalculation doesn't move a Block event back", async () => {
+    const { app, dynacal } = await connectedApp();
+    await createTask(app, { title: "Report" });
+    const event = await eventAt(app, dynacal, at("09:00"));
+
+    app.calendar.moveEvent(event, { start: at("14:00"), end: at("15:00") });
+    // Before any sync, a new Task takes 09:00, which would move Report's Block to 10:00.
+    await createTask(app, { title: "Urgent", priority: "critical", deadline: { date: "2026-01-05", time: "10:00" } });
+
+    expect(blocks(app)).toEqual([
+      ["Urgent", at("09:00"), at("10:00"), false],
+      ["Report", at("14:00"), at("15:00"), true],
+    ]);
+    expect(app.calendar.blockEvent(event)).toEqual(["Report", at("14:00"), at("15:00")]);
+  });
+
+  it("are applied first, so a local Recalculation doesn't revive a deleted Block event", async () => {
+    const { app, dynacal } = await connectedApp();
+    await createTask(app, { title: "Report" });
+
+    app.calendar.deleteEvent(await eventAt(app, dynacal, at("09:00")));
+    const urgent = await createTask(app, {
+      title: "Urgent",
+      priority: "critical",
+      deadline: { date: "2026-01-05", time: "10:00" },
+    });
+    // With Urgent done, 09:00 is free again, but the owner declined it for Report.
+    app.commands.completeTask(urgent.id);
+    await app.commands.writeBlocksToGoogle();
+
+    expect(blocks(app)).toEqual([["Report", at("10:00"), at("11:00"), false]]);
+    expect(app.calendar.blockEventsOn(dynacal).map(([title, start, end]) => [title, start, end])).toEqual([
+      ["Report", at("10:00"), at("11:00")],
+    ]);
+  });
+
+  it("are applied on reconnecting, before the Recalculation that follows", async () => {
+    const { app, dynacal } = await connectedApp();
+    await createTask(app, { title: "Report" });
+    const event = await eventAt(app, dynacal, at("09:00"));
+    app.calendar.breakConnection();
+    await app.commands.syncEvents();
+
+    // While the connection is broken, the owner moves the Block event and a Standup lands on 09:00.
+    app.calendar.moveEvent(event, { start: at("14:00"), end: at("15:00") });
+    app.calendar.addEvent("work", { title: "Standup", start: at("09:00"), end: at("10:00") });
+    app.calendar.restoreConnection();
+    await app.commands.connectGoogle(grant);
+    await app.commands.writeBlocksToGoogle();
+
+    expect(blocks(app)).toEqual([["Report", at("14:00"), at("15:00"), true]]);
+    expect(app.calendar.blockEvent(event)).toEqual(["Report", at("14:00"), at("15:00")]);
+  });
+});
