@@ -98,7 +98,7 @@ Using the MVP with my real calendar, I've hit three problems.
 - **Busy Override storage.**
   - Overrides are stored in dynacal, keyed by the Event's calendar and event id. They hold three states: busy, not busy, or none (follow settings).
   - An override survives the Event moving.
-  - When a sync finds that the Event no longer exists, its override is dropped.
+  - An override is dropped only once its Event is really gone: Google confirms it's deleted (by ID, when it's missing from a read that should have found it), or it has ended. An Event moved beyond the Planning Horizon keeps its override; dynacal records where each overridden Event was last seen to tell the two apart.
   - Setting or clearing an override triggers a Recalculation.
   - Overrides are never written to Google.
 - **dynacal Event model.**
@@ -116,11 +116,15 @@ Using the MVP with my real calendar, I've hit three problems.
 - **Busy time from the dynacal calendar.** The dynacal calendar is still never a Busy Calendar. dynacal Events reach the scheduler from dynacal's own table, not by reading Google.
 - **Web push.** Reminders stay for Blocks only; dynacal Events are excluded.
 - **Broken connection.** dynacal Event commands work locally while the connection is broken. Writes to Google are skipped and then caught up after reconnect, through the same apply-then-write path, so edits made in Google during the outage still win for dynacal Events.
-- **Week view.** The view's range is seven days starting from the day it's anchored on, today by default. Previous and Next move seven days and are limited to the Planning Horizon. The Day view is unchanged.
+- **Week view.** The view's range is seven days starting from the day it's anchored on, today by default. Previous and Next move seven days and are limited to the Planning Horizon: the last page ends on the horizon's last day, so no page shows days beyond it. The Day view is unchanged.
+- **Calendar names.** `busy_calendars.name` stores each Busy Calendar's name as Google lists it, so the Event details panel can name an Event's calendar. It's saved when Busy Calendars are chosen and refreshed on every sync, so a rename in Google shows up and deployments from before the column get names without reconnecting.
+- **Writes to the dynacal calendar.** Rewrites are patches of the fields dynacal owns (title, description, time, reminder, private marker), so anything else the owner adds in Google (location, colour, guests, attachments) is kept. A patch also revives an event the owner deleted, as a full rewrite did.
+- **Finding dynacal Events moved far away.** A dynacal Event missing from the read-back of the dynacal calendar is fetched by ID: only a missing or cancelled event counts as deleted, and one moved out of range takes its new time. Notes the owner formatted in Google come back as plain text.
+- **Ended dynacal Events** are no longer kept in step with Google: their write records are pruned, the read-back never reaches further into the past than Blocks need, and a Reminder Lead Time change rewrites only dynacal Events that haven't started.
 - **Event details panel.** Clicking any Event opens a panel:
   - for **Events from other calendars** it's read-only, apart from the Busy Override control;
   - for **dynacal Events** it has the edit form and a Delete button.
-- **New Event entry points.** A "New Event" button sits next to "New Task". Clicking empty calendar space opens the New Event form with that time filled in, as a one-hour Event starting at the clicked quarter hour. This mustn't break dragging and resizing Blocks.
+- **New Event entry points.** A "New Event" button sits next to "New Task". Clicking empty calendar space opens the New Event form with that time filled in, as a one-hour Event starting at the clicked quarter hour; clicking time that has passed does nothing (the form itself still accepts any time). This mustn't break dragging and resizing Blocks: the end of a drag or resize is never a click.
 - **Working Hours copy.** This is client-side only, in the Settings form: "Copy to…" opens a list of days with "Weekdays" and "All days" shortcuts, and replaces the chosen days' windows in the unsaved form state. Nothing in the command layer changes; saving still goes through the existing validated settings update.
 
 ## Testing Decisions
@@ -134,7 +138,7 @@ Using the MVP with my real calendar, I've hit three problems.
   Tests never check database rows or internal structures.
 - **Seam 1: the command layer** (`createTestApp`, with the fake calendar gateway and `FakeClock`). It covers almost everything here:
   - Free and all-day Events are always returned and marked, and the settings only change blocking;
-  - the Busy Override beats the settings in both directions, triggers a Recalculation, is never written to Google, survives a moved Event, and is dropped when the Event disappears;
+  - the Busy Override beats the settings in both directions, triggers a Recalculation, is never written to Google, survives a moved Event (even one moved beyond the Planning Horizon), and is dropped once Google confirms the Event is deleted;
   - dynacal Events can be created, updated and deleted, with validation;
   - dynacal Events are written to the dynacal calendar with a reminder, including all-day ones;
   - unpinned Blocks move out of their way, and Conflicts are flagged with Pinned Blocks;
@@ -142,8 +146,9 @@ Using the MVP with my real calendar, I've hit three problems.
   - while the connection is broken, dynacal Event commands work locally and are written after reconnect;
   - no web push for dynacal Events.
 - **Seam 2: the scheduler function.** It's unchanged, because dynacal Events and overridden Events arrive as busy time. Add a scheduler test only if an implementer finds behaviour busy time doesn't already cover.
-- **Fake calendar gateway.** It must be extended to model the dynacal calendar holding both kinds of event, all-day events in it, and Google-side edits to dynacal Events, behaving as Google does: a PUT to a deleted event revives it.
+- **Fake calendar gateway.** It must be extended to model the dynacal calendar holding both kinds of event, all-day events in it, and Google-side edits to dynacal Events, behaving as Google does: a rewrite of a deleted event revives it, a rewrite keeps fields the owner set in Google, and an event can be fetched by ID.
 - **Checked by hand in a dev server, not automated** (agreed with the owner): the "Copy to…" action in Working Hours; the Week view's rolling seven days and navigation; the Event details panel; clicking empty time to create an Event without breaking Block drag and resize.
+- **The Google Calendar adapter** has its own test file, `src/server/google-calendar.test.ts` (already on `main`), which covers the wire-format mapping: markers, all-day dates, patches and fetching by ID. It's the only test outside the two seams.
 - **Prior art:**
   - `src/core/google-edits.test.ts` and `src/core/dynacal-calendar.test.ts` for syncing the dynacal calendar;
   - `src/core/connection-health.test.ts` for the broken connection;
