@@ -4,6 +4,8 @@
  * them.
  */
 
+import type { Interval } from "./time";
+
 /** One of the owner's Google calendars. */
 export interface GoogleCalendar {
   id: string;
@@ -55,11 +57,6 @@ export interface WatchChannel {
   expiresAt: Date;
 }
 
-export interface TimeRange {
-  start: Date;
-  end: Date;
-}
-
 /**
  * Thrown when Google no longer accepts dynacal's credentials (access revoked, refresh token expired), as
  * opposed to a passing network or server failure.
@@ -75,7 +72,7 @@ export interface CalendarGateway {
   /** Every calendar in the owner's Google calendar list. */
   listCalendars(): Promise<GoogleCalendar[]>;
   /** The Events on one calendar that overlap `range`; recurring Events come back as single occurrences. */
-  listEvents(calendarId: string, range: TimeRange): Promise<CalendarEvent[]>;
+  listEvents(calendarId: string, range: Interval): Promise<CalendarEvent[]>;
   /** Creates a calendar in the owner's account (and adds it to their calendar list). */
   createCalendar(name: string): Promise<GoogleCalendar>;
   /** Writes a Block to a calendar as a new event, returning the event's ID. */
@@ -88,7 +85,7 @@ export interface CalendarGateway {
    * The timed events on the dynacal calendar that overlap `range`, as they stand in Google. Deleted events,
    * and events the owner turned into all-day ones, aren't included.
    */
-  listBlockEvents(calendarId: string, range: TimeRange): Promise<BlockEventInGoogle[]>;
+  listBlockEvents(calendarId: string, range: Interval): Promise<BlockEventInGoogle[]>;
   /** Opens a push notification channel for changes to a calendar's events; returns Google's ID for the calendar and when the channel closes. */
   watchEvents(calendarId: string, channel: WatchChannel): Promise<{ resourceId: string; expiresAt: Date }>;
   /** Closes a push notification channel; one that has already closed counts as closed. */

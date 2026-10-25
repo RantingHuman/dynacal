@@ -1,4 +1,4 @@
-import { GRID_MINUTES } from "./settings";
+import { GRID_MINUTES, MINUTE_MS } from "./time";
 import { formatDuration } from "./tasks";
 
 /**
@@ -16,7 +16,6 @@ export type ReviewBlockResult =
   | { ok: false; notFound: true }
   | { ok: false; errors: { workedMinutes?: string; block?: string } };
 
-const MINUTE_MS = 60_000;
 
 interface ReviewableBlock {
   start: Date;

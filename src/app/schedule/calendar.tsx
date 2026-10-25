@@ -1,7 +1,8 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { formatMinutes, GRID_MINUTES, type WorkingHours } from "@/core/settings";
+import { formatMinutes, type WorkingHours } from "@/core/settings";
+import { GRID_MINUTES, MINUTE_MS } from "@/core/time";
 import { addDays, fromZoned, toZoned, weekdayOf } from "@/core/time-zone";
 import { moveBlock, recalculate } from "./actions";
 import { BlockEditor, moveError } from "./block-editor";
@@ -36,7 +37,6 @@ type View = "day" | "week";
 const WEEKDAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const HOUR_PX = 48;
-const MINUTE_MS = 60_000;
 
 /** What a mouse drag on a Block is doing: moving it, or moving one of its edges. */
 type DragMode = "move" | "start" | "end";

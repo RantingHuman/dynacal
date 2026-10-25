@@ -1,7 +1,6 @@
 import { WEEKDAYS, type Weekday } from "./settings";
+import { DAY_MS, MINUTE_MS } from "./time";
 
-const MINUTE_MS = 60_000;
-const DAY_MS = 24 * 60 * MINUTE_MS;
 
 /** A moment as read on a wall clock in some time zone. */
 export interface ZonedTime {

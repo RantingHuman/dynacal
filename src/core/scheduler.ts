@@ -1,22 +1,12 @@
 import type { WorkingHours } from "./settings";
 import { PRIORITIES, type DateOrDateTime, type Priority } from "./tasks";
 import { addDays, fromZoned, toZoned, weekdayOf } from "./time-zone";
+import { DAY_MS, GRID_MS, MINUTE_MS, type Interval } from "./time";
 
 /**
  * The scheduler (seam 1): a deterministic pure function from everything that shapes the Schedule
  * to the new set of Blocks and a flag per Task. No database, no clock, no I/O.
  */
-
-export const PLANNING_HORIZON_DAYS = 14;
-
-const MINUTE_MS = 60_000;
-const GRID_MS = 15 * MINUTE_MS;
-const DAY_MS = 24 * 60 * MINUTE_MS;
-
-export interface Interval {
-  start: Date;
-  end: Date;
-}
 
 /** A Block as the scheduler sees it: a span of time for one Task. */
 export interface ScheduledBlock extends Interval {

@@ -7,12 +7,12 @@ import {
   type CalendarEvent,
   type CalendarGateway,
   type GoogleCalendar,
-  type TimeRange,
   type WatchChannel,
 } from "@/core/calendar-gateway";
 import type { Clock } from "@/core/clock";
 import type { Db } from "@/core/db";
 import { googleConnection } from "@/core/db/schema";
+import type { Interval } from "@/core/time";
 
 const API = "https://www.googleapis.com/calendar/v3";
 /** Refresh an access token this long before Google says it expires. */
@@ -125,7 +125,7 @@ export function createGoogleCalendarGateway({
       return items.map((c) => ({ id: c.id, name: c.summaryOverride ?? c.summary ?? c.id, primary: c.primary === true }));
     },
 
-    async listEvents(calendarId: string, range: TimeRange): Promise<CalendarEvent[]> {
+    async listEvents(calendarId: string, range: Interval): Promise<CalendarEvent[]> {
       const items = await getAll<GoogleEvent>(eventsPath(calendarId), {
         timeMin: range.start.toISOString(),
         timeMax: range.end.toISOString(),
@@ -188,7 +188,7 @@ export function createGoogleCalendarGateway({
       await send("POST", "/channels/stop", { body: { id: channelId, resourceId }, allow: [404] });
     },
 
-    async listBlockEvents(calendarId: string, range: TimeRange): Promise<BlockEventInGoogle[]> {
+    async listBlockEvents(calendarId: string, range: Interval): Promise<BlockEventInGoogle[]> {
       const items = await getAll<GoogleEvent>(eventsPath(calendarId), {
         timeMin: range.start.toISOString(),
         timeMax: range.end.toISOString(),

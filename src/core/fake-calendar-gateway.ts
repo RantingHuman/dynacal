@@ -6,9 +6,9 @@ import {
   type CalendarGateway,
   type EventTiming,
   type GoogleCalendar,
-  type TimeRange,
   type WatchChannel,
 } from "./calendar-gateway";
+import { DAY_MS, type Interval } from "./time";
 
 type NewEvent = { title?: string; free?: boolean } & (
   | { start: Date; end: Date }
@@ -131,7 +131,7 @@ export class FakeCalendarGateway implements CalendarGateway {
     return structuredClone(this.calendars);
   }
 
-  async listEvents(calendarId: string, range: TimeRange): Promise<CalendarEvent[]> {
+  async listEvents(calendarId: string, range: Interval): Promise<CalendarEvent[]> {
     this.checkCredentials();
     return structuredClone(
       this.events.filter((e) => {
@@ -202,7 +202,7 @@ export class FakeCalendarGateway implements CalendarGateway {
   /** How many times dynacal has read the dynacal calendar's events back: once per sync. */
   blockEventReads = 0;
 
-  async listBlockEvents(calendarId: string, range: TimeRange): Promise<BlockEventInGoogle[]> {
+  async listBlockEvents(calendarId: string, range: Interval): Promise<BlockEventInGoogle[]> {
     this.checkCredentials();
     this.blockEventReads++;
     return this.events
@@ -218,7 +218,6 @@ export class FakeCalendarGateway implements CalendarGateway {
   }
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 function timing(event: NewEvent): EventTiming {
   return "startDate" in event

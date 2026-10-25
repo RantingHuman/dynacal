@@ -1,6 +1,6 @@
 import type { PushMessage } from "./push";
+import { MINUTE_MS } from "./time";
 
-const MINUTE_MS = 60_000;
 
 export interface ReminderCandidate {
   taskId: string;

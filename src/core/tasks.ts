@@ -1,4 +1,4 @@
-import { GRID_MINUTES } from "./settings";
+import { GRID_MINUTES } from "./time";
 
 export const PRIORITIES = ["low", "medium", "high", "critical"] as const;
 export type Priority = (typeof PRIORITIES)[number];

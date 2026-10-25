@@ -1,4 +1,4 @@
-import { GRID_MINUTES } from "./settings";
+import { GRID_MINUTES, GRID_MS } from "./time";
 
 /**
  * Pinning Blocks: where the owner may move or resize a Block by hand.
@@ -9,8 +9,6 @@ export type MoveBlockErrors = { start?: string; end?: string; block?: string };
 export type MoveBlockResult = { ok: true } | { ok: false; notFound: true } | { ok: false; errors: MoveBlockErrors };
 
 export type UnpinBlockResult = { ok: true } | { ok: false; notFound: true };
-
-const GRID_MS = GRID_MINUTES * 60_000;
 
 interface MoveContext {
   now: Date;

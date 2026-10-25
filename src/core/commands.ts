@@ -32,13 +32,13 @@ import { isHttps } from "./urls";
 import { validateBlockTime, type MoveBlockResult, type UnpinBlockResult } from "./pinning";
 import { dueReminders, reminderMessage } from "./reminders";
 import {
-  PLANNING_HORIZON_DAYS,
   resolveDeadline,
   findConflicts,
   resolveEarliestStart,
   schedule,
   type TaskFlag,
 } from "./scheduler";
+import { DAY_MS, GRID_MS, MINUTE_MS, PLANNING_HORIZON_DAYS, planningHorizonEnd } from "./time";
 import { DEFAULT_SETTINGS, validateSettings, type Settings, type SettingsUpdate, type UpdateSettingsResult } from "./settings";
 import {
   compareTasks,
@@ -215,8 +215,6 @@ function sameSecret(given: string, expected: string): boolean {
   return timingSafeEqual(digest(given), digest(expected));
 }
 
-const MINUTE_MS = 60_000;
-const DAY_MS = 24 * 60 * MINUTE_MS;
 /** How far either side of the Planning Horizon Block events are read back from Google; one moved further looks deleted. */
 const EDIT_WINDOW_DAYS = 30;
 /** How long dynacal asks Google to keep a push notification channel open. */
@@ -307,7 +305,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
    */
   async function readEvents(): Promise<boolean> {
     const now = clock.now();
-    const range = { start: now, end: new Date(now.getTime() + PLANNING_HORIZON_DAYS * DAY_MS) };
+    const range = { start: now, end: planningHorizonEnd(now) };
     // The dynacal calendar's events are Blocks, never Events (ADR-0002).
     const dynacal = dynacalCalendarId();
     const calendarIds = db
@@ -627,7 +625,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
    * Blocks. Paused, like any automatic Recalculation, while the connection is broken or there's no time zone.
    */
   function recalculateAsTimePasses(): void {
-    const slot = (at: Date) => Math.floor(at.getTime() / (15 * MINUTE_MS));
+    const slot = (at: Date) => Math.floor(at.getTime() / GRID_MS);
     if (lastRecalculatedAt !== null && slot(lastRecalculatedAt) === slot(clock.now())) return;
     recalculateAutomatically();
   }
@@ -1072,7 +1070,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       const now = clock.now();
       const errors = validateBlockTime(to, {
         now,
-        horizonEnd: new Date(now.getTime() + PLANNING_HORIZON_DAYS * DAY_MS),
+        horizonEnd: planningHorizonEnd(now),
         horizonDays: PLANNING_HORIZON_DAYS,
         current: block,
       });
@@ -1163,7 +1161,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       return {
         status: "ready",
         timeZone,
-        horizon: { start: now, end: new Date(now.getTime() + PLANNING_HORIZON_DAYS * DAY_MS) },
+        horizon: { start: now, end: planningHorizonEnd(now) },
         blocks: blockViews,
         events: eventViews,
         flags,

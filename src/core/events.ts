@@ -1,5 +1,5 @@
 import type { CalendarEvent } from "./calendar-gateway";
-import type { Interval } from "./scheduler";
+import type { Interval } from "./time";
 import type { Settings } from "./settings";
 import { fromZoned } from "./time-zone";
 
