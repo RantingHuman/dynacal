@@ -1,8 +1,8 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { and, eq, gt, gte, isNull, lt, lte, or, sql } from "drizzle-orm";
-import { CalendarAuthError, type CalendarEvent, type CalendarGateway, type GoogleCalendar } from "./calendar-gateway";
+import { type CalendarEvent, type CalendarGateway, type GoogleCalendar } from "./calendar-gateway";
 import type { Clock } from "./clock";
-import { watchConnectionHealth } from "./connection-health";
+import { connectionProblem, unlessRefused, watchConnectionHealth } from "./connection-health";
 import {
   remainingMinutes,
   suggestedWorkedMinutes,
@@ -381,7 +381,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
    * poll after reconnecting catches up.
    */
   async function reconcileBlockEvents(): Promise<void> {
-    if (getGoogleConnection().status !== "connected") return;
+    if (connectionProblem(getGoogleConnection())) return;
     const calendarId = dynacalCalendarId();
     if (calendarId === null) return;
     const now = clock.now();
@@ -531,7 +531,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
    * Recalculation.
    */
   async function applyGoogleEdits(): Promise<boolean> {
-    if (getGoogleConnection().status !== "connected") return false;
+    if (connectionProblem(getGoogleConnection())) return false;
     const calendarId = dynacalCalendarId();
     if (calendarId === null) return false;
     const now = clock.now();
@@ -749,18 +749,13 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
   let queuedSync: Promise<SyncEventsResult> | null = null;
 
   async function syncNow(): Promise<SyncEventsResult> {
-    const connection = getGoogleConnection().status;
-    if (connection === "not-connected") return { ok: false, reason: "not-connected" };
-    // Credentials Google has refused stay refused; only reconnecting (connectGoogle) recovers.
-    if (connection === "broken") return { ok: false, reason: "connection-broken" };
-    try {
+    const problem = connectionProblem(getGoogleConnection());
+    if (problem) return problem;
+    return unlessRefused(async () => {
       const eventsChanged = await readEvents();
       const recalculated = await onDynacalCalendar(() => updateDynacalCalendar(eventsChanged));
-      return { ok: true, recalculated };
-    } catch (error) {
-      if (error instanceof CalendarAuthError) return { ok: false, reason: "connection-broken" };
-      throw error;
-    }
+      return { ok: true, recalculated } as const;
+    });
   }
 
   return {
@@ -847,9 +842,8 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
      */
     async watchCalendars(publicBaseUrl: string): Promise<WatchCalendarsResult> {
       if (!isHttps(publicBaseUrl)) return { ok: false, reason: "needs-https" };
-      const connection = getGoogleConnection().status;
-      if (connection === "not-connected") return { ok: false, reason: "not-connected" };
-      if (connection === "broken") return { ok: false, reason: "connection-broken" };
+      const problem = connectionProblem(getGoogleConnection());
+      if (problem) return problem;
       const address = `${publicBaseUrl.replace(/\/+$/, "")}${CALENDAR_NOTIFICATIONS_PATH}`;
       const now = clock.now();
       const dynacal = dynacalCalendarId();
@@ -859,7 +853,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       ]);
       const open = db.select().from(calendarWatches).all();
       const keep = new Set<string>();
-      try {
+      return unlessRefused(async () => {
         for (const calendarId of wanted) {
           const current = open.find(
             (w) =>
@@ -888,11 +882,8 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
           if (w.expiresAt > now) await calendar.stopWatching(w.channelId, w.resourceId);
           db.delete(calendarWatches).where(eq(calendarWatches.channelId, w.channelId)).run();
         }
-      } catch (error) {
-        if (error instanceof CalendarAuthError) return { ok: false, reason: "connection-broken" };
-        throw error;
-      }
-      return { ok: true };
+        return { ok: true } as const;
+      });
     },
 
     /**
@@ -938,13 +929,8 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       const connection = getGoogleConnection();
       if (connection.status !== "connected") return connection;
       const busy = new Set(db.select().from(busyCalendars).all().map((b) => b.calendarId));
-      let calendars: GoogleCalendar[];
-      try {
-        calendars = await calendar.listCalendars();
-      } catch (error) {
-        if (error instanceof CalendarAuthError) return { status: "broken", email: connection.email };
-        throw error;
-      }
+      const calendars = await unlessRefused(() => calendar.listCalendars());
+      if (!Array.isArray(calendars)) return { status: "broken", email: connection.email };
       const chosen = busyCalendarsChosen();
       return {
         status: "connected",
