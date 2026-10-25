@@ -1,10 +1,11 @@
 import { OAuth2RequestError, type Google } from "arctic";
 import {
   CalendarAuthError,
-  type BlockEvent,
-  type BlockEventInGoogle,
   type CalendarEvent,
   type CalendarGateway,
+  type DynacalCalendarEvent,
+  type DynacalCalendarEventInGoogle,
+  type DynacalMarker,
   type GoogleCalendar,
   type WatchChannel,
 } from "@/core/calendar-gateway";
@@ -145,14 +146,18 @@ export function createGoogleCalendarGateway({
       return { id: created.id, name, primary: false };
     },
 
-    async createBlockEvent(calendarId: string, event: BlockEvent): Promise<string> {
+    async createDynacalCalendarEvent(calendarId: string, event: DynacalCalendarEvent): Promise<string> {
       const created = (await (await send("POST", eventsPath(calendarId), { body: googleEvent(event) })).json()) as {
         id: string;
       };
       return created.id;
     },
 
-    async updateBlockEvent(calendarId: string, eventId: string, event: BlockEvent): Promise<"updated" | "gone"> {
+    async updateDynacalCalendarEvent(
+      calendarId: string,
+      eventId: string,
+      event: DynacalCalendarEvent,
+    ): Promise<"updated" | "gone"> {
       const response = await send("PUT", `${eventsPath(calendarId)}/${encodeURIComponent(eventId)}`, {
         body: googleEvent(event),
         allow: [404, 410],
@@ -160,7 +165,7 @@ export function createGoogleCalendarGateway({
       return response.ok ? "updated" : "gone";
     },
 
-    async deleteBlockEvent(calendarId: string, eventId: string): Promise<void> {
+    async deleteDynacalCalendarEvent(calendarId: string, eventId: string): Promise<void> {
       await send("DELETE", `${eventsPath(calendarId)}/${encodeURIComponent(eventId)}`, { allow: [404, 410] });
     },
 
@@ -184,26 +189,22 @@ export function createGoogleCalendarGateway({
       await send("POST", "/channels/stop", { body: { id: channelId, resourceId }, allow: [404] });
     },
 
-    async listBlockEvents(calendarId: string, range: Interval): Promise<BlockEventInGoogle[]> {
+    async listDynacalCalendarEvents(calendarId: string, range: Interval): Promise<DynacalCalendarEventInGoogle[]> {
       const items = await getAll<GoogleEvent>(eventsPath(calendarId), {
         timeMin: range.start.toISOString(),
         timeMax: range.end.toISOString(),
         singleEvents: "true",
         maxResults: "2500",
       });
-      return items.flatMap((e): BlockEventInGoogle[] =>
-        e.status !== "cancelled" && e.start?.dateTime && e.end?.dateTime
-          ? [
-              {
-                id: e.id,
-                title: e.summary ?? "",
-                description: e.description ?? "",
-                start: new Date(e.start.dateTime),
-                end: new Date(e.end.dateTime),
-              },
-            ]
-          : [],
-      );
+      return items.flatMap((e): DynacalCalendarEventInGoogle[] => {
+        if (e.status === "cancelled") return [];
+        const common = { id: e.id, title: e.summary ?? "", description: e.description ?? "", marker: readMarker(e) };
+        if (e.start?.date && e.end?.date) return [{ ...common, allDay: true, startDate: e.start.date, endDate: e.end.date }];
+        if (e.start?.dateTime && e.end?.dateTime) {
+          return [{ ...common, allDay: false, start: new Date(e.start.dateTime), end: new Date(e.end.dateTime) }];
+        }
+        return [];
+      });
     },
   };
 }
@@ -222,16 +223,33 @@ function lostPermission(body: string): boolean {
   }
 }
 
-/** A Block as a Google `Event`: the Task title, its time, and only a popup reminder at the Reminder Lead Time. */
-function googleEvent(event: BlockEvent) {
+/** The private extended properties that hold dynacal's marker on a Google `Event`. */
+const MARKER_KIND = "dynacalKind";
+const MARKER_ID = "dynacalId";
+
+/**
+ * An event for the dynacal calendar as a Google `Event`: its title, its time (local dates for an all-day one),
+ * only a popup reminder at the Reminder Lead Time, and dynacal's marker as private extended properties.
+ */
+function googleEvent(event: DynacalCalendarEvent) {
   return {
     summary: event.title,
-    start: { dateTime: event.start.toISOString() },
-    end: { dateTime: event.end.toISOString() },
+    ...(event.allDay
+      ? { start: { date: event.startDate }, end: { date: event.endDate } }
+      : { start: { dateTime: event.start.toISOString() }, end: { dateTime: event.end.toISOString() } }),
     // A full replacement (PUT) also revives an event the owner deleted, which Google keeps as "cancelled".
     status: "confirmed",
     reminders: { useDefault: false, overrides: [{ method: "popup", minutes: event.reminderMinutes }] },
+    extendedProperties: { private: { [MARKER_KIND]: event.marker.kind, [MARKER_ID]: event.marker.dynacalId } },
   };
+}
+
+/** dynacal's marker on a Google `Event`; null if it has none (or not a whole one), as on Blocks written before markers. */
+function readMarker(e: GoogleEvent): DynacalMarker | null {
+  const kind = e.extendedProperties?.private?.[MARKER_KIND];
+  const dynacalId = e.extendedProperties?.private?.[MARKER_ID];
+  if ((kind !== "block" && kind !== "event") || !dynacalId) return null;
+  return { kind, dynacalId };
 }
 
 /** The fields dynacal reads from a Google `CalendarListEntry`. */
@@ -251,4 +269,5 @@ interface GoogleEvent {
   transparency?: "opaque" | "transparent";
   start?: { date?: string; dateTime?: string };
   end?: { date?: string; dateTime?: string };
+  extendedProperties?: { private?: Record<string, string> };
 }

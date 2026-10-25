@@ -136,7 +136,7 @@ describe("a push notification from Google", () => {
     await createTask(app);
     await app.commands.watchCalendars(BASE_URL);
 
-    const [event] = await app.calendar.listBlockEvents(dynacal, { start: at("00:00"), end: at("23:00") });
+    const [event] = await app.calendar.listDynacalCalendarEvents(dynacal, { start: at("00:00"), end: at("23:00") });
     app.calendar.moveEvent(event.id, { start: at("14:00"), end: at("15:00") });
     await app.commands.receiveCalendarNotification(app.calendar.notificationFor(dynacal));
 

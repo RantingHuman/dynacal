@@ -27,24 +27,35 @@ export type CalendarEvent = {
   free: boolean;
 } & EventTiming;
 
-/** A Block as written to the dynacal calendar: the Task title, its time, and a popup reminder. */
-export interface BlockEvent {
-  title: string;
-  start: Date;
-  end: Date;
-  /** Minutes before the start that Google pops up a reminder: the Reminder Lead Time. */
-  reminderMinutes: number;
+/** The kinds of event dynacal writes to the dynacal calendar: Blocks, and dynacal Events. */
+export type DynacalEventKind = "block" | "event";
+
+/**
+ * The private marker dynacal puts on every event it writes to the dynacal calendar (Google's private
+ * extended properties), so sync can tell what each event stands for. The owner can't see or edit it in Google.
+ */
+export interface DynacalMarker {
+  kind: DynacalEventKind;
+  /** For a dynacal Event, its ID; for a Block, its Task's ID, since Block IDs don't survive a Recalculation. */
+  dynacalId: string;
 }
 
-/** A Block event as it stands in Google, which the owner may have edited there. */
-export interface BlockEventInGoogle {
+/** An event as dynacal writes it to the dynacal calendar: title, time, a popup reminder and the private marker. */
+export type DynacalCalendarEvent = {
+  title: string;
+  /** Minutes before the start that Google pops up a reminder: the Reminder Lead Time. */
+  reminderMinutes: number;
+  marker: DynacalMarker;
+} & EventTiming;
+
+/** An event in the dynacal calendar as it stands in Google, which the owner may have edited there. */
+export type DynacalCalendarEventInGoogle = {
   id: string;
   title: string;
-  /** dynacal writes none, so any text here was added in Google. */
   description: string;
-  start: Date;
-  end: Date;
-}
+  /** null for an event without a marker, such as a Block written before dynacal marked its events. */
+  marker: DynacalMarker | null;
+} & EventTiming;
 
 /** A push notification channel dynacal asks Google to open: Google then POSTs to `address` when events change. */
 export interface WatchChannel {
@@ -75,17 +86,17 @@ export interface CalendarGateway {
   listEvents(calendarId: string, range: Interval): Promise<CalendarEvent[]>;
   /** Creates a calendar in the owner's account (and adds it to their calendar list). */
   createCalendar(name: string): Promise<GoogleCalendar>;
-  /** Writes a Block to a calendar as a new event, returning the event's ID. */
-  createBlockEvent(calendarId: string, event: BlockEvent): Promise<string>;
-  /** Rewrites a Block's event; "gone" if the event no longer exists in Google. */
-  updateBlockEvent(calendarId: string, eventId: string, event: BlockEvent): Promise<"updated" | "gone">;
-  /** Deletes a Block's event; an event that's already gone counts as deleted. */
-  deleteBlockEvent(calendarId: string, eventId: string): Promise<void>;
+  /** Writes an event to the dynacal calendar, returning the event's ID. */
+  createDynacalCalendarEvent(calendarId: string, event: DynacalCalendarEvent): Promise<string>;
+  /** Rewrites an event in the dynacal calendar in full; "gone" if the event no longer exists in Google. */
+  updateDynacalCalendarEvent(calendarId: string, eventId: string, event: DynacalCalendarEvent): Promise<"updated" | "gone">;
+  /** Deletes an event from the dynacal calendar; an event that's already gone counts as deleted. */
+  deleteDynacalCalendarEvent(calendarId: string, eventId: string): Promise<void>;
   /**
-   * The timed events on the dynacal calendar that overlap `range`, as they stand in Google. Deleted events,
-   * and events the owner turned into all-day ones, aren't included.
+   * The events on the dynacal calendar that overlap `range`, timed and all-day, of every kind, as they stand
+   * in Google. Deleted events aren't included.
    */
-  listBlockEvents(calendarId: string, range: Interval): Promise<BlockEventInGoogle[]>;
+  listDynacalCalendarEvents(calendarId: string, range: Interval): Promise<DynacalCalendarEventInGoogle[]>;
   /** Opens a push notification channel for changes to a calendar's events; returns Google's ID for the calendar and when the channel closes. */
   watchEvents(calendarId: string, channel: WatchChannel): Promise<{ resourceId: string; expiresAt: Date }>;
   /** Closes a push notification channel; one that has already closed counts as closed. */

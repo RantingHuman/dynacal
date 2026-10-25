@@ -1,4 +1,18 @@
-import type { BlockEvent } from "./calendar-gateway";
+import type { DynacalCalendarEvent } from "./calendar-gateway";
+
+/** A Block as written to the dynacal calendar: the Task title, its time, and a popup reminder. */
+export interface BlockEvent {
+  title: string;
+  start: Date;
+  end: Date;
+  /** Minutes before the start that Google pops up a reminder: the Reminder Lead Time. */
+  reminderMinutes: number;
+}
+
+/** A Task's Block event as the dynacal calendar holds it: timed, and marked as a Block of that Task. */
+export function blockCalendarEvent(taskId: string, { title, start, end, reminderMinutes }: BlockEvent): DynacalCalendarEvent {
+  return { title, reminderMinutes, allDay: false, start, end, marker: { kind: "block", dynacalId: taskId } };
+}
 
 /** A Block as it should appear in the dynacal calendar. */
 export interface WantedBlockEvent extends BlockEvent {
