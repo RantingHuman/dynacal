@@ -240,7 +240,7 @@ function place(ctx: Context, order: SchedulerTask[]): Placement[] {
     const available = subtract(startingFrom(free, earliest), task.avoid ?? []);
     const pieces = task.dontSplit ? placeWhole(available, need) : placeSplit(available, need, ctx.minimum);
     for (const [start, end] of pieces) take(free, start, end);
-    const flag = flagFor(task, need, pieces, keptForTask.length > 0, ctx.now);
+    const flag = flagFor(task, need, pieces, keptForTask, ctx.now);
     return { task, pieces, flag, misses: flag === "at-risk" || (flag === "unscheduled" && task.deadline !== null) };
   });
 }
@@ -290,15 +290,17 @@ function flagFor(
   task: SchedulerTask,
   need: number,
   pieces: Span[],
-  hasKeptBlocks: boolean,
+  keptForTask: ScheduledBlock[],
   now: number,
 ): TaskFlag | null {
   const deadline = task.deadline?.getTime() ?? null;
   if (deadline !== null && deadline <= now) return "overdue";
-  if (need > 0 && pieces.length === 0 && !hasKeptBlocks) return "unscheduled";
+  if (need > 0 && pieces.length === 0 && keptForTask.length === 0) return "unscheduled";
   if (deadline !== null) {
-    const beforeDeadline = pieces.reduce((sum, [a, b]) => sum + Math.max(0, Math.min(b, deadline) - a), 0);
-    if (beforeDeadline < need) return "at-risk";
+    // Only time before the deadline counts toward meeting it, a Pinned Block's included.
+    const kept = keptForTask.map((b): Span => [Math.max(b.start.getTime(), now), b.end.getTime()]);
+    const beforeDeadline = [...pieces, ...kept].reduce((sum, [a, b]) => sum + Math.max(0, Math.min(b, deadline) - a), 0);
+    if (beforeDeadline < task.remainingMinutes * MINUTE_MS) return "at-risk";
   }
   return null;
 }
@@ -308,8 +310,9 @@ function roundUp(ms: number): number {
 }
 
 /**
- * Earliest deadline first; Tasks without a deadline after all deadlined ones, higher Priority first.
- * Remaining ties keep the input order.
+ * The starting order `chooseOrder` works from: earliest deadline first, then Tasks without a deadline,
+ * higher Priority first. Remaining ties keep the input order. This isn't the final order: `chooseOrder`
+ * moves any Task, deadline-less ones included, ahead by Priority wherever no Task misses its deadline for it.
  */
 function placementOrder(tasks: SchedulerTask[]): SchedulerTask[] {
   const rank = (t: SchedulerTask) => PRIORITIES.indexOf(t.priority);

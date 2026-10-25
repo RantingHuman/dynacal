@@ -206,6 +206,24 @@ describe("scheduler", () => {
       expect(result.flags).toEqual({ "low, due today": null, "critical, due Friday": null });
     });
 
+    it("keeps a Low Task due today ahead of a Critical Task without a deadline when going second would make it At Risk", () => {
+      const result = schedule(
+        input({
+          tasks: [
+            task("low, due today", { priority: "low", deadline: today5pm, remainingMinutes: 420 }),
+            task("critical, no deadline", { priority: "critical", remainingMinutes: 120 }),
+          ],
+        }),
+      );
+
+      expect(blocksOf(result)).toEqual([
+        ["low, due today", "2026-01-05T09:00:00.000Z", "2026-01-05T16:00:00.000Z"],
+        ["critical, no deadline", "2026-01-05T16:00:00.000Z", "2026-01-05T17:00:00.000Z"],
+        ["critical, no deadline", "2026-01-06T09:00:00.000Z", "2026-01-06T10:00:00.000Z"],
+      ]);
+      expect(result.flags).toEqual({ "low, due today": null, "critical, no deadline": null });
+    });
+
     it("when two Tasks can't both make their deadlines, the lower-Priority one is At Risk", () => {
       const result = schedule(
         input({
@@ -407,6 +425,19 @@ describe("scheduler", () => {
 
       expect(blocksOf(result)).toEqual([["a", "2026-01-05T09:00:00.000Z", "2026-01-05T09:30:00.000Z"]]);
       expect(result.flags).toEqual({ a: null });
+    });
+
+    it("At Risk: a Task whose Pinned Block falls after its deadline", () => {
+      const result = schedule(
+        input({
+          tasks: [task("a", { remainingMinutes: 120, deadline: new Date("2026-01-06T17:00:00Z") })],
+          pinnedBlocks: [
+            { taskId: "a", start: new Date("2026-01-08T09:00:00Z"), end: new Date("2026-01-08T11:00:00Z") },
+          ],
+        }),
+      );
+
+      expect(result.flags).toEqual({ a: "at-risk" });
     });
   });
 
