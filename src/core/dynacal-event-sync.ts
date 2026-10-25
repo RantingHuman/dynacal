@@ -4,7 +4,8 @@
  */
 import type { DynacalCalendarEvent, DynacalCalendarEventInGoogle, EventTiming } from "./calendar-gateway";
 import type { DynacalEvent } from "./dynacal-events";
-import { DAY_MS, type Interval } from "./time";
+import { anyZoneSpan } from "./events";
+import type { Interval } from "./time";
 
 /** What dynacal writes to Google for a dynacal Event: everything but the marker. */
 export type DynacalEventContent = {
@@ -94,12 +95,9 @@ export function readDynacalEventEdit(written: DynacalEventContent, inGoogle: Dyn
 export function editReadRange(window: Interval, written: WrittenDynacalEvent[]): Interval {
   let { start, end } = window;
   for (const { content } of written) {
-    const span = content.allDay
-      ? { start: new Date(`${content.startDate}T00:00:00Z`), end: new Date(`${content.endDate}T00:00:00Z`) }
-      : content;
-    // A day either side covers an all-day event's dates in any time zone.
-    if (span.start.getTime() - DAY_MS < start.getTime()) start = new Date(span.start.getTime() - DAY_MS);
-    if (span.end.getTime() + DAY_MS > end.getTime()) end = new Date(span.end.getTime() + DAY_MS);
+    const span = anyZoneSpan(content);
+    if (span.start < start) start = span.start;
+    if (span.end > end) end = span.end;
   }
   return { start, end };
 }

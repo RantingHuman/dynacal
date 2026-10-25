@@ -48,7 +48,15 @@ import {
   tasks,
 } from "./db/schema";
 import { blockCalendarEvent, planBlockEventWrites, type WantedBlockEvent } from "./block-events";
-import { eventKey, overridesForGoneEvents, type BusyOverride, type EventRef, type SetBusyOverrideResult } from "./busy-override";
+import {
+  checkedOverride,
+  eventKey,
+  syncOverrides,
+  type BusyOverride,
+  type EventRef,
+  type SetBusyOverrideResult,
+  type TrackedEventRef,
+} from "./busy-override";
 import {
   asCalendarEvent,
   DYNACAL_EVENTS_CALENDAR_ID,
@@ -70,7 +78,7 @@ import {
   type DynacalEventContent,
   type WrittenDynacalEvent,
 } from "./dynacal-event-sync";
-import { eventCountsAsBusy, eventInterval, eventsFingerprint } from "./events";
+import { anyZoneSpan, eventCountsAsBusy, eventInterval, eventsFingerprint } from "./events";
 import { validatePushSubscription, type PushSender, type PushSubscriptionInput, type SubscribeToPushResult } from "./push";
 import { isHttps } from "./urls";
 import { validateBlockTime, type MoveBlockResult, type UnpinBlockResult } from "./pinning";
@@ -372,6 +380,18 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       .filter((id) => id !== dynacal);
     const fresh = (await Promise.all(calendarIds.map((id) => calendar.listEvents(id, range)))).flat();
     const changed = eventsFingerprint(fresh) !== eventsFingerprint(cachedEvents());
+    const sync = syncOverrides(trackedOverrides(), {
+      calendarsRead: calendarIds,
+      found: new Map(fresh.map((e) => [eventKey({ calendarId: e.calendarId, eventId: e.id }), anyZoneSpan(e)])),
+      range,
+      now,
+    });
+    for (const ref of sync.check) {
+      const event = await calendar.getEvent(ref.calendarId, ref.eventId);
+      const checked = checkedOverride(ref, event && anyZoneSpan(event), now);
+      sync.seen.push(...checked.seen);
+      sync.drop.push(...checked.drop);
+    }
     db.transaction((tx) => {
       tx.delete(events).run();
       for (const e of fresh) {
@@ -390,18 +410,32 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
           .onConflictDoNothing()
           .run();
       }
-      const gone = overridesForGoneEvents(
-        tx.select().from(busyOverrides).all(),
-        calendarIds,
-        fresh.map((e) => ({ calendarId: e.calendarId, eventId: e.id })),
-      );
-      for (const o of gone) {
+      for (const { ref, at } of sync.seen) {
+        tx.update(busyOverrides)
+          .set({ lastSeenStart: at.start, lastSeenEnd: at.end })
+          .where(and(eq(busyOverrides.calendarId, ref.calendarId), eq(busyOverrides.eventId, ref.eventId)))
+          .run();
+      }
+      for (const ref of sync.drop) {
         tx.delete(busyOverrides)
-          .where(and(eq(busyOverrides.calendarId, o.calendarId), eq(busyOverrides.eventId, o.eventId)))
+          .where(and(eq(busyOverrides.calendarId, ref.calendarId), eq(busyOverrides.eventId, ref.eventId)))
           .run();
       }
     });
     return changed;
+  }
+
+  /** Every Busy Override's Event, with where it was last seen. */
+  function trackedOverrides(): TrackedEventRef[] {
+    return db
+      .select()
+      .from(busyOverrides)
+      .all()
+      .map((o) => ({
+        calendarId: o.calendarId,
+        eventId: o.eventId,
+        lastSeen: o.lastSeenStart && o.lastSeenEnd ? { start: o.lastSeenStart, end: o.lastSeenEnd } : null,
+      }));
   }
 
   /**
@@ -1201,7 +1235,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
      * recalculates. Stored only in dynacal; nothing is written to the Event in Google.
      */
     setBusyOverride(event: EventRef, override: BusyOverride | null): SetBusyOverrideResult {
-      const known = allEvents().some((e) => e.calendarId === event.calendarId && e.id === event.eventId);
+      const known = allEvents().find((e) => e.calendarId === event.calendarId && e.id === event.eventId);
       if (!known) return { ok: false, notFound: true };
       const key = { calendarId: event.calendarId, eventId: event.eventId };
       if (override === null) {
@@ -1210,9 +1244,11 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
           .run();
       } else {
         const busy = override === "busy";
+        const span = anyZoneSpan(known);
+        const set = { busy, lastSeenStart: span.start, lastSeenEnd: span.end };
         db.insert(busyOverrides)
-          .values({ ...key, busy })
-          .onConflictDoUpdate({ target: [busyOverrides.calendarId, busyOverrides.eventId], set: { busy } })
+          .values({ ...key, ...set })
+          .onConflictDoUpdate({ target: [busyOverrides.calendarId, busyOverrides.eventId], set })
           .run();
       }
       recalculateAutomatically();

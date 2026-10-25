@@ -188,6 +188,58 @@ describe("a Busy Override", () => {
     ]);
   });
 
+  it("survives the Event moving beyond the Planning Horizon and back", async () => {
+    let flight = "";
+    const app = await connectedApp((app) => {
+      flight = app.calendar.addEvent("work", { title: "Flight", free: true, start: at("09:00", "2026-01-06"), end: at("10:00", "2026-01-06") });
+    });
+    app.commands.setBusyOverride(work(flight), "busy");
+
+    app.calendar.moveEvent(flight, { start: at("09:00", "2026-01-27"), end: at("10:00", "2026-01-27") });
+    await app.commands.syncEvents();
+    expect(view(app).events).toEqual([]);
+    app.calendar.moveEvent(flight, { start: at("11:00", "2026-01-07"), end: at("12:00", "2026-01-07") });
+    await app.commands.syncEvents();
+
+    expect(view(app).events.map((e) => [e.title, e.start, e.countsAsBusy, e.busyOverride])).toEqual([
+      ["Flight", at("11:00", "2026-01-07"), true, "busy"],
+    ]);
+  });
+
+  it("survives the Planning Horizon moving on to reach its Event", async () => {
+    let flight = "";
+    const app = await connectedApp((app) => {
+      flight = app.calendar.addEvent("work", { title: "Flight", free: true, start: at("09:00", "2026-01-06"), end: at("10:00", "2026-01-06") });
+    });
+    app.commands.setBusyOverride(work(flight), "busy");
+    app.calendar.moveEvent(flight, { start: at("09:00", "2026-01-27"), end: at("10:00", "2026-01-27") });
+    await app.commands.syncEvents();
+
+    app.clock.set(at("09:00", "2026-01-20"));
+    await app.commands.syncEvents();
+
+    expect(view(app).events.map((e) => [e.title, e.countsAsBusy, e.busyOverride])).toEqual([["Flight", true, "busy"]]);
+  });
+
+  it("is dropped once a sync finds the Event deleted, after it moved beyond the Planning Horizon", async () => {
+    let flight = "";
+    const app = await connectedApp((app) => {
+      flight = app.calendar.addEvent("work", { title: "Flight", free: true, start: at("09:00"), end: at("10:00") });
+    });
+    app.commands.setBusyOverride(work(flight), "busy");
+    app.calendar.moveEvent(flight, { start: at("09:00", "2026-01-27"), end: at("10:00", "2026-01-27") });
+    await app.commands.syncEvents();
+
+    app.calendar.deleteEvent(flight);
+    app.clock.set(at("09:00", "2026-01-20"));
+    await app.commands.syncEvents();
+    // Even if the owner then restores it from Google's bin, it follows the settings again.
+    app.calendar.restoreEvent(flight);
+    await app.commands.syncEvents();
+
+    expect(view(app).events.map((e) => [e.title, e.countsAsBusy, e.busyOverride])).toEqual([["Flight", false, null]]);
+  });
+
   it("is dropped once a sync finds the Event no longer exists", async () => {
     let flight = "";
     const app = await connectedApp((app) => {

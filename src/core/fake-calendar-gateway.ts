@@ -9,7 +9,8 @@ import {
   type GoogleCalendar,
   type WatchChannel,
 } from "./calendar-gateway";
-import { DAY_MS, type Interval } from "./time";
+import { anyZoneSpan, overlaps } from "./events";
+import type { Interval } from "./time";
 
 /** When an event happens, as a test gives it: an instant range for a timed event, local dates for an all-day one. */
 type NewTiming = { start: Date; end: Date } | { startDate: string; endDate: string };
@@ -171,7 +172,12 @@ export class FakeCalendarGateway implements CalendarGateway {
 
   async listEvents(calendarId: string, range: Interval): Promise<CalendarEvent[]> {
     this.checkCredentials();
-    return structuredClone(this.events.filter((e) => e.calendarId === calendarId && overlaps(e, range)));
+    return structuredClone(this.events.filter((e) => e.calendarId === calendarId && overlaps(anyZoneSpan(e), range)));
+  }
+
+  async getEvent(calendarId: string, eventId: string): Promise<CalendarEvent | null> {
+    this.checkCredentials();
+    return structuredClone(this.events.find((e) => e.id === eventId && e.calendarId === calendarId) ?? null);
   }
 
   async createCalendar(name: string): Promise<GoogleCalendar> {
@@ -242,7 +248,7 @@ export class FakeCalendarGateway implements CalendarGateway {
   async listDynacalCalendarEvents(calendarId: string, range: Interval): Promise<DynacalCalendarEventInGoogle[]> {
     this.checkCredentials();
     this.blockEventReads++;
-    return this.events.filter((e) => e.calendarId === calendarId && overlaps(e, range)).map((e) => this.asDynacalCalendarEvent(e));
+    return this.events.filter((e) => e.calendarId === calendarId && overlaps(anyZoneSpan(e), range)).map((e) => this.asDynacalCalendarEvent(e));
   }
 
   /** How many single events dynacal has fetched from the dynacal calendar by ID. */
@@ -263,14 +269,6 @@ export class FakeCalendarGateway implements CalendarGateway {
       marker: structuredClone(this.markers.get(e.id)) ?? null,
     };
   }
-}
-
-/** Whether an event overlaps `range`. All-day events count if their dates could touch it in any time zone. */
-function overlaps(e: CalendarEvent, range: Interval): boolean {
-  const [start, end] = e.allDay
-    ? [new Date(`${e.startDate}T00:00:00Z`).getTime() - DAY_MS, new Date(`${e.endDate}T00:00:00Z`).getTime() + DAY_MS]
-    : [e.start.getTime(), e.end.getTime()];
-  return start < range.end.getTime() && end > range.start.getTime();
 }
 
 function timing(event: NewTiming | EventTiming): EventTiming {

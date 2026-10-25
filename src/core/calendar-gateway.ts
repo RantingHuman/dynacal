@@ -86,6 +86,8 @@ export interface CalendarGateway {
   listCalendars(): Promise<GoogleCalendar[]>;
   /** The Events on one calendar that overlap `range`; recurring Events come back as single occurrences. */
   listEvents(calendarId: string, range: Interval): Promise<CalendarEvent[]>;
+  /** One Event on a calendar, by ID, wherever it now is; null if it's gone (missing, or deleted and kept as cancelled). */
+  getEvent(calendarId: string, eventId: string): Promise<CalendarEvent | null>;
   /** Creates a calendar in the owner's account (and adds it to their calendar list). */
   createCalendar(name: string): Promise<GoogleCalendar>;
   /** Writes an event to the dynacal calendar, returning the event's ID. */

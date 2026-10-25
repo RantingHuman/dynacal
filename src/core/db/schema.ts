@@ -181,7 +181,7 @@ export const remindersSent = sqliteTable(
 /**
  * Busy Overrides, keyed by the Event's calendar and event ID: whether the owner counts that one Event as busy
  * time, whatever the Free and all-day settings say. No row means it follows the settings. Never written to
- * Google. Dropped once a sync finds the Event no longer exists.
+ * Google. Dropped once Google confirms the Event is deleted, or once it has ended.
  */
 export const busyOverrides = sqliteTable(
   "busy_overrides",
@@ -189,6 +189,13 @@ export const busyOverrides = sqliteTable(
     calendarId: text("calendar_id").notNull(),
     eventId: text("event_id").notNull(),
     busy: integer("busy", { mode: "boolean" }).notNull(),
+    /**
+     * Where the Event was last seen, as its span in any time zone (see `anyZoneSpan`), so a sync can tell an
+     * Event that's simply outside the range it read from one that's gone. Null until first seen, and for
+     * dynacal Events, which dynacal holds itself.
+     */
+    lastSeenStart: integer("last_seen_start", { mode: "timestamp_ms" }),
+    lastSeenEnd: integer("last_seen_end", { mode: "timestamp_ms" }),
   },
   (t) => [primaryKey({ columns: [t.calendarId, t.eventId] })],
 );

@@ -129,15 +129,13 @@ export function createGoogleCalendarGateway({
         singleEvents: "true",
         maxResults: "2500",
       });
-      return items.flatMap((e): CalendarEvent[] => {
-        if (e.status === "cancelled") return [];
-        const common = { id: e.id, calendarId, title: e.summary ?? "(No title)", free: e.transparency === "transparent" };
-        if (e.start?.date && e.end?.date) return [{ ...common, allDay: true, startDate: e.start.date, endDate: e.end.date }];
-        if (e.start?.dateTime && e.end?.dateTime) {
-          return [{ ...common, allDay: false, start: new Date(e.start.dateTime), end: new Date(e.end.dateTime) }];
-        }
-        return [];
-      });
+      return items.flatMap((e) => calendarEvent(calendarId, e) ?? []);
+    },
+
+    async getEvent(calendarId: string, eventId: string): Promise<CalendarEvent | null> {
+      const response = await send("GET", `${eventsPath(calendarId)}/${encodeURIComponent(eventId)}`, { allow: [404, 410] });
+      if (!response.ok) return null;
+      return calendarEvent(calendarId, (await response.json()) as GoogleEvent);
     },
 
     async createCalendar(name: string): Promise<GoogleCalendar> {
@@ -242,6 +240,17 @@ function googleEvent(event: DynacalCalendarEvent) {
     reminders: { useDefault: false, overrides: [{ method: "popup", minutes: event.reminderMinutes }] },
     extendedProperties: { private: { [MARKER_KIND]: event.marker.kind, [MARKER_ID]: event.marker.dynacalId } },
   };
+}
+
+/** A Google `Event` on a Busy Calendar as dynacal reads it; null for a cancelled (deleted) one, or one with no usable time. */
+function calendarEvent(calendarId: string, e: GoogleEvent): CalendarEvent | null {
+  if (e.status === "cancelled") return null;
+  const common = { id: e.id, calendarId, title: e.summary ?? "(No title)", free: e.transparency === "transparent" };
+  if (e.start?.date && e.end?.date) return { ...common, allDay: true, startDate: e.start.date, endDate: e.end.date };
+  if (e.start?.dateTime && e.end?.dateTime) {
+    return { ...common, allDay: false, start: new Date(e.start.dateTime), end: new Date(e.end.dateTime) };
+  }
+  return null;
 }
 
 /** A Google `Event` on the dynacal calendar as dynacal reads it; null for a cancelled (deleted) one, or one with no usable time. */

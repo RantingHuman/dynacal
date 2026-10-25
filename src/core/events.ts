@@ -1,6 +1,6 @@
 import type { BusyOverride } from "./busy-override";
-import type { CalendarEvent } from "./calendar-gateway";
-import type { Interval } from "./time";
+import type { CalendarEvent, EventTiming } from "./calendar-gateway";
+import { DAY_MS, type Interval } from "./time";
 import type { Settings } from "./settings";
 import { fromZoned } from "./time-zone";
 import { DYNACAL_EVENTS_CALENDAR_ID } from "./dynacal-events";
@@ -40,6 +40,23 @@ export function eventInterval(event: CalendarEvent, timeZone: string): Interval 
     start: fromZoned({ date: event.startDate, minutes: 0 }, timeZone, "later"),
     end: fromZoned({ date: event.endDate, minutes: 0 }, timeZone, "later"),
   };
+}
+
+/**
+ * The widest span an Event could take up in any time zone, for comparing with read ranges without knowing the
+ * owner's: a timed Event's own instants, or an all-day Event's dates with a day either side.
+ */
+export function anyZoneSpan(timing: EventTiming): Interval {
+  if (!timing.allDay) return { start: timing.start, end: timing.end };
+  return {
+    start: new Date(new Date(`${timing.startDate}T00:00:00Z`).getTime() - DAY_MS),
+    end: new Date(new Date(`${timing.endDate}T00:00:00Z`).getTime() + DAY_MS),
+  };
+}
+
+/** Whether two spans overlap, ends exclusive. */
+export function overlaps(a: Interval, b: Interval): boolean {
+  return a.start.getTime() < b.end.getTime() && a.end.getTime() > b.start.getTime();
 }
 
 /** A stable fingerprint of a set of Events, to tell whether anything was added, moved or deleted. */
