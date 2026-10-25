@@ -411,7 +411,57 @@ describe("a new dynacal calendar", () => {
   });
 });
 
+describe("a dynacal Event that has ended", () => {
+  it("is no longer kept in step with Google: dynacal keeps it as it was, and Google isn't asked about it", async () => {
+    const { app, dynacal } = await connectedApp();
+    await createEvent(app, { title: "Dentist", start: at("13:00"), end: at("14:00") });
+    const [{ id }] = app.calendar.dynacalEventsOn(dynacal);
+    app.clock.set(at("14:30"));
+    await app.commands.syncEvents();
+    app.calendar.writes = [];
+
+    app.calendar.deleteEvent(id);
+    const gets = app.calendar.dynacalEventGets;
+    await app.commands.syncEvents();
+    app.commands.recalculate();
+    await app.commands.writeBlocksToGoogle();
+
+    expect(dynacalEvents(app).map((e) => e.title)).toEqual(["Dentist"]);
+    expect(app.calendar.dynacalEventGets).toBe(gets);
+    expect(app.calendar.writes).toEqual([]);
+  });
+});
+
+describe("reading the dynacal calendar back", () => {
+  it("never reaches further into the past than Blocks need, however long ago a dynacal Event began", async () => {
+    const { app } = await connectedApp();
+    await createEvent(app, { title: "Sabbatical", allDay: true, startDate: "2025-09-01", endDate: "2026-02-01" } as Partial<DynacalEventInput>);
+    app.calendar.dynacalReadRanges = [];
+
+    await app.commands.syncEvents();
+
+    expect(app.calendar.dynacalReadRanges.map((r) => r.start)).toEqual([new Date("2025-12-06T09:00:00Z")]);
+  });
+});
+
 describe("changing the Reminder Lead Time", () => {
+  it("rewrites only dynacal Events that haven't started", async () => {
+    const { app, dynacal } = await connectedApp();
+    await createEvent(app, { title: "Dentist", start: at("13:00"), end: at("14:00") });
+    await createEvent(app, { title: "Physio", start: at("13:00", "2026-01-06"), end: at("14:00", "2026-01-06") });
+    app.clock.set(at("13:30"));
+    app.calendar.writes = [];
+
+    app.commands.updateSettings({ reminderLeadMinutes: 25 });
+    await app.commands.writeBlocksToGoogle();
+
+    expect(app.calendar.dynacalEventsOn(dynacal).map((e) => [e.title, e.reminderMinutes])).toEqual([
+      ["Dentist", 10],
+      ["Physio", 25],
+    ]);
+    expect(app.calendar.writes.map((w) => w.kind)).toEqual(["update-event"]);
+  });
+
   it("rewrites dynacal Events' reminders, as it does Blocks'", async () => {
     const { app, dynacal } = await connectedApp();
     await createTask(app);

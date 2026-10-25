@@ -4,7 +4,7 @@
  */
 import type { DynacalCalendarEvent, DynacalCalendarEventInGoogle, EventTiming } from "./calendar-gateway";
 import type { DynacalEvent } from "./dynacal-events";
-import { anyZoneSpan } from "./events";
+import { anyZoneSpan, eventInterval } from "./events";
 import type { Interval } from "./time";
 
 /** What dynacal writes to Google for a dynacal Event: everything but the marker. */
@@ -37,25 +37,31 @@ export interface DynacalEventWrites {
   create: { dynacalEventId: string; content: DynacalEventContent }[];
   update: WrittenDynacalEvent[];
   delete: WrittenDynacalEvent[];
+  /** Records of events whose dynacal Event has ended: no longer kept in step, so forgotten, not deleted. */
+  forget: WrittenDynacalEvent[];
 }
 
 /**
  * The writes that make the dynacal calendar match the dynacal Events: an event for each one not yet written,
  * a rewrite of each written one whose content has changed since, and a deletion of each written one whose
- * dynacal Event is gone. When nothing changed, there are no writes.
+ * dynacal Event is gone. A written one whose dynacal Event still exists but isn't wanted (it has ended) is
+ * left in Google and forgotten. When nothing changed, there are no writes.
  */
 export function planDynacalEventWrites(
   wanted: { dynacalEventId: string; content: DynacalEventContent }[],
   written: WrittenDynacalEvent[],
+  existing: Set<string>,
 ): DynacalEventWrites {
-  const writes: DynacalEventWrites = { create: [], update: [], delete: [] };
+  const writes: DynacalEventWrites = { create: [], update: [], delete: [], forget: [] };
   const wantedIds = new Set(wanted.map((w) => w.dynacalEventId));
   for (const event of wanted) {
     const have = written.find((w) => w.dynacalEventId === event.dynacalEventId);
     if (!have) writes.create.push(event);
     else if (!sameContent(have.content, event.content)) writes.update.push({ ...have, content: event.content });
   }
-  writes.delete = written.filter((w) => !wantedIds.has(w.dynacalEventId));
+  const unwanted = written.filter((w) => !wantedIds.has(w.dynacalEventId));
+  writes.delete = unwanted.filter((w) => !existing.has(w.dynacalEventId));
+  writes.forget = unwanted.filter((w) => existing.has(w.dynacalEventId));
   return writes;
 }
 
@@ -112,16 +118,42 @@ export function htmlToPlainText(html: string): string {
 
 /**
  * The range of the dynacal calendar to read back when looking for edits made in Google: the edit window for
- * Blocks, stretched to cover every dynacal Event dynacal has written, so none outside it looks deleted.
+ * Blocks, stretched ahead to cover every dynacal Event still kept in step, so one far ahead is read with the
+ * rest. It never reaches further back than the edit window: those dynacal Events haven't ended, so a read
+ * from there still finds one that began long ago.
  */
-export function editReadRange(window: Interval, written: WrittenDynacalEvent[]): Interval {
-  let { start, end } = window;
-  for (const { content } of written) {
+export function editReadRange(window: Interval, tracked: WrittenDynacalEvent[]): Interval {
+  let { end } = window;
+  for (const { content } of tracked) {
     const span = anyZoneSpan(content);
-    if (span.start < start) start = span.start;
     if (span.end > end) end = span.end;
   }
-  return { start, end };
+  return { start: window.start, end };
+}
+
+/** Whether a dynacal Event, or its event in Google, has ended; once it has, dynacal stops keeping it in step. */
+export function hasEnded(timing: EventTiming, now: Date): boolean {
+  return anyZoneSpan(timing).end <= now;
+}
+
+/**
+ * The content each dynacal Event that hasn't ended should have in Google, with a popup reminder at the
+ * Reminder Lead Time. One that has started keeps the reminder already written, so a new Reminder Lead Time
+ * only rewrites future ones, as for Blocks.
+ */
+export function wantedDynacalEvents(
+  events: DynacalEvent[],
+  written: WrittenDynacalEvent[],
+  { reminderMinutes, now, timeZone }: { reminderMinutes: number; now: Date; timeZone: string | null },
+): { dynacalEventId: string; content: DynacalEventContent }[] {
+  return events
+    .filter((e) => !hasEnded(e, now))
+    .map((e) => {
+      const before = written.find((w) => w.dynacalEventId === e.id);
+      const started = (timeZone ? eventInterval(e, timeZone) : anyZoneSpan(e)).start <= now;
+      const reminder = started && before ? before.content.reminderMinutes : reminderMinutes;
+      return { dynacalEventId: e.id, content: wantedContent(e, reminder) };
+    });
 }
 
 export function sameContent(a: DynacalEventContent, b: DynacalEventContent): boolean {

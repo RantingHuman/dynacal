@@ -253,9 +253,13 @@ export class FakeCalendarGateway implements CalendarGateway {
   /** How many times dynacal has read the dynacal calendar's events back: once per sync. */
   blockEventReads = 0;
 
+  /** The range of each read of the dynacal calendar's events, in order. */
+  dynacalReadRanges: Interval[] = [];
+
   async listDynacalCalendarEvents(calendarId: string, range: Interval): Promise<DynacalCalendarEventInGoogle[]> {
     this.checkCredentials();
     this.blockEventReads++;
+    this.dynacalReadRanges.push(structuredClone(range));
     return this.events.filter((e) => e.calendarId === calendarId && overlaps(anyZoneSpan(e), range)).map((e) => this.asDynacalCalendarEvent(e));
   }
 

@@ -34,7 +34,7 @@ export function eventCountsAsBusy(
 }
 
 /** The time an Event takes up; an all-day Event runs from midnight to midnight in the owner's time zone. */
-export function eventInterval(event: CalendarEvent, timeZone: string): Interval {
+export function eventInterval(event: EventTiming, timeZone: string): Interval {
   if (!event.allDay) return { start: event.start, end: event.end };
   return {
     start: fromZoned({ date: event.startDate, minutes: 0 }, timeZone, "later"),

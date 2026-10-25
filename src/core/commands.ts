@@ -72,9 +72,10 @@ import {
 import {
   dynacalEventCalendarEvent,
   editReadRange,
+  hasEnded,
   planDynacalEventWrites,
   readDynacalEventEdit,
-  wantedContent,
+  wantedDynacalEvents,
   type DynacalEventContent,
   type WrittenDynacalEvent,
 } from "./dynacal-event-sync";
@@ -630,12 +631,12 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     if (connectionProblem(getGoogleConnection())) return;
     const calendarId = dynacalCalendarId();
     if (calendarId === null) return;
-    const { reminderLeadMinutes } = getSettings();
-    const wanted = listDynacalEvents().map((e) => ({
-      dynacalEventId: e.id,
-      content: wantedContent(e, reminderLeadMinutes),
-    }));
-    const writes = planDynacalEventWrites(wanted, writtenDynacalEvents(calendarId));
+    const { reminderLeadMinutes, timeZone } = getSettings();
+    const local = listDynacalEvents();
+    const written = writtenDynacalEvents(calendarId);
+    const wanted = wantedDynacalEvents(local, written, { reminderMinutes: reminderLeadMinutes, now: clock.now(), timeZone });
+    const writes = planDynacalEventWrites(wanted, written, new Set(local.map((e) => e.id)));
+    for (const { eventId } of writes.forget) forgetDynacalEventWrite(calendarId, eventId);
     // Each write is recorded as soon as Google has it, so a failure part-way leaves an accurate record.
     for (const { eventId } of writes.delete) {
       await calendar.deleteDynacalCalendarEvent(calendarId, eventId);
@@ -721,7 +722,8 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     const calendarId = dynacalCalendarId();
     if (calendarId === null) return false;
     const now = clock.now();
-    const written = writtenDynacalEvents(calendarId);
+    // An event that had ended when dynacal last saw it is no longer kept in step.
+    const written = writtenDynacalEvents(calendarId).filter((w) => !hasEnded(w.content, now));
     const inGoogle = await calendar.listDynacalCalendarEvents(calendarId, editReadRange(editWindow(now), written));
     const blocksChanged = await applyBlockEdits(calendarId, blockEventsInGoogle(inGoogle), now);
     const found = new Map(inGoogle.map((e) => [e.id, e]));
