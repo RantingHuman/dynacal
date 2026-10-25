@@ -153,7 +153,13 @@ export function Calendar({
   const [preview, setPreview] = useState<{ id: string; start: number; end: number } | null>(null);
   const [moveMessage, setMoveMessage] = useState<string | null>(null);
   const drag = useRef<Drag | null>(null);
-  const suppressClick = useRef(false);
+  /**
+   * Set when a drag ends, and cleared only once the click that follows it has been handled, so the end of a
+   * drag (even one released over empty time, or over another day) never opens a Block editor or New Event.
+   */
+  const justDragged = useRef(false);
+  /** The latest drag handlers, for the window listeners a drag adds: the Block's own element may be redrawn mid-drag. */
+  const dragHandlers = useRef({ continueDrag: (_e: PointerEvent) => {}, endDrag: (_e: PointerEvent) => {}, cancelDrag: () => {} });
   const columns = useRef(new Map<string, HTMLDivElement>());
   const now = new Date(horizon.start).getTime();
   const newEvent = useNewEvent();
@@ -176,16 +182,33 @@ export function Calendar({
   );
 
   function beginDrag(e: React.PointerEvent<HTMLDivElement>, block: CalendarBlock, day: string) {
-    suppressClick.current = false;
     if (e.pointerType === "touch" || e.button !== 0 || moving) return;
     const start = new Date(block.start).getTime();
     const end = new Date(block.end).getTime();
     if (end <= now) return;
     const handle = (e.target as HTMLElement).dataset.handle as DragMode | undefined;
     const mode: DragMode = start < now ? "end" : (handle ?? "move");
-    e.currentTarget.setPointerCapture(e.pointerId);
     e.preventDefault();
     drag.current = { blockId: block.id, mode, pointerId: e.pointerId, x: e.clientX, y: e.clientY, day, start, end, moved: false, to: { start, end } };
+    // Followed on the window, so the drag carries on wherever the pointer goes and whatever is redrawn under it.
+    const onMove = (e: PointerEvent) => dragHandlers.current.continueDrag(e);
+    const onUp = (e: PointerEvent) => {
+      if (e.pointerId !== drag.current?.pointerId) return;
+      stop();
+      dragHandlers.current.endDrag(e);
+    };
+    const onCancel = () => {
+      stop();
+      dragHandlers.current.cancelDrag();
+    };
+    const stop = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onCancel);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onCancel);
   }
 
   function dayUnder(x: number): string | null {
@@ -196,7 +219,7 @@ export function Calendar({
     return null;
   }
 
-  function continueDrag(e: React.PointerEvent<HTMLDivElement>) {
+  function continueDrag(e: PointerEvent) {
     const d = drag.current;
     if (!d || d.pointerId !== e.pointerId) return;
     const minutes = snappedMinutes(e.clientY - d.y);
@@ -218,12 +241,17 @@ export function Calendar({
     setPreview({ id: d.blockId, start, end });
   }
 
-  function endDrag(e: React.PointerEvent<HTMLDivElement>) {
+  function endDrag(e: PointerEvent) {
     const d = drag.current;
     if (!d || d.pointerId !== e.pointerId) return;
     drag.current = null;
-    // A drag isn't also a click on the Block.
-    suppressClick.current = d.moved;
+    if (d.moved) {
+      // The click this release may cause comes before any timer, so it still sees the flag.
+      justDragged.current = true;
+      setTimeout(() => {
+        justDragged.current = false;
+      });
+    }
     if (!d.moved || (d.to.start === d.start && d.to.end === d.end)) {
       setPreview(null);
       return;
@@ -242,11 +270,10 @@ export function Calendar({
     setPreview(null);
   }
 
+  dragHandlers.current = { continueDrag, endDrag, cancelDrag };
+
   function openEditor(block: CalendarBlock) {
-    if (suppressClick.current) {
-      suppressClick.current = false;
-      return;
-    }
+    if (justDragged.current) return;
     if (new Date(block.end).getTime() <= now) return;
     setMoveMessage(null);
     setOpenEventId(null);
@@ -260,11 +287,16 @@ export function Calendar({
     setOpenEventId(event.id);
   }
 
-  /** Clicking empty time opens the New Event form with a one-hour Event from the clicked quarter hour. */
+  /**
+   * Clicking empty time opens the New Event form with a one-hour Event from the clicked quarter hour. The end
+   * of a drag isn't a click, and clicking time that has passed does nothing.
+   */
   function createAt(e: React.MouseEvent<HTMLDivElement>, day: string) {
-    if (drag.current) return;
+    if (drag.current || justDragged.current) return;
     const y = e.clientY - e.currentTarget.getBoundingClientRect().top;
-    const minutes = first + Math.floor(((y / HOUR_PX) * 60) / GRID_MINUTES) * GRID_MINUTES;
+    const clicked = first + (y / HOUR_PX) * 60;
+    if (fromZoned({ date: day, minutes: Math.floor(clicked) }, timeZone).getTime() < now) return;
+    const minutes = Math.floor(clicked / GRID_MINUTES) * GRID_MINUTES;
     const start = fromZoned({ date: day, minutes }, timeZone);
     newEvent.open({
       start: start.toISOString(),
@@ -316,13 +348,16 @@ export function Calendar({
   }
 
   // The Week view is seven days starting on the anchor day (today by default), not a Monday-to-Sunday week.
-  const days = view === "day" ? [anchor] : Array.from({ length: 7 }, (_, i) => addDays(anchor, i));
+  // Its last page ends on the Planning Horizon's last day, so no page shows days beyond it.
   const step = view === "day" ? 1 : 7;
-  const canGoBack = anchor > today;
-  const canGoForward = view === "day" ? anchor < lastDay : addDays(anchor, 7) <= lastDay;
+  const latestStart = [addDays(lastDay, 1 - step), today].reduce((a, b) => (a > b ? a : b));
+  const shownFrom = anchor > latestStart ? latestStart : anchor;
+  const days = Array.from({ length: step }, (_, i) => addDays(shownFrom, i));
+  const canGoBack = shownFrom > today;
+  const canGoForward = shownFrom < latestStart;
   const move = (direction: 1 | -1) => {
-    const next = addDays(anchor, direction * step);
-    setAnchor(next < today ? today : next > lastDay ? lastDay : next);
+    const next = addDays(shownFrom, direction * step);
+    setAnchor(next < today ? today : next > latestStart ? latestStart : next);
   };
 
   const placedByDay = placeOnDays(shown, days, timeZone);
@@ -572,9 +607,6 @@ export function Calendar({
                     role={ended ? undefined : "button"}
                     tabIndex={ended ? undefined : 0}
                     onPointerDown={(e) => beginDrag(e, block, day)}
-                    onPointerMove={continueDrag}
-                    onPointerUp={endDrag}
-                    onPointerCancel={cancelDrag}
                     onClick={(e) => {
                       // A Block isn't empty time, so a click (or the end of a drag) on it never adds an Event.
                       e.stopPropagation();
