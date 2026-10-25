@@ -226,6 +226,19 @@ describe("Blocks in the dynacal calendar", () => {
     expect(app.calendar.blockEventsOn(dynacal)).toEqual([["Plan trip", at("09:00"), at("10:00"), 10]]);
   });
 
+  it("end at the moment their Task is completed part-way through", async () => {
+    const app = appInLondon();
+    const dynacal = await connect(app);
+    const report = createTask(app, { estimatedMinutes: 120 });
+    await app.commands.writeBlocksToGoogle();
+    app.clock.set(at("09:45"));
+
+    app.commands.completeTask(report.id);
+    await app.commands.writeBlocksToGoogle();
+
+    expect(app.calendar.blockEventsOn(dynacal)).toEqual([["Write report", at("09:00"), at("09:45"), 10]]);
+  });
+
   it("are left as written once they've started", async () => {
     const app = appInLondon();
     const dynacal = await connect(app);

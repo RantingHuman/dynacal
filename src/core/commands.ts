@@ -343,7 +343,8 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
   /**
    * Makes the dynacal calendar match the Schedule: each future Block of an incomplete Task becomes an event
    * with the Task title and a popup reminder at the Reminder Lead Time. Blocks that have started are left as
-   * they were written, except a Pinned Block in progress, whose end the owner can still change. Does nothing
+   * they were written, except a Pinned Block in progress, whose end the owner can still change, and a Block
+   * cut short when its Task is completed part-way through. Does nothing
    * until Google is connected, or while the connection is broken: Google would refuse the writes, and the next
    * poll after reconnecting catches up.
    */
@@ -416,6 +417,28 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     for (const event of writes.create) {
       const { taskId: _taskId, blockId: _blockId, ...blockEvent } = event;
       record(await calendar.createBlockEvent(calendarId, blockEvent), event);
+    }
+    // An in-progress Block cut short (its Task completed part-way through) ends early in Google too.
+    const inProgress = db
+      .select()
+      .from(blockEvents)
+      .where(and(eq(blockEvents.calendarId, calendarId), lt(blockEvents.start, now), gt(blockEvents.end, now)))
+      .all()
+      .filter((e) => !resizable.has(e.taskId));
+    for (const written of inProgress) {
+      const block = db
+        .select()
+        .from(blocks)
+        .where(and(eq(blocks.taskId, written.taskId), eq(blocks.start, written.start)))
+        .get();
+      if (!block || block.end >= written.end) continue;
+      const { title, start, reminderMinutes } = written;
+      const event = { title, start, end: block.end, reminderMinutes };
+      if ((await calendar.updateBlockEvent(calendarId, written.eventId, event)) === "updated") {
+        record(written.eventId, { ...event, taskId: written.taskId, blockId: block.id });
+      } else {
+        forget(written.eventId);
+      }
     }
   }
 
