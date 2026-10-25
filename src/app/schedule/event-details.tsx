@@ -6,6 +6,7 @@ import { formatMinutes } from "@/core/settings";
 import { addDays, toZoned, weekdayOf } from "@/core/time-zone";
 import { setBusyOverride } from "./actions";
 import type { CalendarEvent } from "./calendar";
+import { DynacalEventForm } from "./dynacal-event-form";
 import styles from "./event-details.module.css";
 
 const WEEKDAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -40,7 +41,8 @@ const CHOICES: { value: Choice; label: string }[] = [
 
 /**
  * An Event's details: what it is, where it's from, and why dynacal does or doesn't plan around it. Events from
- * the owner's other calendars are read-only here, apart from the Busy Override.
+ * the owner's other calendars are read-only here, apart from the Busy Override; dynacal Events can be edited
+ * and deleted.
  */
 export function EventDetails({
   event,
@@ -64,13 +66,16 @@ export function EventDetails({
     });
   }
 
+  const dynacal = event.dynacalEvent;
   const kinds = [event.free && "Free", event.allDay && "all-day"].filter(Boolean).join(" and ");
   const why =
     event.busyOverride !== null
       ? "Your Busy Override"
-      : kinds
-        ? `Your setting for ${kinds} Events`
-        : "It’s busy in its calendar";
+      : dynacal
+        ? "It’s a dynacal Event"
+        : kinds
+          ? `Your setting for ${kinds} Events`
+          : "It’s busy in its calendar";
 
   return (
     <section className={styles.panel} aria-labelledby="event-details-heading">
@@ -88,8 +93,12 @@ export function EventDetails({
         <dd>{event.calendarName}</dd>
         <dt>When</dt>
         <dd>{whenLabel(event, timeZone)}</dd>
-        <dt>In its calendar</dt>
-        <dd>{event.free ? "Free" : "Busy"}</dd>
+        {!dynacal && (
+          <>
+            <dt>In its calendar</dt>
+            <dd>{event.free ? "Free" : "Busy"}</dd>
+          </>
+        )}
         <dt>dynacal</dt>
         <dd>{event.countsAsBusy ? "Counts as busy" : "Doesn’t count as busy, so Blocks may be placed over it"}</dd>
         <dt>Why</dt>
@@ -111,8 +120,12 @@ export function EventDetails({
         </p>
       </fieldset>
 
-      {/* Events from the owner's other calendars can't be edited in dynacal (ADR-0002). */}
-      <p className="muted">This Event is from your {event.calendarName} calendar, so change it there.</p>
+      {dynacal ? (
+        <DynacalEventForm key={JSON.stringify(dynacal)} event={dynacal} timeZone={timeZone} onDone={onClose} />
+      ) : (
+        // Events from the owner's other calendars can't be edited in dynacal (ADR-0002).
+        <p className="muted">This Event is from your {event.calendarName} calendar, so change it there.</p>
+      )}
 
       {error && (
         <p className="field-error" role="alert">

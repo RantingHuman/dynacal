@@ -591,3 +591,9 @@ a {
 .recalculate-note {
   font-size: 0.8125rem;
 }
+
+.panel-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}

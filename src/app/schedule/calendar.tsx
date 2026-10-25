@@ -1,15 +1,18 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import type { BusyOverride, EventRef } from "@/core/busy-override";
 import { formatMinutes, type WorkingHours } from "@/core/settings";
 import { GRID_MINUTES, MINUTE_MS } from "@/core/time";
 import { addDays, fromZoned, toZoned, weekdayOf } from "@/core/time-zone";
 import { moveBlock, recalculate } from "./actions";
 import { BlockEditor, moveError } from "./block-editor";
+import { DynacalEventForm, type DynacalEventDetails } from "./dynacal-event-form";
+import dynacalStyles from "./dynacal-events.module.css";
 import { EventDetails } from "./event-details";
 import detailStyles from "./event-details.module.css";
 import freeStyles from "./free-events.module.css";
+import { useNewEvent } from "./new-event";
 import styles from "./pinning.module.css";
 
 /** A Block as sent to the browser: instants as ISO strings. */
@@ -27,7 +30,10 @@ export interface CalendarConflict {
   eventId: string;
 }
 
-/** An Event as sent to the browser: read-only, from a Busy Calendar, apart from its Busy Override. */
+/**
+ * An Event as sent to the browser. One from a Busy Calendar is read-only apart from its Busy Override; a
+ * dynacal Event carries its details for editing.
+ */
 export interface CalendarEvent {
   id: string;
   ref: EventRef;
@@ -41,6 +47,8 @@ export interface CalendarEvent {
   /** One that doesn't is drawn greyed out and labelled "Free": Blocks may be placed over it. */
   countsAsBusy: boolean;
   busyOverride: BusyOverride | null;
+  /** For a dynacal Event, its details as entered; null for Events from other calendars. */
+  dynacalEvent: DynacalEventDetails | null;
 }
 
 type View = "day" | "week";
@@ -148,6 +156,14 @@ export function Calendar({
   const suppressClick = useRef(false);
   const columns = useRef(new Map<string, HTMLDivElement>());
   const now = new Date(horizon.start).getTime();
+  const newEvent = useNewEvent();
+
+  // The New Event form takes the place of any open Block editor or Event details.
+  useEffect(() => {
+    if (newEvent.draft === null) return;
+    setEditingId(null);
+    setOpenEventId(null);
+  }, [newEvent.draft]);
 
   const conflictingBlocks = new Set(conflicts.map((c) => c.blockId));
   const conflictingEvents = new Set(conflicts.map((c) => c.eventId));
@@ -234,18 +250,33 @@ export function Calendar({
     if (new Date(block.end).getTime() <= now) return;
     setMoveMessage(null);
     setOpenEventId(null);
+    newEvent.close();
     setEditingId(block.id);
   }
 
   function openEventDetails(event: CalendarEvent) {
     setEditingId(null);
+    newEvent.close();
     setOpenEventId(event.id);
+  }
+
+  /** Clicking empty time opens the New Event form with a one-hour Event from the clicked quarter hour. */
+  function createAt(e: React.MouseEvent<HTMLDivElement>, day: string) {
+    if (drag.current) return;
+    const y = e.clientY - e.currentTarget.getBoundingClientRect().top;
+    const minutes = first + Math.floor(((y / HOUR_PX) * 60) / GRID_MINUTES) * GRID_MINUTES;
+    const start = fromZoned({ date: day, minutes }, timeZone);
+    newEvent.open({
+      start: start.toISOString(),
+      end: new Date(start.getTime() + 60 * MINUTE_MS).toISOString(),
+    });
   }
 
   /** What makes an Event clickable, and how it's marked when it has a Busy Override or its details are open. */
   function eventProps(event: CalendarEvent, label: string) {
     const classes = [
       detailStyles.clickable,
+      event.dynacalEvent && dynacalStyles.dynacalEvent,
       !event.countsAsBusy && freeStyles.free,
       event.busyOverride !== null && detailStyles.overridden,
       conflictingEvents.has(event.id) && styles.eventConflict,
@@ -272,7 +303,7 @@ export function Calendar({
 
   /** e.g. ", Free, Busy Override" for an Event's label. */
   function eventNotes(event: CalendarEvent): string {
-    return `${event.countsAsBusy ? "" : ", Free"}${event.busyOverride !== null ? ", Busy Override" : ""}${conflictingEvents.has(event.id) ? ", Conflict" : ""}`;
+    return `${event.dynacalEvent ? ", dynacal Event" : ""}${event.countsAsBusy ? "" : ", Free"}${event.busyOverride !== null ? ", Busy Override" : ""}${conflictingEvents.has(event.id) ? ", Conflict" : ""}`;
   }
 
   function eventMarks(event: CalendarEvent) {
@@ -402,6 +433,21 @@ export function Calendar({
         />
       )}
 
+      {newEvent.draft && (
+        <section className={detailStyles.panel} aria-labelledby="new-event-heading">
+          <div className={detailStyles.header}>
+            <h2 id="new-event-heading">New Event</h2>
+          </div>
+          <DynacalEventForm
+            key={`${newEvent.draft.start}-${newEvent.draft.end}`}
+            event={null}
+            draft={newEvent.draft}
+            timeZone={timeZone}
+            onDone={newEvent.close}
+          />
+        </section>
+      )}
+
       {openEvent && (
         <EventDetails
           key={openEvent.id}
@@ -419,7 +465,8 @@ export function Calendar({
 
       <p className={`muted ${styles.hint}`}>
         Drag a Block to move it, or drag its top or bottom edge to resize it; select a Block to set its time by hand.
-        Moved Blocks are pinned. Select an Event to see its details or set a Busy Override.
+        Moved Blocks are pinned. Select an Event to see its details or set a Busy Override. Select empty time to add
+        an Event there.
       </p>
 
       <div className="calendar-grid" style={{ gridTemplateColumns: `3.5rem repeat(${days.length}, minmax(0, 1fr))` }}>
@@ -468,6 +515,7 @@ export function Calendar({
               className={`calendar-day${outside ? " outside-horizon" : ""}`}
               style={{ height: px(last), backgroundSize: `100% ${HOUR_PX}px` }}
               aria-label={dayLabel(day)}
+              onClick={(e) => createAt(e, day)}
             >
               {workingHours[weekdayOf(day)].map((w) => (
                 <div
@@ -527,7 +575,11 @@ export function Calendar({
                     onPointerMove={continueDrag}
                     onPointerUp={endDrag}
                     onPointerCancel={cancelDrag}
-                    onClick={() => openEditor(block)}
+                    onClick={(e) => {
+                      // A Block isn't empty time, so a click (or the end of a drag) on it never adds an Event.
+                      e.stopPropagation();
+                      openEditor(block);
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();

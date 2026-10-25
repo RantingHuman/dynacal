@@ -4,8 +4,16 @@ import { currentSession } from "@/server/session";
 import { ReconnectBanner } from "./google/reconnect-banner";
 import { RemindersToggle } from "./reminders/reminders-toggle";
 import { UnreviewedBanner } from "./review/unreviewed-banner";
+import type { DynacalEvent } from "@/core/dynacal-events";
 import { Calendar } from "./schedule/calendar";
+import type { DynacalEventDetails } from "./schedule/dynacal-event-form";
+import { NewEventProvider } from "./schedule/new-event";
 import { TaskPanel } from "./tasks/task-panel";
+
+/** A dynacal Event as sent to the browser, with instants as ISO strings. */
+function dynacalEventDetails(event: DynacalEvent): DynacalEventDetails {
+  return event.allDay ? event : { ...event, start: event.start.toISOString(), end: event.end.toISOString() };
+}
 
 export default async function HomePage() {
   const session = await currentSession();
@@ -43,53 +51,56 @@ export default async function HomePage() {
           }))}
         />
       )}
-      <div className="app-body">
-        <TaskPanel
-          tasks={commands.listTasks()}
-          flags={scheduleView.status === "ready" ? scheduleView.flags : {}}
-          timeZone={scheduleView.status === "ready" ? scheduleView.timeZone : null}
-        />
-        <section className="schedule-panel" aria-label="Schedule">
-          {scheduleView.status === "needs-time-zone" ? (
-            <div className="notice">
-              <p>
-                dynacal needs your time zone before it can build your Schedule.{" "}
-                <a href="/settings">Set your time zone in Settings</a>.
-              </p>
-            </div>
-          ) : (
-            <Calendar
-              timeZone={scheduleView.timeZone}
-              horizon={{
-                start: scheduleView.horizon.start.toISOString(),
-                end: scheduleView.horizon.end.toISOString(),
-              }}
-              blocks={scheduleView.blocks.map((b) => ({
-                id: b.id,
-                taskTitle: b.taskTitle,
-                start: b.start.toISOString(),
-                end: b.end.toISOString(),
-                pinned: b.pinned,
-              }))}
-              events={scheduleView.events.map((e) => ({
-                id: e.id,
-                ref: e.ref,
-                title: e.title,
-                calendarName: e.calendarName,
-                allDay: e.allDay,
-                start: e.start.toISOString(),
-                end: e.end.toISOString(),
-                free: e.free,
-                countsAsBusy: e.countsAsBusy,
-                busyOverride: e.busyOverride,
-              }))}
-              conflicts={scheduleView.conflicts}
-              workingHours={commands.getSettings().workingHours}
-              connectionBroken={connection.status === "broken"}
-            />
-          )}
-        </section>
-      </div>
+      <NewEventProvider enabled={scheduleView.status === "ready"}>
+        <div className="app-body">
+          <TaskPanel
+            tasks={commands.listTasks()}
+            flags={scheduleView.status === "ready" ? scheduleView.flags : {}}
+            timeZone={scheduleView.status === "ready" ? scheduleView.timeZone : null}
+          />
+          <section className="schedule-panel" aria-label="Schedule">
+            {scheduleView.status === "needs-time-zone" ? (
+              <div className="notice">
+                <p>
+                  dynacal needs your time zone before it can build your Schedule.{" "}
+                  <a href="/settings">Set your time zone in Settings</a>.
+                </p>
+              </div>
+            ) : (
+              <Calendar
+                timeZone={scheduleView.timeZone}
+                horizon={{
+                  start: scheduleView.horizon.start.toISOString(),
+                  end: scheduleView.horizon.end.toISOString(),
+                }}
+                blocks={scheduleView.blocks.map((b) => ({
+                  id: b.id,
+                  taskTitle: b.taskTitle,
+                  start: b.start.toISOString(),
+                  end: b.end.toISOString(),
+                  pinned: b.pinned,
+                }))}
+                events={scheduleView.events.map((e) => ({
+                  id: e.id,
+                  ref: e.ref,
+                  title: e.title,
+                  calendarName: e.calendarName,
+                  allDay: e.allDay,
+                  start: e.start.toISOString(),
+                  end: e.end.toISOString(),
+                  free: e.free,
+                  countsAsBusy: e.countsAsBusy,
+                  busyOverride: e.busyOverride,
+                  dynacalEvent: e.dynacalEvent && dynacalEventDetails(e.dynacalEvent),
+                }))}
+                conflicts={scheduleView.conflicts}
+                workingHours={commands.getSettings().workingHours}
+                connectionBroken={connection.status === "broken"}
+              />
+            )}
+          </section>
+        </div>
+      </NewEventProvider>
     </div>
   );
 }

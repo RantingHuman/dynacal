@@ -3,6 +3,7 @@ import type { CalendarEvent } from "./calendar-gateway";
 import type { Interval } from "./time";
 import type { Settings } from "./settings";
 import { fromZoned } from "./time-zone";
+import { DYNACAL_EVENTS_CALENDAR_ID } from "./dynacal-events";
 
 /**
  * Whether an Event counts as busy time: its Busy Override if it has one, else the owner's free/all-day
@@ -17,6 +18,19 @@ export function countsAsBusy(
   if (event.free && !countFreeEvents) return false;
   if (event.allDay && !countAllDayEvents) return false;
   return true;
+}
+
+/**
+ * Whether an Event from any calendar, dynacal's own included, counts as busy time. The owner makes a dynacal
+ * Event to block that time, so the all-day setting (meant for other calendars' all-day notes) doesn't apply.
+ */
+export function eventCountsAsBusy(
+  event: CalendarEvent,
+  current: Pick<Settings, "countFreeEvents" | "countAllDayEvents">,
+  override: BusyOverride | null,
+): boolean {
+  const dynacal = event.calendarId === DYNACAL_EVENTS_CALENDAR_ID;
+  return countsAsBusy(dynacal ? { free: false, allDay: false } : event, current, override);
 }
 
 /** The time an Event takes up; an all-day Event runs from midnight to midnight in the owner's time zone. */

@@ -192,3 +192,22 @@ export const busyOverrides = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.calendarId, t.eventId] })],
 );
+
+/**
+ * dynacal Events: Events the owner created in dynacal rather than on another calendar. Timed ones have
+ * `start`/`end` (UTC instants, any minute); all-day ones have local `startDate`/`endDate` (exclusive), resolved
+ * in the owner's time zone. They count as busy time from here, never by reading Google.
+ */
+export const dynacalEvents = sqliteTable("dynacal_events", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  notes: text("notes").notNull(),
+  allDay: integer("all_day", { mode: "boolean" }).notNull(),
+  start: integer("start", { mode: "timestamp_ms" }),
+  end: integer("end", { mode: "timestamp_ms" }),
+  startDate: text("start_date"),
+  endDate: text("end_date"),
+  /** The event's ID in the dynacal calendar once it's been written to Google; null until then. */
+  googleEventId: text("google_event_id"),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+});

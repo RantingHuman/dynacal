@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { TaskListItem } from "@/core/commands";
 import { PRIORITY_LABELS, formatDateOrDateTime, formatDuration, type Task } from "@/core/tasks";
 import type { TaskFlag } from "@/core/scheduler";
+import { NewEventButton } from "../schedule/new-event";
 import { CompleteTaskButton } from "./complete-task-button";
 import completion from "./completion.module.css";
 import { DeclinedTimes } from "./declined-times";
@@ -33,11 +34,14 @@ export function TaskPanel({
     <section className="task-panel" aria-labelledby="tasks-heading">
       <div className="panel-header">
         <h2 id="tasks-heading">Tasks</h2>
-        {editing.mode === "closed" && (
-          <button className="button" type="button" onClick={() => setEditing({ mode: "new" })}>
-            New Task
-          </button>
-        )}
+        <span className="panel-actions">
+          {editing.mode === "closed" && (
+            <button className="button" type="button" onClick={() => setEditing({ mode: "new" })}>
+              New Task
+            </button>
+          )}
+          <NewEventButton />
+        </span>
       </div>
 
       {editing.mode !== "closed" && (

@@ -1,0 +1,17 @@
+/*
+ * dynacal Events: drawn solid in their own colour with a thick left edge, so they read differently from both
+ * Blocks (accent blue) and Events from other calendars (grey hatching).
+ */
+
+.dynacalEvent {
+  --dynacal-event: #b45309;
+  background: color-mix(in srgb, var(--dynacal-event) 18%, var(--bg));
+  border: 1px solid color-mix(in srgb, var(--dynacal-event) 45%, var(--bg));
+  border-left: 3px solid var(--dynacal-event);
+}
+
+@media (prefers-color-scheme: dark) {
+  .dynacalEvent {
+    --dynacal-event: #f59e0b;
+  }
+}
