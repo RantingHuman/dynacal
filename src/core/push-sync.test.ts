@@ -193,6 +193,33 @@ describe("a push notification from Google", () => {
     expect(await app.commands.receiveCalendarNotification(app.calendar.notificationFor("work"))).toEqual({ ok: true });
   });
 
+  it("arriving in a burst causes at most one more sync than the one already running", async () => {
+    const { app, dynacal } = await connectedApp();
+    await createTask(app);
+    await app.commands.watchCalendars(BASE_URL);
+    const before = app.calendar.blockEventReads;
+
+    // As when dynacal's own writes of Blocks each set off a notification.
+    const notification = app.calendar.notificationFor(dynacal);
+    await Promise.all(Array.from({ length: 5 }, () => app.commands.receiveCalendarNotification(notification)));
+
+    expect(app.calendar.blockEventReads - before).toBeLessThanOrEqual(2);
+  });
+
+  it("arriving while polling syncs shares that sync, and still sees changes made since it began", async () => {
+    const { app } = await connectedApp();
+    await createTask(app);
+    await app.commands.watchCalendars(BASE_URL);
+    const before = app.calendar.blockEventReads;
+
+    const poll = app.commands.syncEvents();
+    app.calendar.addEvent("work", { title: "Standup", start: at("09:00"), end: at("10:00") });
+    await Promise.all([poll, app.commands.receiveCalendarNotification(app.calendar.notificationFor("work"))]);
+
+    expect(app.calendar.blockEventReads - before).toBe(2);
+    expect(blocks(app)).toEqual([["Write report", at("10:00"), at("11:00"), false]]);
+  });
+
   it("is refused once its channel has expired", async () => {
     const { app } = await connectedApp();
     await app.commands.watchCalendars(BASE_URL);

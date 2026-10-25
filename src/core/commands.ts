@@ -665,8 +665,31 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
    * applies edits the owner made to Block events in Google, and recalculates if either changed anything.
    * Then brings the dynacal calendar up to date, which also retries any earlier write that failed.
    * Gateway failures are thrown to the caller.
+   *
+   * Polling and push notifications share one queue: a request while a sync runs waits for one more sync,
+   * which every further request until it starts shares. So a burst of notifications (dynacal's own writes
+   * of Blocks set them off too) costs at most two syncs, and no change made after a sync began is missed.
    */
-  async function syncEvents(): Promise<SyncEventsResult> {
+  function syncEvents(): Promise<SyncEventsResult> {
+    if (!runningSync) {
+      runningSync = syncNow().finally(() => {
+        runningSync = null;
+      });
+      return runningSync;
+    }
+    queuedSync ??= runningSync
+      .catch(() => {})
+      .then(() => {
+        queuedSync = null;
+        return syncEvents();
+      });
+    return queuedSync;
+  }
+
+  let runningSync: Promise<SyncEventsResult> | null = null;
+  let queuedSync: Promise<SyncEventsResult> | null = null;
+
+  async function syncNow(): Promise<SyncEventsResult> {
     const connection = getGoogleConnection().status;
     if (connection === "not-connected") return { ok: false, reason: "not-connected" };
     // Credentials Google has refused stay refused; only reconnecting (connectGoogle) recovers.

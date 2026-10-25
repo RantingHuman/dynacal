@@ -195,8 +195,12 @@ export class FakeCalendarGateway implements CalendarGateway {
     this.channels = this.channels.filter((c) => !(c.id === channelId && c.resourceId === resourceId));
   }
 
+  /** How many times dynacal has read the dynacal calendar's events back: once per sync. */
+  blockEventReads = 0;
+
   async listBlockEvents(calendarId: string, range: TimeRange): Promise<BlockEventInGoogle[]> {
     this.checkCredentials();
+    this.blockEventReads++;
     return this.events
       .filter((e): e is CalendarEvent & { allDay: false } => e.calendarId === calendarId && !e.allDay)
       .filter((e) => e.start < range.end && e.end > range.start)
