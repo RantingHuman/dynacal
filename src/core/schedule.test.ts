@@ -32,6 +32,32 @@ function blocks(commands: ReturnType<typeof createTestApp>["commands"]) {
   return view.blocks.map((b) => [b.taskTitle, b.start.toISOString(), b.end.toISOString()]);
 }
 
+describe("Recalculation as time passes", () => {
+  it("gives a Task Blocks once its Earliest Start enters the Planning Horizon", () => {
+    const app = appInLondon();
+    createTask(app.commands, { earliestStart: { date: "2026-01-21", time: null } });
+    expect(blocks(app.commands)).toEqual([]);
+
+    app.clock.set(new Date("2026-01-08T09:00:00Z"));
+    app.commands.recalculateAsTimePasses();
+
+    expect(blocks(app.commands)).toEqual([
+      ["Write quarterly report", "2026-01-21T09:00:00.000Z", "2026-01-21T10:00:00.000Z"],
+    ]);
+  });
+
+  it("flags a Task Overdue once its deadline passes", () => {
+    const app = appInLondon();
+    const task = createTask(app.commands, { deadline: { date: "2026-01-05", time: "12:00" } });
+
+    app.clock.set(new Date("2026-01-05T12:05:00Z"));
+    app.commands.recalculateAsTimePasses();
+
+    const view = app.commands.getSchedule();
+    expect(view.status === "ready" && view.flags[task.id]).toBe("overdue");
+  });
+});
+
 describe("the Schedule", () => {
   it("is recalculated when a Task is created", () => {
     const { commands } = appInLondon();

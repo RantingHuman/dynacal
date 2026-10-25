@@ -1,6 +1,7 @@
 import webpush, { WebPushError } from "web-push";
 import type { PushMessage, PushOutcome, PushSender, PushSubscriptionInput } from "@/core/push";
 import type { Config } from "./config";
+import { isHttps } from "@/core/urls";
 
 /** Reminders are only useful for a few minutes; after that the push service may drop them. */
 const TIME_TO_LIVE_SECONDS = 10 * 60;
@@ -9,7 +10,7 @@ const TIME_TO_LIVE_SECONDS = 10 * 60;
 export function createWebPushSender(config: Config): PushSender {
   const vapidDetails = {
     // Push services contact this if something goes wrong; it must be an https URL or a mailto: address.
-    subject: config.PUBLIC_BASE_URL.startsWith("https://") ? config.PUBLIC_BASE_URL : `mailto:${config.OWNER_EMAIL}`,
+    subject: isHttps(config.PUBLIC_BASE_URL) ? config.PUBLIC_BASE_URL : `mailto:${config.OWNER_EMAIL}`,
     publicKey: config.VAPID_PUBLIC_KEY,
     privateKey: config.VAPID_PRIVATE_KEY,
   };

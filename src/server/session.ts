@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { getRuntime } from "./runtime";
+import { isHttps } from "@/core/urls";
 
 export const SESSION_COOKIE = "dynacal_session";
 export const OAUTH_STATE_COOKIE = "dynacal_oauth_state";
@@ -8,7 +9,7 @@ export const OAUTH_VERIFIER_COOKIE = "dynacal_oauth_verifier";
 export const OAUTH_PURPOSE_COOKIE = "dynacal_oauth_purpose";
 
 export function secureCookies(): boolean {
-  return getRuntime().config.PUBLIC_BASE_URL.startsWith("https://");
+  return isHttps(getRuntime().config.PUBLIC_BASE_URL);
 }
 
 /** For server actions: refuse to act unless the owner is signed in. */

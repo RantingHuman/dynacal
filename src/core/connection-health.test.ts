@@ -107,6 +107,19 @@ describe("a broken Google connection", () => {
     expect(blocks(app).map(([title]) => title)).toEqual(["Write report", "Plan offsite"]);
   });
 
+  it("pauses Recalculation as time passes", async () => {
+    const app = await connectedApp();
+    const task = createTask(app, { deadline: { date: "2026-01-05", time: "12:00" } });
+    app.calendar.breakConnection();
+    await app.commands.syncEvents();
+
+    app.clock.set(at("12:05"));
+    app.commands.recalculateAsTimePasses();
+
+    const view = app.commands.getSchedule();
+    expect(view.status === "ready" && view.flags[task.id]).toBeNull();
+  });
+
   it("still lets Tasks be edited and completed", async () => {
     const app = await connectedApp();
     const report = createTask(app, { title: "Write report" });

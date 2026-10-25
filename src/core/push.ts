@@ -1,3 +1,5 @@
+import { isHttps } from "./urls";
+
 /** A browser's push subscription, as `PushSubscription.toJSON()` gives it. */
 export interface PushSubscriptionInput {
   endpoint: string;
@@ -8,13 +10,7 @@ export type SubscribeToPushResult = { ok: true } | { ok: false; errors: { subscr
 
 /** Push services only accept https endpoints, and every subscription carries both keys. */
 export function validatePushSubscription(subscription: PushSubscriptionInput): { subscription: string } | null {
-  let https = false;
-  try {
-    https = new URL(subscription.endpoint).protocol === "https:";
-  } catch {
-    // Not a URL at all.
-  }
-  if (https && subscription.keys.p256dh.length > 0 && subscription.keys.auth.length > 0) return null;
+  if (isHttps(subscription.endpoint) && subscription.keys.p256dh.length > 0 && subscription.keys.auth.length > 0) return null;
   return { subscription: "This browser's push subscription couldn't be read. Try turning reminders on again." };
 }
 

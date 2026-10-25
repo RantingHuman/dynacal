@@ -28,6 +28,7 @@ import {
 import { planBlockEventWrites, type WantedBlockEvent } from "./block-events";
 import { countsAsBusy, eventInterval, eventsFingerprint } from "./events";
 import { validatePushSubscription, type PushSender, type PushSubscriptionInput, type SubscribeToPushResult } from "./push";
+import { isHttps } from "./urls";
 import { validateBlockTime, type MoveBlockResult, type UnpinBlockResult } from "./pinning";
 import { dueReminders, reminderMessage } from "./reminders";
 import {
@@ -587,6 +588,20 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     return recalculate();
   }
 
+  /** When the latest Recalculation ran, in this process. */
+  let lastRecalculatedAt: Date | null = null;
+
+  /**
+   * Recalculation as time passes: run by a background job, it recalculates once per grid mark (every
+   * `GRID_MINUTES`), so Overdue flags appear and Tasks whose Earliest Start enters the Planning Horizon get
+   * Blocks. Paused, like any automatic Recalculation, while the connection is broken or there's no time zone.
+   */
+  function recalculateAsTimePasses(): void {
+    const slot = (at: Date) => Math.floor(at.getTime() / (15 * MINUTE_MS));
+    if (lastRecalculatedAt !== null && slot(lastRecalculatedAt) === slot(clock.now())) return;
+    recalculateAutomatically();
+  }
+
   /**
    * Recalculation, in the database only: regenerates the Schedule from the cached Events. Past and in-progress
    * Blocks are never moved; every Block that hasn't started yet is replaced. The caller writes it to Google.
@@ -669,6 +684,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
           .run();
       }
     });
+    lastRecalculatedAt = now;
     return { ok: true };
   }
 
@@ -814,7 +830,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
      * carries on either way. Polling calls this every time, and it only reaches Google when something's due.
      */
     async watchCalendars(publicBaseUrl: string): Promise<WatchCalendarsResult> {
-      if (!/^https:\/\//i.test(publicBaseUrl)) return { ok: false, reason: "needs-https" };
+      if (!isHttps(publicBaseUrl)) return { ok: false, reason: "needs-https" };
       const connection = getGoogleConnection().status;
       if (connection === "not-connected") return { ok: false, reason: "not-connected" };
       if (connection === "broken") return { ok: false, reason: "connection-broken" };
@@ -971,6 +987,8 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     /** The Recalculate button. */
     recalculate,
 
+    recalculateAsTimePasses,
+
     /**
      * Makes the dynacal calendar match the Schedule, after any write already under way. Every Recalculation
      * starts one in the background; this waits for it, and throws if writing to Google fails.
@@ -1121,7 +1139,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, endpoint)).run();
     },
 
-    /** Called by the periodic reminder job: pushes a reminder for each Block starting within the Reminder Lead Time. */
+    /** Called by the periodic time job: pushes a reminder for each Block starting within the Reminder Lead Time. */
     async sendDueReminders(): Promise<void> {
       const { timeZone, reminderLeadMinutes } = getSettings();
       if (timeZone === null) return;
