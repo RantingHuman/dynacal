@@ -60,6 +60,7 @@ describe("the Google Calendar adapter, on the dynacal calendar", () => {
 
     await gateway.createDynacalCalendarEvent("dynacal", {
       title: "Write report",
+      description: "",
       reminderMinutes: 10,
       allDay: false,
       start: new Date("2026-01-05T09:00:00Z"),
@@ -77,11 +78,31 @@ describe("the Google Calendar adapter, on the dynacal calendar", () => {
     });
   });
 
-  it("writes an all-day event as dates, in full on a rewrite", async () => {
+  it("rewrites only the fields dynacal owns, as a patch", async () => {
+    const { gateway, requests } = gatewayReplying({ id: "event-1" });
+
+    await gateway.updateDynacalCalendarEvent("dynacal", "event-1", {
+      title: "Write report",
+      description: "",
+      reminderMinutes: 10,
+      allDay: false,
+      start: new Date("2026-01-05T09:00:00Z"),
+      end: new Date("2026-01-05T10:00:00Z"),
+      marker: { kind: "block", dynacalId: "task-1" },
+    });
+
+    expect(requests[0].method).toBe("PATCH");
+    expect(Object.keys(requests[0].body as object).sort()).toEqual(
+      ["summary", "description", "start", "end", "status", "reminders", "extendedProperties"].sort(),
+    );
+  });
+
+  it("writes an all-day event as dates on a rewrite", async () => {
     const { gateway, requests } = gatewayReplying({ id: "event-1" });
 
     await gateway.updateDynacalCalendarEvent("dynacal", "event-1", {
       title: "Conference",
+      description: "",
       reminderMinutes: 10,
       allDay: true,
       startDate: "2026-01-05",
@@ -89,7 +110,7 @@ describe("the Google Calendar adapter, on the dynacal calendar", () => {
       marker: { kind: "event", dynacalId: "dynacal-event-1" },
     });
 
-    expect(requests[0].method).toBe("PUT");
+    expect(requests[0].method).toBe("PATCH");
     expect(requests[0].body).toMatchObject({
       start: { date: "2026-01-05" },
       end: { date: "2026-01-07" },

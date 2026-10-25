@@ -40,11 +40,14 @@ export interface DynacalMarker {
   dynacalId: string;
 }
 
-/** An event as dynacal writes it to the dynacal calendar: title, time, a popup reminder, the private marker and any description. */
+/**
+ * An event as dynacal writes it to the dynacal calendar: the fields dynacal owns there (title, description,
+ * time, a popup reminder and the private marker). Anything else the owner adds in Google is kept.
+ */
 export type DynacalCalendarEvent = {
   title: string;
-  /** The event's description in Google: a dynacal Event's notes. Blocks have none. */
-  description?: string;
+  /** The event's description in Google: a dynacal Event's notes; empty for a Block. */
+  description: string;
   /** Minutes before the start that Google pops up a reminder: the Reminder Lead Time. */
   reminderMinutes: number;
   marker: DynacalMarker;
@@ -92,7 +95,11 @@ export interface CalendarGateway {
   createCalendar(name: string): Promise<GoogleCalendar>;
   /** Writes an event to the dynacal calendar, returning the event's ID. */
   createDynacalCalendarEvent(calendarId: string, event: DynacalCalendarEvent): Promise<string>;
-  /** Rewrites an event in the dynacal calendar in full; "gone" if the event no longer exists in Google. */
+  /**
+   * Rewrites the fields dynacal owns on an event in the dynacal calendar (title, description, time,
+   * reminder, marker), keeping anything else the owner added in Google. An event the owner deleted is revived,
+   * as Google keeps it as cancelled; "gone" if it no longer exists at all.
+   */
   updateDynacalCalendarEvent(calendarId: string, eventId: string, event: DynacalCalendarEvent): Promise<"updated" | "gone">;
   /** Deletes an event from the dynacal calendar; an event that's already gone counts as deleted. */
   deleteDynacalCalendarEvent(calendarId: string, eventId: string): Promise<void>;

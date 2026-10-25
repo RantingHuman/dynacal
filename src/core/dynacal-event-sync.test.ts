@@ -236,6 +236,38 @@ describe("a dynacal Event far in the future", () => {
   });
 });
 
+describe("a dynacal Event rewritten after the owner added to it in Google", () => {
+  it("keeps what the owner added there, such as a location", async () => {
+    const { app, dynacal } = await connectedApp();
+    const event = await createEvent(app, { title: "Dentist" });
+    const [{ id }] = app.calendar.dynacalEventsOn(dynacal);
+
+    app.calendar.editEvent(id, { location: "12 High Street" });
+    await app.commands.syncEvents();
+    app.commands.updateDynacalEvent(event.id, { ...event, title: "Dentist (rebooked)" });
+    await app.commands.writeBlocksToGoogle();
+
+    expect(app.calendar.dynacalEventsOn(dynacal).map((e) => e.title)).toEqual(["Dentist (rebooked)"]);
+    expect(app.calendar.locationOf(id)).toBe("12 High Street");
+  });
+});
+
+describe("a Block event rewritten after the owner added to it in Google", () => {
+  it("keeps a location, but not a description, which dynacal owns", async () => {
+    const { app, dynacal } = await connectedApp();
+    const task = await createTask(app);
+    const [{ id }] = await app.calendar.listDynacalCalendarEvents(dynacal, { start: at("00:00"), end: at("00:00", "2026-01-06") });
+
+    app.calendar.editEvent(id, { location: "Library", description: "Use the template" });
+    await app.commands.syncEvents();
+    app.commands.updateTask(task.id, { ...task, title: "Write the report" });
+    await app.commands.writeBlocksToGoogle();
+
+    expect(app.calendar.blockEventsOn(dynacal).map(([title]) => title)).toEqual(["Write the report"]);
+    expect([app.calendar.locationOf(id), app.calendar.descriptionOf(id)]).toEqual(["Library", ""]);
+  });
+});
+
 describe("a dynacal Event moved far away in Google", () => {
   it("takes its new time, rather than being taken for deleted", async () => {
     const { app, dynacal } = await connectedApp();

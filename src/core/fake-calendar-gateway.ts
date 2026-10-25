@@ -109,10 +109,19 @@ export class FakeCalendarGateway implements CalendarGateway {
     this.markers.delete(id);
   }
 
-  /** The owner retitles an event, or gives it a description, in Google. */
-  editEvent(id: string, edit: { title?: string; description?: string }): void {
+  /** Locations the owner added in Google: one of the fields dynacal never writes. */
+  private locations = new Map<string, string>();
+
+  /** The owner retitles an event, or gives it a description or a location, in Google. */
+  editEvent(id: string, edit: { title?: string; description?: string; location?: string }): void {
     if (edit.title !== undefined) this.events = this.events.map((e) => (e.id === id ? { ...e, title: edit.title! } : e));
     if (edit.description !== undefined) this.descriptions.set(id, edit.description);
+    if (edit.location !== undefined) this.locations.set(id, edit.location);
+  }
+
+  /** One event's location, as Google holds it. */
+  locationOf(id: string): string {
+    return this.locations.get(id) ?? "";
   }
 
   /** One event's description, as Google holds it. */
@@ -216,10 +225,9 @@ export class FakeCalendarGateway implements CalendarGateway {
       e.id === eventId ? { id: e.id, calendarId, title: event.title, free: false, ...timing(event) } : e,
     );
     this.reminders.set(eventId, event.reminderMinutes);
-    // A full replacement, as the real adapter does it: anything the owner added in Google goes, and the
-    // marker is the one written now.
-    this.descriptions.delete(eventId);
-    if (event.description) this.descriptions.set(eventId, event.description);
+    // A patch, as the real adapter does it: only the fields dynacal owns are written, so anything else the
+    // owner added in Google (a location, say) stays.
+    this.descriptions.set(eventId, event.description);
     this.markers.set(eventId, structuredClone(event.marker));
     return "updated";
   }

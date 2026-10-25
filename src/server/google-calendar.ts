@@ -65,7 +65,7 @@ export function createGoogleCalendarGateway({
    * `allow` are returned to the caller rather than thrown.
    */
   async function send(
-    method: "GET" | "POST" | "PUT" | "DELETE",
+    method: "GET" | "POST" | "PATCH" | "DELETE",
     path: string,
     { params = {}, body, allow = [] }: { params?: Record<string, string>; body?: unknown; allow?: number[] } = {},
   ): Promise<Response> {
@@ -156,7 +156,9 @@ export function createGoogleCalendarGateway({
       eventId: string,
       event: DynacalCalendarEvent,
     ): Promise<"updated" | "gone"> {
-      const response = await send("PUT", `${eventsPath(calendarId)}/${encodeURIComponent(eventId)}`, {
+      // PATCH, not PUT: only dynacal's fields are sent, so a location, colour, guests or attachments the
+      // owner added in Google are kept.
+      const response = await send("PATCH", `${eventsPath(calendarId)}/${encodeURIComponent(eventId)}`, {
         body: googleEvent(event),
         allow: [404, 410],
       });
@@ -224,18 +226,19 @@ const MARKER_KIND = "dynacalKind";
 const MARKER_ID = "dynacalId";
 
 /**
- * An event for the dynacal calendar as a Google `Event`: its title, its time (local dates for an all-day one),
- * only a popup reminder at the Reminder Lead Time, and dynacal's marker as private extended properties.
+ * The fields dynacal owns on a Google `Event` in the dynacal calendar: its title, its description (a dynacal
+ * Event's notes; empty for a Block), its time (local dates for an all-day one), only a popup reminder at
+ * the Reminder Lead Time, and dynacal's marker as private extended properties. Sent whole on a create, and as a
+ * patch on a rewrite.
  */
 function googleEvent(event: DynacalCalendarEvent) {
   return {
     summary: event.title,
-    // A dynacal Event's notes. A full replacement without one clears any the owner added in Google.
-    ...(event.description ? { description: event.description } : {}),
+    description: event.description,
     ...(event.allDay
       ? { start: { date: event.startDate }, end: { date: event.endDate } }
       : { start: { dateTime: event.start.toISOString() }, end: { dateTime: event.end.toISOString() } }),
-    // A full replacement (PUT) also revives an event the owner deleted, which Google keeps as "cancelled".
+    // A rewrite also revives an event the owner deleted, which Google keeps as "cancelled".
     status: "confirmed",
     reminders: { useDefault: false, overrides: [{ method: "popup", minutes: event.reminderMinutes }] },
     extendedProperties: { private: { [MARKER_KIND]: event.marker.kind, [MARKER_ID]: event.marker.dynacalId } },
