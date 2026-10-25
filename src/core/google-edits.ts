@@ -1,4 +1,4 @@
-import type { BlockEventInGoogle } from "./calendar-gateway";
+import type { DynacalCalendarEventInGoogle } from "./calendar-gateway";
 import { DAY_MS, PLANNING_HORIZON_DAYS, type Interval } from "./time";
 
 /**
@@ -20,6 +20,22 @@ export function editWindow(now: Date): Interval {
     start: new Date(now.getTime() - EDIT_WINDOW_DAYS * DAY_MS),
     end: new Date(now.getTime() + (PLANNING_HORIZON_DAYS + EDIT_WINDOW_DAYS) * DAY_MS),
   };
+}
+
+/** A Block event as it stands in Google, which the owner may have edited there. */
+export type BlockEventInGoogle = DynacalCalendarEventInGoogle & { allDay: false };
+
+/**
+ * The Block events among the dynacal calendar's events in Google, by event ID. Every event dynacal wrote
+ * before it marked them was a Block, so an unmarked event counts as one. A Block event the owner turned into
+ * an all-day one is no longer a Block event, so it reads as deleted.
+ */
+export function blockEventsInGoogle(events: DynacalCalendarEventInGoogle[]): Map<string, BlockEventInGoogle> {
+  return new Map(
+    events
+      .filter((e): e is BlockEventInGoogle => !e.allDay && (e.marker === null || e.marker.kind === "block"))
+      .map((e) => [e.id, e]),
+  );
 }
 
 export type GoogleEdit =

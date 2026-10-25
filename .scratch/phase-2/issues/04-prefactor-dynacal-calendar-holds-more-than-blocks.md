@@ -6,8 +6,8 @@
 
 **Status:** ready-for-agent
 
-- [ ] The gateway's dynacal-calendar operations are generalised so they read and write events of any kind, including all-day events, and return each event's kind and dynacal id from its private marker
-- [ ] Every event dynacal writes to the dynacal calendar carries the private marker; Block events written before this change (without a marker) are still recognised as Blocks
-- [ ] Block sync uses the generalised operations; all existing Block sync, Google-edit, pinning, Declined Time and connection-health tests pass unchanged
-- [ ] The fake calendar gateway models the dynacal calendar holding events of more than one kind, all-day events in it, and the private marker, behaving as Google does
-- [ ] The real Google adapter maps the private marker and all-day events; anything untested against real Google is listed in the completion report
+- [x] The gateway's dynacal-calendar operations are generalised so they read and write events of any kind, including all-day events, and return each event's kind and dynacal id from its private marker
+- [x] Every event dynacal writes to the dynacal calendar carries the private marker; Block events written before this change (without a marker) are still recognised as Blocks
+- [x] Block sync uses the generalised operations; all existing Block sync, Google-edit, pinning, Declined Time and connection-health tests pass unchanged
+- [x] The fake calendar gateway models the dynacal calendar holding events of more than one kind, all-day events in it, and the private marker, behaving as Google does
+- [x] The real Google adapter maps the private marker and all-day events; anything untested against real Google is listed in the completion report

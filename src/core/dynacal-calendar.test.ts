@@ -285,7 +285,7 @@ describe("Blocks in the dynacal calendar", () => {
   it("that fail to write in the background because Google refused dynacal's credentials mark the connection broken", async () => {
     const app = appInLondon();
     await connect(app);
-    app.calendar.createBlockEvent = async () => {
+    app.calendar.createDynacalCalendarEvent = async () => {
       throw new CalendarAuthError();
     };
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});

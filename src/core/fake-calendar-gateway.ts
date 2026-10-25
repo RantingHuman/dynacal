@@ -1,19 +1,20 @@
 import {
-  type BlockEvent,
-  type BlockEventInGoogle,
   CalendarAuthError,
   type CalendarEvent,
   type CalendarGateway,
+  type DynacalCalendarEvent,
+  type DynacalCalendarEventInGoogle,
+  type DynacalMarker,
   type EventTiming,
   type GoogleCalendar,
   type WatchChannel,
 } from "./calendar-gateway";
 import { DAY_MS, type Interval } from "./time";
 
-type NewEvent = { title?: string; free?: boolean } & (
-  | { start: Date; end: Date }
-  | { startDate: string; endDate: string }
-);
+/** When an event happens, as a test gives it: an instant range for a timed event, local dates for an all-day one. */
+type NewTiming = { start: Date; end: Date } | { startDate: string; endDate: string };
+
+type NewEvent = { title?: string; free?: boolean; marker?: DynacalMarker } & NewTiming;
 
 /** A write dynacal made to Google, as recorded by the fake. */
 export type CalendarWrite =
@@ -30,6 +31,8 @@ export class FakeCalendarGateway implements CalendarGateway {
   private reminders = new Map<string, number>();
   /** Descriptions the owner added in Google. */
   private descriptions = new Map<string, string>();
+  /** Private markers (Google's private extended properties) on events; the owner can't see or change them. */
+  private markers = new Map<string, DynacalMarker>();
   private nextId = 1;
   private broken = false;
 
@@ -82,11 +85,27 @@ export class FakeCalendarGateway implements CalendarGateway {
   addEvent(calendarId: string, event: NewEvent): string {
     const id = `event-${this.nextId++}`;
     this.events.push({ id, calendarId, title: event.title ?? "Event", free: event.free ?? false, ...timing(event) });
+    if (event.marker) this.markers.set(id, structuredClone(event.marker));
     return id;
   }
 
-  moveEvent(id: string, to: { start: Date; end: Date }): void {
-    this.events = this.events.map((e) => (e.id === id ? { ...e, allDay: false, start: to.start, end: to.end } : e));
+  /** The owner moves or resizes an event in Google, or turns it into an all-day one or back. */
+  moveEvent(id: string, to: NewTiming): void {
+    this.events = this.events.map((e) => {
+      if (e.id !== id) return e;
+      const { calendarId, title, free } = e;
+      return { id, calendarId, title, free, ...timing(to) };
+    });
+  }
+
+  /** The private marker on an event, as Google holds it; undefined if it has none. */
+  markerOf(id: string): DynacalMarker | undefined {
+    return structuredClone(this.markers.get(id));
+  }
+
+  /** Takes the private marker off an event, as if dynacal wrote it before it marked its events. */
+  unmark(id: string): void {
+    this.markers.delete(id);
   }
 
   /** The owner retitles an event, or gives it a description, in Google. */
@@ -139,16 +158,7 @@ export class FakeCalendarGateway implements CalendarGateway {
 
   async listEvents(calendarId: string, range: Interval): Promise<CalendarEvent[]> {
     this.checkCredentials();
-    return structuredClone(
-      this.events.filter((e) => {
-        if (e.calendarId !== calendarId) return false;
-        // All-day Events are kept if their dates could touch the range in any time zone.
-        const [start, end] = e.allDay
-          ? [new Date(`${e.startDate}T00:00:00Z`).getTime() - DAY_MS, new Date(`${e.endDate}T00:00:00Z`).getTime() + DAY_MS]
-          : [e.start.getTime(), e.end.getTime()];
-        return start < range.end.getTime() && end > range.start.getTime();
-      }),
-    );
+    return structuredClone(this.events.filter((e) => e.calendarId === calendarId && overlaps(e, range)));
   }
 
   async createCalendar(name: string): Promise<GoogleCalendar> {
@@ -159,16 +169,20 @@ export class FakeCalendarGateway implements CalendarGateway {
     return structuredClone(calendar);
   }
 
-  async createBlockEvent(calendarId: string, event: BlockEvent): Promise<string> {
+  async createDynacalCalendarEvent(calendarId: string, event: DynacalCalendarEvent): Promise<string> {
     this.checkCredentials();
     if (!this.calendars.some((c) => c.id === calendarId)) throw new Error(`No calendar ${calendarId}`);
-    const eventId = this.addEvent(calendarId, { title: event.title, start: event.start, end: event.end });
+    const eventId = this.addEvent(calendarId, { title: event.title, marker: event.marker, ...timing(event) });
     this.reminders.set(eventId, event.reminderMinutes);
     this.writes.push({ kind: "create-event", calendarId, eventId });
     return eventId;
   }
 
-  async updateBlockEvent(calendarId: string, eventId: string, event: BlockEvent): Promise<"updated" | "gone"> {
+  async updateDynacalCalendarEvent(
+    calendarId: string,
+    eventId: string,
+    event: DynacalCalendarEvent,
+  ): Promise<"updated" | "gone"> {
     this.checkCredentials();
     this.writes.push({ kind: "update-event", calendarId, eventId });
     // As in Google, rewriting a deleted event revives it.
@@ -179,15 +193,17 @@ export class FakeCalendarGateway implements CalendarGateway {
     }
     if (!this.events.some((e) => e.id === eventId && e.calendarId === calendarId)) return "gone";
     this.events = this.events.map((e) =>
-      e.id === eventId ? { ...e, title: event.title, allDay: false, start: event.start, end: event.end } : e,
+      e.id === eventId ? { id: e.id, calendarId, title: event.title, free: false, ...timing(event) } : e,
     );
     this.reminders.set(eventId, event.reminderMinutes);
-    // A full replacement, as the real adapter does it: anything the owner added in Google goes.
+    // A full replacement, as the real adapter does it: anything the owner added in Google goes, and the
+    // marker is the one written now.
     this.descriptions.delete(eventId);
+    this.markers.set(eventId, structuredClone(event.marker));
     return "updated";
   }
 
-  async deleteBlockEvent(calendarId: string, eventId: string): Promise<void> {
+  async deleteDynacalCalendarEvent(calendarId: string, eventId: string): Promise<void> {
     this.checkCredentials();
     this.writes.push({ kind: "delete-event", calendarId, eventId });
     this.deleteEvent(eventId);
@@ -208,24 +224,28 @@ export class FakeCalendarGateway implements CalendarGateway {
   /** How many times dynacal has read the dynacal calendar's events back: once per sync. */
   blockEventReads = 0;
 
-  async listBlockEvents(calendarId: string, range: Interval): Promise<BlockEventInGoogle[]> {
+  async listDynacalCalendarEvents(calendarId: string, range: Interval): Promise<DynacalCalendarEventInGoogle[]> {
     this.checkCredentials();
     this.blockEventReads++;
     return this.events
-      .filter((e): e is CalendarEvent & { allDay: false } => e.calendarId === calendarId && !e.allDay)
-      .filter((e) => e.start < range.end && e.end > range.start)
-      .map((e) => ({
-        id: e.id,
-        title: e.title,
+      .filter((e) => e.calendarId === calendarId && overlaps(e, range))
+      .map(({ calendarId: _calendarId, free: _free, ...e }) => ({
+        ...structuredClone(e),
         description: this.descriptions.get(e.id) ?? "",
-        start: new Date(e.start),
-        end: new Date(e.end),
+        marker: structuredClone(this.markers.get(e.id)) ?? null,
       }));
   }
 }
 
+/** Whether an event overlaps `range`. All-day events count if their dates could touch it in any time zone. */
+function overlaps(e: CalendarEvent, range: Interval): boolean {
+  const [start, end] = e.allDay
+    ? [new Date(`${e.startDate}T00:00:00Z`).getTime() - DAY_MS, new Date(`${e.endDate}T00:00:00Z`).getTime() + DAY_MS]
+    : [e.start.getTime(), e.end.getTime()];
+  return start < range.end.getTime() && end > range.start.getTime();
+}
 
-function timing(event: NewEvent): EventTiming {
+function timing(event: NewTiming | EventTiming): EventTiming {
   return "startDate" in event
     ? { allDay: true, startDate: event.startDate, endDate: event.endDate }
     : { allDay: false, start: event.start, end: event.end };
