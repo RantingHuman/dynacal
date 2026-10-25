@@ -3,20 +3,13 @@
 import { useState, useTransition } from "react";
 import type { BusyOverride } from "@/core/busy-override";
 import { formatMinutes } from "@/core/settings";
-import { addDays, toZoned, weekdayOf } from "@/core/time-zone";
+import { addDays, toZoned } from "@/core/time-zone";
 import { setBusyOverride } from "./actions";
 import type { CalendarEvent } from "./calendar";
+import { dayLabel } from "./day-label";
 import { DynacalEventForm } from "./dynacal-event-form";
 import styles from "./event-details.module.css";
 
-const WEEKDAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-function dayLabel(date: string): string {
-  const [, month, day] = date.split("-").map(Number);
-  const index = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"].indexOf(weekdayOf(date));
-  return `${WEEKDAY_NAMES[index]} ${day} ${MONTHS[month - 1]}`;
-}
 
 /** e.g. "Mon 5 Jan, 13:30–14:30", "Mon 5 Jan, all day" or "Mon 5 Jan – Wed 7 Jan, all day". */
 function whenLabel(event: CalendarEvent, timeZone: string): string {

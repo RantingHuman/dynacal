@@ -7,6 +7,7 @@ import { DAY_MINUTES, GRID_MINUTES, MINUTE_MS } from "@/core/time";
 import { addDays, fromZoned, toZoned, weekdayOf } from "@/core/time-zone";
 import { moveBlock, recalculate } from "./actions";
 import { BlockEditor, moveError } from "./block-editor";
+import { dayLabel } from "./day-label";
 import { DynacalEventForm, type DynacalEventDetails } from "./dynacal-event-form";
 import dynacalStyles from "./dynacal-events.module.css";
 import { EventDetails } from "./event-details";
@@ -53,8 +54,6 @@ export interface CalendarEvent {
 
 type View = "day" | "week";
 
-const WEEKDAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const HOUR_PX = 48;
 
 /** What a mouse drag on a Block is doing: moving it, or moving one of its edges. */
@@ -83,12 +82,6 @@ function snappedMinutes(px: number): number {
 function shifted(instant: number, days: number, minutes: number, timeZone: string): number {
   const local = toZoned(new Date(instant), timeZone);
   return fromZoned({ date: addDays(local.date, days), minutes: local.minutes + minutes }, timeZone).getTime();
-}
-
-function dayLabel(date: string): string {
-  const [, month, day] = date.split("-").map(Number);
-  const index = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"].indexOf(weekdayOf(date));
-  return `${WEEKDAY_NAMES[index]} ${day} ${MONTHS[month - 1]}`;
 }
 
 /** The part of a span of time within one local day, in minutes after midnight. */
