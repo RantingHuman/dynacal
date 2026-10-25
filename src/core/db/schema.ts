@@ -130,6 +130,8 @@ export const calendarWatches = sqliteTable("calendar_watches", {
 /** The Google calendars the owner counts as busy time. */
 export const busyCalendars = sqliteTable("busy_calendars", {
   calendarId: text("calendar_id").primaryKey(),
+  /** The calendar's name in Google when last seen, for showing with its Events; null for rows saved before names were kept. */
+  name: text("name"),
 });
 
 /**
@@ -174,4 +176,19 @@ export const remindersSent = sqliteTable(
     sentAt: integer("sent_at", { mode: "timestamp_ms" }).notNull(),
   },
   (t) => [primaryKey({ columns: [t.taskId, t.blockStart] })],
+);
+
+/**
+ * Busy Overrides, keyed by the Event's calendar and event ID: whether the owner counts that one Event as busy
+ * time, whatever the Free and all-day settings say. No row means it follows the settings. Never written to
+ * Google. Dropped once a sync finds the Event no longer exists.
+ */
+export const busyOverrides = sqliteTable(
+  "busy_overrides",
+  {
+    calendarId: text("calendar_id").notNull(),
+    eventId: text("event_id").notNull(),
+    busy: integer("busy", { mode: "boolean" }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.calendarId, t.eventId] })],
 );

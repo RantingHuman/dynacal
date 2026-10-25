@@ -1,13 +1,19 @@
+import type { BusyOverride } from "./busy-override";
 import type { CalendarEvent } from "./calendar-gateway";
 import type { Interval } from "./time";
 import type { Settings } from "./settings";
 import { fromZoned } from "./time-zone";
 
-/** Whether an Event on a Busy Calendar counts as busy time, given the owner's free/all-day toggles. */
+/**
+ * Whether an Event counts as busy time: its Busy Override if it has one, else the owner's free/all-day
+ * settings.
+ */
 export function countsAsBusy(
-  event: CalendarEvent,
+  event: Pick<CalendarEvent, "free" | "allDay">,
   { countFreeEvents, countAllDayEvents }: Pick<Settings, "countFreeEvents" | "countAllDayEvents">,
+  override: BusyOverride | null = null,
 ): boolean {
+  if (override !== null) return override === "busy";
   if (event.free && !countFreeEvents) return false;
   if (event.allDay && !countAllDayEvents) return false;
   return true;

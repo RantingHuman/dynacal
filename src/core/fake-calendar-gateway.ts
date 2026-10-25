@@ -105,6 +105,12 @@ export class FakeCalendarGateway implements CalendarGateway {
     this.events = this.events.filter((e) => e.id !== id);
   }
 
+  /** The owner restores a deleted event from Google's bin, with the same ID. */
+  restoreEvent(id: string): void {
+    this.events.push(...this.cancelled.filter((e) => e.id === id));
+    this.cancelled = this.cancelled.filter((e) => e.id !== id);
+  }
+
   /** The owner deletes a calendar in Google. */
   deleteCalendar(id: string): void {
     this.calendars = this.calendars.filter((c) => c.id !== id);

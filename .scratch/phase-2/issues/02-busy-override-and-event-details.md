@@ -6,10 +6,10 @@
 
 **Status:** ready-for-agent
 
-- [ ] Clicking an Event in the Day or Week view opens a details panel; Events from the owner's other calendars are read-only apart from the Busy Override
-- [ ] A Busy Override of "counts as busy" makes a Free or all-day Event block scheduling; "doesn't count" lets Blocks be placed over a busy Event; clearing it returns to following the settings
-- [ ] Setting or clearing a Busy Override triggers a Recalculation
-- [ ] A Busy Override is stored only in dynacal and is never written to Google
-- [ ] A Busy Override survives the Event moving, and is dropped once a sync finds the Event no longer exists
-- [ ] Events with a Busy Override are marked as such in the calendar
-- [ ] Command-layer tests cover the override's precedence in both directions, Recalculation, no Google writes, surviving a move and being dropped; the panel is checked by hand
+- [x] Clicking an Event in the Day or Week view opens a details panel; Events from the owner's other calendars are read-only apart from the Busy Override
+- [x] A Busy Override of "counts as busy" makes a Free or all-day Event block scheduling; "doesn't count" lets Blocks be placed over a busy Event; clearing it returns to following the settings
+- [x] Setting or clearing a Busy Override triggers a Recalculation
+- [x] A Busy Override is stored only in dynacal and is never written to Google
+- [x] A Busy Override survives the Event moving, and is dropped once a sync finds the Event no longer exists
+- [x] Events with a Busy Override are marked as such in the calendar
+- [x] Command-layer tests cover the override's precedence in both directions, Recalculation, no Google writes, surviving a move and being dropped; the panel is checked by hand

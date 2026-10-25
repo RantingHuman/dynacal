@@ -1,11 +1,14 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import type { BusyOverride, EventRef } from "@/core/busy-override";
 import { formatMinutes, type WorkingHours } from "@/core/settings";
 import { GRID_MINUTES, MINUTE_MS } from "@/core/time";
 import { addDays, fromZoned, toZoned, weekdayOf } from "@/core/time-zone";
 import { moveBlock, recalculate } from "./actions";
 import { BlockEditor, moveError } from "./block-editor";
+import { EventDetails } from "./event-details";
+import detailStyles from "./event-details.module.css";
 import freeStyles from "./free-events.module.css";
 import styles from "./pinning.module.css";
 
@@ -24,15 +27,20 @@ export interface CalendarConflict {
   eventId: string;
 }
 
-/** An Event as sent to the browser: read-only, from a Busy Calendar. */
+/** An Event as sent to the browser: read-only, from a Busy Calendar, apart from its Busy Override. */
 export interface CalendarEvent {
   id: string;
+  ref: EventRef;
   title: string;
+  calendarName: string;
   allDay: boolean;
   start: string;
   end: string;
+  /** Marked Free (not busy) in its own calendar. */
+  free: boolean;
   /** One that doesn't is drawn greyed out and labelled "Free": Blocks may be placed over it. */
   countsAsBusy: boolean;
+  busyOverride: BusyOverride | null;
 }
 
 type View = "day" | "week";
@@ -133,6 +141,7 @@ export function Calendar({
   const [pending, startTransition] = useTransition();
   const [moving, startMoving] = useTransition();
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [openEventId, setOpenEventId] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ id: string; start: number; end: number } | null>(null);
   const [moveMessage, setMoveMessage] = useState<string | null>(null);
   const drag = useRef<Drag | null>(null);
@@ -144,6 +153,7 @@ export function Calendar({
   const conflictingEvents = new Set(conflicts.map((c) => c.eventId));
   const editing = blocks.find((b) => b.id === editingId) ?? null;
   const eventsById = new Map(events.map((e) => [e.id, e]));
+  const openEvent = openEventId === null ? null : (eventsById.get(openEventId) ?? null);
   const blocksById = new Map(blocks.map((b) => [b.id, b]));
   const shown = blocks.map((b) =>
     preview?.id === b.id ? { ...b, start: new Date(preview.start).toISOString(), end: new Date(preview.end).toISOString() } : b,
@@ -223,7 +233,55 @@ export function Calendar({
     }
     if (new Date(block.end).getTime() <= now) return;
     setMoveMessage(null);
+    setOpenEventId(null);
     setEditingId(block.id);
+  }
+
+  function openEventDetails(event: CalendarEvent) {
+    setEditingId(null);
+    setOpenEventId(event.id);
+  }
+
+  /** What makes an Event clickable, and how it's marked when it has a Busy Override or its details are open. */
+  function eventProps(event: CalendarEvent, label: string) {
+    const classes = [
+      detailStyles.clickable,
+      !event.countsAsBusy && freeStyles.free,
+      event.busyOverride !== null && detailStyles.overridden,
+      conflictingEvents.has(event.id) && styles.eventConflict,
+      openEventId === event.id && detailStyles.selected,
+    ].filter(Boolean);
+    return {
+      className: classes.join(" "),
+      title: label,
+      "aria-label": `${label}. Select to see its details.`,
+      role: "button",
+      tabIndex: 0,
+      onClick: (e: React.MouseEvent) => {
+        e.stopPropagation();
+        openEventDetails(event);
+      },
+      onKeyDown: (e: React.KeyboardEvent) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          openEventDetails(event);
+        }
+      },
+    };
+  }
+
+  /** e.g. ", Free, Busy Override" for an Event's label. */
+  function eventNotes(event: CalendarEvent): string {
+    return `${event.countsAsBusy ? "" : ", Free"}${event.busyOverride !== null ? ", Busy Override" : ""}${conflictingEvents.has(event.id) ? ", Conflict" : ""}`;
+  }
+
+  function eventMarks(event: CalendarEvent) {
+    return (
+      <>
+        {event.busyOverride !== null && <span className={detailStyles.overrideMark}>Override · </span>}
+        {!event.countsAsBusy && <span className={freeStyles.freeMark}>Free · </span>}
+      </>
+    );
   }
 
   // The Week view is seven days starting on the anchor day (today by default), not a Monday-to-Sunday week.
@@ -344,6 +402,15 @@ export function Calendar({
         />
       )}
 
+      {openEvent && (
+        <EventDetails
+          key={openEvent.id}
+          event={openEvent}
+          timeZone={timeZone}
+          onClose={() => setOpenEventId(null)}
+        />
+      )}
+
       {moveMessage && (
         <p className="field-error" role="alert">
           {moveMessage}
@@ -352,7 +419,7 @@ export function Calendar({
 
       <p className={`muted ${styles.hint}`}>
         Drag a Block to move it, or drag its top or bottom edge to resize it; select a Block to set its time by hand.
-        Moved Blocks are pinned.
+        Moved Blocks are pinned. Select an Event to see its details or set a Busy Override.
       </p>
 
       <div className="calendar-grid" style={{ gridTemplateColumns: `3.5rem repeat(${days.length}, minmax(0, 1fr))` }}>
@@ -368,16 +435,15 @@ export function Calendar({
             <div className="calendar-all-day-label">All day</div>
             {days.map((day) => (
               <div key={day} className="calendar-all-day">
-                {allDayByDay.get(day)!.map(({ item }) => (
-                  <div
-                    key={item.id}
-                    className={`event all-day${item.countsAsBusy ? "" : ` ${freeStyles.free}`}`}
-                    title={`${item.title} (all day${item.countsAsBusy ? "" : ", Free"})`}
-                  >
-                    {!item.countsAsBusy && <span className={freeStyles.freeMark}>Free · </span>}
-                    {item.title}
-                  </div>
-                ))}
+                {allDayByDay.get(day)!.map(({ item }) => {
+                  const props = eventProps(item, `${item.title} (all day${eventNotes(item)})`);
+                  return (
+                    <div key={item.id} {...props} className={`event all-day ${props.className}`}>
+                      {eventMarks(item)}
+                      {item.title}
+                    </div>
+                  );
+                })}
               </div>
             ))}
           </>
@@ -411,28 +477,37 @@ export function Calendar({
                 />
               ))}
               {day === nowZoned.date && <div className="now-line" style={{ top: px(nowZoned.minutes) }} />}
-              {eventsByDay.get(day)!.map(({ item: event, top, bottom }) => (
-                <div
-                  key={`${event.id}-${day}`}
-                  className={`event${event.countsAsBusy ? "" : ` ${freeStyles.free}`}${conflictingEvents.has(event.id) ? ` ${styles.eventConflict}` : ""}`}
-                  style={{ top: px(top), height: px(bottom) - px(top) }}
-                  title={`${event.title}, ${formatMinutes(top)}–${formatMinutes(bottom)} (Event${event.countsAsBusy ? "" : ", Free"}${conflictingEvents.has(event.id) ? ", Conflict" : ""})`}
-                >
-                  <span className="block-title">
-                    {!event.countsAsBusy && <span className={freeStyles.freeMark}>Free · </span>}
-                    {event.title}
-                  </span>
-                  <span className="block-time">
-                    {formatMinutes(top)}–{formatMinutes(bottom)}
-                  </span>
-                </div>
-              ))}
+              {eventsByDay.get(day)!.map(({ item: event, top, bottom }) => {
+                const props = eventProps(
+                  event,
+                  `${event.title}, ${formatMinutes(top)}–${formatMinutes(bottom)} (Event${eventNotes(event)})`,
+                );
+                return (
+                  <div
+                    key={`${event.id}-${day}`}
+                    {...props}
+                    className={`event ${props.className}`}
+                    style={{ top: px(top), height: px(bottom) - px(top) }}
+                  >
+                    <span className="block-title">
+                      {eventMarks(event)}
+                      {event.title}
+                    </span>
+                    <span className="block-time">
+                      {formatMinutes(top)}–{formatMinutes(bottom)}
+                    </span>
+                  </div>
+                );
+              })}
               {placedByDay.get(day)!.map(({ item: block, top, bottom }) => {
                 const ended = new Date(block.end).getTime() <= now;
                 const started = new Date(block.start).getTime() < now;
                 const conflict = conflictingBlocks.has(block.id);
+                // A Block over an Event (one Blocks may go over, say) sits beside it, so the Event can still be selected.
+                const overEvent = eventsByDay.get(day)!.some((p) => p.top < bottom && p.bottom > top);
                 const classes = [
                   "block",
+                  overEvent && detailStyles.besideEvent,
                   block.pinned && styles.pinned,
                   conflict && styles.conflict,
                   !ended && styles.movable,

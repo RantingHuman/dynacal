@@ -73,11 +73,15 @@ export default async function HomePage() {
               }))}
               events={scheduleView.events.map((e) => ({
                 id: e.id,
+                ref: e.ref,
                 title: e.title,
+                calendarName: e.calendarName,
                 allDay: e.allDay,
                 start: e.start.toISOString(),
                 end: e.end.toISOString(),
+                free: e.free,
                 countsAsBusy: e.countsAsBusy,
+                busyOverride: e.busyOverride,
               }))}
               conflicts={scheduleView.conflicts}
               workingHours={commands.getSettings().workingHours}

@@ -1,0 +1,99 @@
+/* The Event details panel, and how Events with a Busy Override are marked in the calendar. */
+
+.panel {
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.panel p {
+  margin: 0;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.header h2 {
+  margin: 0;
+  font-size: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.2rem 0.75rem;
+  font-size: 0.9rem;
+}
+
+.facts dt {
+  color: var(--muted);
+}
+
+.facts dd {
+  margin: 0;
+}
+
+.override {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.override legend {
+  padding: 0;
+  margin-bottom: 0.4rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.override p {
+  font-size: 0.8rem;
+}
+
+.overrideTag {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.05rem 0.4rem;
+  border-radius: 0.3rem;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}
+
+/* Events are opened by clicking them. */
+.clickable {
+  cursor: pointer;
+}
+
+.clickable:focus-visible,
+.selected {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* A Block overlapping an Event leaves the Event's left part visible and selectable. */
+.besideEvent {
+  left: 45%;
+}
+
+/* An Event with a Busy Override: a dotted accent outline and an "Override" mark. */
+.overridden {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.overrideMark {
+  color: var(--accent);
+  font-weight: 600;
+}
