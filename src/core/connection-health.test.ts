@@ -83,6 +83,30 @@ describe("a broken Google connection", () => {
     expect(blocks(app)).toEqual([["Write report", at("09:00"), at("10:00")]]);
   });
 
+  it("still lets the owner recalculate by hand, around the Events dynacal last saw, without reaching Google", async () => {
+    const app = await connectedApp();
+    createTask(app, { title: "Write report" });
+    app.calendar.addEvent("work", { title: "Standup", start: at("09:00"), end: at("10:00") });
+    await app.commands.syncEvents();
+    app.calendar.breakConnection();
+    await app.commands.syncEvents();
+    createTask(app, { title: "Plan offsite" });
+    const callsBefore = app.calendar.callCount;
+
+    expect(app.commands.recalculate()).toEqual({ ok: true });
+    await app.commands.writeBlocksToGoogle();
+
+    expect(blocks(app)).toEqual([
+      ["Write report", at("10:00"), at("11:00")],
+      ["Plan offsite", at("11:00"), at("12:00")],
+    ]);
+    expect(app.calendar.callCount).toBe(callsBefore);
+
+    // Automatic Recalculation is still paused.
+    createTask(app, { title: "Book venue" });
+    expect(blocks(app).map(([title]) => title)).toEqual(["Write report", "Plan offsite"]);
+  });
+
   it("still lets Tasks be edited and completed", async () => {
     const app = await connectedApp();
     const report = createTask(app, { title: "Write report" });

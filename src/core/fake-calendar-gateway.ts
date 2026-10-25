@@ -50,7 +50,11 @@ export class FakeCalendarGateway implements CalendarGateway {
     this.nextFailure = error;
   }
 
+  /** How many calls dynacal has made to Google, refused ones included. */
+  callCount = 0;
+
   private checkCredentials(): void {
+    this.callCount++;
     if (this.broken) throw new CalendarAuthError();
     const failure = this.nextFailure;
     this.nextFailure = null;

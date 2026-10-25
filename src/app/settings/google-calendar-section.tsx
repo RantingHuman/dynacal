@@ -33,8 +33,8 @@ export async function GoogleCalendarSection({ from, error }: { from: "setup" | "
       ) : view.status === "broken" ? (
         <>
           <p className="error" role="alert">
-            Google stopped accepting dynacal&apos;s access to <strong>{view.email}</strong>. Recalculation is paused
-            until you reconnect.
+            Google stopped accepting dynacal&apos;s access to <strong>{view.email}</strong>. Automatic Recalculation is
+            paused until you reconnect.
           </p>
           <a className="button" href={connectHref}>
             Reconnect Google Calendar

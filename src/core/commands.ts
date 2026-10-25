@@ -183,7 +183,9 @@ export interface TaskListItem extends Task {
 
 export type CompleteTaskResult = { ok: true } | { ok: false; notFound: true };
 
-export type RecalculateResult = { ok: true } | { ok: false; reason: "needs-time-zone" | "connection-broken" };
+export type RecalculateResult = { ok: true } | { ok: false; reason: "needs-time-zone" };
+
+export type AutomaticRecalculationResult = RecalculateResult | { ok: false; reason: "connection-broken" };
 
 /** Compares secrets in constant time, so timing reveals nothing about the right one. */
 function sameSecret(given: string, expected: string): boolean {
@@ -564,9 +566,9 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
   }
 
   /**
-   * Recalculation: regenerates the Schedule. Past and in-progress Blocks are never moved;
-   * every Block that hasn't started yet is replaced. Every command that changes what the
-   * Schedule depends on calls this.
+   * The Recalculate button: regenerates the Schedule, then writes it to Google in the background. It works
+   * even while the Google connection is broken, planning around the Events dynacal last saw; the write is
+   * then skipped until the owner reconnects.
    */
   function recalculate(): RecalculateResult {
     const result = recalculateSchedule();
@@ -576,13 +578,23 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     return result;
   }
 
-  /** Recalculation in the database only; the caller writes the new Schedule to Google. */
+  /**
+   * Automatic Recalculation, which every command that changes what the Schedule depends on runs. Paused while
+   * the Google connection is broken: Events may have changed unseen, so the last Schedule stands.
+   */
+  function recalculateAutomatically(): AutomaticRecalculationResult {
+    if (getGoogleConnection().status === "broken") return { ok: false, reason: "connection-broken" };
+    return recalculate();
+  }
+
+  /**
+   * Recalculation, in the database only: regenerates the Schedule from the cached Events. Past and in-progress
+   * Blocks are never moved; every Block that hasn't started yet is replaced. The caller writes it to Google.
+   */
   function recalculateSchedule(): RecalculateResult {
     const current = getSettings();
     const { timeZone, workingHours, minimumBlockMinutes } = current;
     if (timeZone === null) return { ok: false, reason: "needs-time-zone" };
-    // Paused while Google access is broken: Events may have changed unseen, so the last Schedule stands.
-    if (getGoogleConnection().status === "broken") return { ok: false, reason: "connection-broken" };
     const busy = busyTime(current, timeZone);
     const now = clock.now();
     db.transaction((tx) => {
@@ -764,7 +776,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       await readEvents();
       // Edits the owner made in Google while disconnected come first, so the Recalculation keeps them.
       await onDynacalCalendar(applyGoogleEdits);
-      recalculate();
+      recalculateAutomatically();
       return { ok: true };
     },
 
@@ -789,7 +801,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         for (const calendarId of new Set(calendarIds)) tx.insert(busyCalendars).values({ calendarId }).run();
       });
       await readEvents();
-      recalculate();
+      recalculateAutomatically();
       return { ok: true };
     },
 
@@ -909,7 +921,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       if (errors) return { ok: false, errors };
       const row = { id: randomUUID(), createdAt: clock.now(), ...taskRow(input) };
       db.insert(tasks).values(row).run();
-      recalculate();
+      recalculateAutomatically();
       return { ok: true, task: toTask(row) };
     },
 
@@ -918,13 +930,13 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       const errors = validateTask(input);
       if (errors) return { ok: false, errors };
       const row = db.update(tasks).set(taskRow(input)).where(eq(tasks.id, id)).returning().get();
-      recalculate();
+      recalculateAutomatically();
       return { ok: true, task: toTask(row) };
     },
 
     deleteTask(id: string): void {
       db.delete(tasks).where(eq(tasks.id, id)).run();
-      recalculate();
+      recalculateAutomatically();
     },
 
     /** Every Task, in Task list order (completed Tasks last), with its Remaining Duration. */
@@ -952,7 +964,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         .values({ id: 1, ...next })
         .onConflictDoUpdate({ target: settings.id, set: next })
         .run();
-      recalculate();
+      recalculateAutomatically();
       return { ok: true, settings: next };
     },
 
@@ -980,7 +992,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         .set({ end: now })
         .where(and(eq(blocks.taskId, id), lt(blocks.start, now), gt(blocks.end, now)))
         .run();
-      recalculate();
+      recalculateAutomatically();
       return { ok: true };
     },
 
@@ -997,7 +1009,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       });
       if (errors) return { ok: false, errors };
       db.update(blocks).set({ start: to.start, end: to.end, pinned: true }).where(eq(blocks.id, id)).run();
-      recalculate();
+      recalculateAutomatically();
       return { ok: true };
     },
 
@@ -1005,7 +1017,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     unpinBlock(id: string): UnpinBlockResult {
       const row = db.update(blocks).set({ pinned: false }).where(eq(blocks.id, id)).returning().get();
       if (!row) return { ok: false, notFound: true };
-      recalculate();
+      recalculateAutomatically();
       return { ok: true };
     },
 
@@ -1024,7 +1036,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         .set({ review: outcome.review, workedMinutes: outcome.review === "partial" ? outcome.workedMinutes : null })
         .where(eq(blocks.id, id))
         .run();
-      recalculate();
+      recalculateAutomatically();
       return { ok: true };
     },
 

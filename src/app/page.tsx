@@ -79,7 +79,7 @@ export default async function HomePage() {
               }))}
               conflicts={scheduleView.conflicts}
               workingHours={commands.getSettings().workingHours}
-              recalculationPaused={connection.status === "broken"}
+              connectionBroken={connection.status === "broken"}
             />
           )}
         </section>

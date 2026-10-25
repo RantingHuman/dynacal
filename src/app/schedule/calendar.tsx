@@ -114,7 +114,7 @@ export function Calendar({
   events,
   conflicts,
   workingHours,
-  recalculationPaused = false,
+  connectionBroken = false,
 }: {
   timeZone: string;
   horizon: { start: string; end: string };
@@ -122,8 +122,11 @@ export function Calendar({
   events: CalendarEvent[];
   conflicts: CalendarConflict[];
   workingHours: WorkingHours;
-  /** While Google access is broken, Recalculation is paused. */
-  recalculationPaused?: boolean;
+  /**
+   * While Google access is broken, automatic Recalculation is paused; the Recalculate button still works,
+   * planning around the Events dynacal last saw.
+   */
+  connectionBroken?: boolean;
 }) {
   const today = toZoned(new Date(horizon.start), timeZone).date;
   const lastDay = toZoned(new Date(horizon.end), timeZone).date;
@@ -291,15 +294,19 @@ export function Calendar({
             {view === "day" ? dayLabel(days[0]) : `${dayLabel(days[0])} – ${dayLabel(days[6])}`}
           </span>
         </div>
-        <button
-          type="button"
-          className="button secondary"
-          disabled={pending || recalculationPaused}
-          title={recalculationPaused ? "Paused until you reconnect Google" : undefined}
-          onClick={() => startTransition(async () => void (await recalculate()))}
-        >
-          {pending ? "Recalculating…" : "Recalculate"}
-        </button>
+        <span className="recalculate">
+          {connectionBroken && (
+            <span className="muted recalculate-note">Uses the last Events dynacal saw</span>
+          )}
+          <button
+            type="button"
+            className="button secondary"
+            disabled={pending}
+            onClick={() => startTransition(async () => void (await recalculate()))}
+          >
+            {pending ? "Recalculating…" : "Recalculate"}
+          </button>
+        </span>
       </div>
 
       {conflicts.length > 0 && (
