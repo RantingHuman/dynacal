@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 (Free Events always shown), 02 (Busy Override and Event details).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] A "New Event" button beside "New Task" opens a New Event form; clicking empty time in the Day or Week view opens it with a one-hour Event starting at the clicked quarter hour, without breaking Block drag and resize
 - [x] A dynacal Event has a title, a start and end at any minute, an all-day option and optional notes; a missing title or an end not after the start is rejected with a clear message and nothing saved

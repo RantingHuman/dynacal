@@ -1,6 +1,6 @@
 # Spec: dynacal phase 2: dynacal Events, Free Events and Working Hours copy
 
-Status: ready-for-agent
+Status: resolved
 
 ## Problem Statement
 

@@ -4,7 +4,7 @@
 
 **Blocked by:** 04 (Prefactor: the dynacal calendar can hold more than Blocks), 05 (dynacal Events in dynacal).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] Creating, editing and deleting a dynacal Event in dynacal creates, updates and deletes its event in the dynacal calendar, including all-day dynacal Events, with no writes when nothing changed
 - [x] Each dynacal Event in Google carries a popup reminder at the Reminder Lead Time, and changing the Reminder Lead Time rewrites them

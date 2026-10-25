@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 (Free Events always shown).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] Clicking an Event in the Day or Week view opens a details panel; Events from the owner's other calendars are read-only apart from the Busy Override
 - [x] A Busy Override of "counts as busy" makes a Free or all-day Event block scheduling; "doesn't count" lets Blocks be placed over a busy Event; clearing it returns to following the settings

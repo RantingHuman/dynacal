@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] The gateway's dynacal-calendar operations are generalised so they read and write events of any kind, including all-day events, and return each event's kind and dynacal id from its private marker
 - [x] Every event dynacal writes to the dynacal calendar carries the private marker; Block events written before this change (without a marker) are still recognised as Blocks

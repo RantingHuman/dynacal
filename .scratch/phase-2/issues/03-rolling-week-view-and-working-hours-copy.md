@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] The Week view opens on seven days starting today; Previous and Next move seven days at a time and stay within the Planning Horizon; the Day view is unchanged
 - [x] Each Working Hours day has a "Copy to…" action listing the other days, with "Weekdays" and "All days" shortcuts

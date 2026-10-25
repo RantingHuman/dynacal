@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] The Schedule view returns every Event on the Busy Calendars, each marked with whether it's Free in its calendar and whether it counts as busy
 - [x] Only Events that count as busy reach the scheduler; a Block may be placed over one that doesn't
