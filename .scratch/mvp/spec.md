@@ -213,7 +213,7 @@ Blocks appear in a separate "dynacal" calendar in my Google account, so I see my
   - the dynacal calendar is created and kept in sync, with reminders on Block events;
   - Busy Calendar selection and the free/all-day filtering;
   - the owner-only login check.
-- **Outside the seams**: the real Google adapter, the Next.js UI and web push delivery are thin wiring. They're checked with a manual smoke-test checklist against a real Google account, not with automated tests.
+- **Outside the seams**: the real Google adapter, the Next.js UI and web push delivery are thin wiring. They're checked with a manual smoke-test checklist against a real Google account, not with automated tests. The one exception is how the real adapter classifies Google's errors (lost permission versus rate limits), tested at the adapter's own interface with a stubbed `fetch`.
 - **Prior art**: none. The repo has no code yet. These tests set the pattern for later work.
 
 ## Out of Scope
