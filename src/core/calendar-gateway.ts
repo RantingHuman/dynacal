@@ -99,6 +99,11 @@ export interface CalendarGateway {
    * in Google. Deleted events aren't included.
    */
   listDynacalCalendarEvents(calendarId: string, range: Interval): Promise<DynacalCalendarEventInGoogle[]>;
+  /**
+   * One event on the dynacal calendar, by ID, wherever it now is; null if it's gone (missing, or deleted and
+   * kept by Google as cancelled). Tells an event moved out of a read range from a deleted one.
+   */
+  getDynacalCalendarEvent(calendarId: string, eventId: string): Promise<DynacalCalendarEventInGoogle | null>;
   /** Opens a push notification channel for changes to a calendar's events; returns Google's ID for the calendar and when the channel closes. */
   watchEvents(calendarId: string, channel: WatchChannel): Promise<{ resourceId: string; expiresAt: Date }>;
   /** Closes a push notification channel; one that has already closed counts as closed. */

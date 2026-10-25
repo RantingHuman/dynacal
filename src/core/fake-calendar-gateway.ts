@@ -242,13 +242,26 @@ export class FakeCalendarGateway implements CalendarGateway {
   async listDynacalCalendarEvents(calendarId: string, range: Interval): Promise<DynacalCalendarEventInGoogle[]> {
     this.checkCredentials();
     this.blockEventReads++;
-    return this.events
-      .filter((e) => e.calendarId === calendarId && overlaps(e, range))
-      .map(({ calendarId: _calendarId, free: _free, ...e }) => ({
-        ...structuredClone(e),
-        description: this.descriptions.get(e.id) ?? "",
-        marker: structuredClone(this.markers.get(e.id)) ?? null,
-      }));
+    return this.events.filter((e) => e.calendarId === calendarId && overlaps(e, range)).map((e) => this.asDynacalCalendarEvent(e));
+  }
+
+  /** How many single events dynacal has fetched from the dynacal calendar by ID. */
+  dynacalEventGets = 0;
+
+  async getDynacalCalendarEvent(calendarId: string, eventId: string): Promise<DynacalCalendarEventInGoogle | null> {
+    this.checkCredentials();
+    this.dynacalEventGets++;
+    // A deleted event is "cancelled" in Google, which dynacal treats like a missing one.
+    const event = this.events.find((e) => e.id === eventId && e.calendarId === calendarId);
+    return event ? this.asDynacalCalendarEvent(event) : null;
+  }
+
+  private asDynacalCalendarEvent({ calendarId: _calendarId, free: _free, ...e }: CalendarEvent): DynacalCalendarEventInGoogle {
+    return {
+      ...structuredClone(e),
+      description: this.descriptions.get(e.id) ?? "",
+      marker: structuredClone(this.markers.get(e.id)) ?? null,
+    };
   }
 }
 

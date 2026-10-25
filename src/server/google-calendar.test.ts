@@ -168,6 +168,39 @@ describe("the Google Calendar adapter, on the dynacal calendar", () => {
   });
 });
 
+describe("the Google Calendar adapter, fetching one dynacal calendar event", () => {
+  it("reads it wherever it now is", async () => {
+    const { gateway, requests } = gatewayReplying({
+      id: "a",
+      summary: "Flight",
+      start: { dateTime: "2026-04-01T08:00:00Z" },
+      end: { dateTime: "2026-04-01T11:00:00Z" },
+      extendedProperties: { private: { dynacalKind: "event", dynacalId: "dynacal-event-1" } },
+    });
+
+    expect(await gateway.getDynacalCalendarEvent("dynacal", "a")).toEqual({
+      id: "a",
+      title: "Flight",
+      description: "",
+      allDay: false,
+      start: new Date("2026-04-01T08:00:00Z"),
+      end: new Date("2026-04-01T11:00:00Z"),
+      marker: { kind: "event", dynacalId: "dynacal-event-1" },
+    });
+    expect(requests[0].method).toBe("GET");
+  });
+
+  it("counts a cancelled event as gone", async () => {
+    const { gateway } = gatewayReplying({ id: "a", status: "cancelled" });
+
+    expect(await gateway.getDynacalCalendarEvent("dynacal", "a")).toBeNull();
+  });
+
+  it.each([404, 410])("counts a %i as gone", async (status) => {
+    expect(await gatewayAnswering(status, "notFound").getDynacalCalendarEvent("dynacal", "a")).toBeNull();
+  });
+});
+
 describe("the Google Calendar adapter", () => {
   it.each(["insufficientPermissions", "forbidden"])(
     "treats a 403 %s, a lost permission, as Google refusing dynacal's credentials",

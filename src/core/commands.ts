@@ -690,7 +690,14 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     const written = writtenDynacalEvents(calendarId);
     const inGoogle = await calendar.listDynacalCalendarEvents(calendarId, editReadRange(editWindow(now), written));
     const blocksChanged = await applyBlockEdits(calendarId, blockEventsInGoogle(inGoogle), now);
-    const eventsChanged = applyDynacalEventEdits(calendarId, new Map(inGoogle.map((e) => [e.id, e])), written);
+    const found = new Map(inGoogle.map((e) => [e.id, e]));
+    // One missing from the read was either deleted or moved out of its range; only Google can say which.
+    for (const { eventId } of written) {
+      if (found.has(eventId)) continue;
+      const event = await calendar.getDynacalCalendarEvent(calendarId, eventId);
+      if (event) found.set(eventId, event);
+    }
+    const eventsChanged = applyDynacalEventEdits(calendarId, found, written);
     return blocksChanged || eventsChanged;
   }
 

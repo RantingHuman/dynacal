@@ -236,6 +236,35 @@ describe("a dynacal Event far in the future", () => {
   });
 });
 
+describe("a dynacal Event moved far away in Google", () => {
+  it("takes its new time, rather than being taken for deleted", async () => {
+    const { app, dynacal } = await connectedApp();
+    await createEvent(app, { title: "Flight", start: at("13:00"), end: at("14:00") });
+    const [{ id }] = app.calendar.dynacalEventsOn(dynacal);
+
+    app.calendar.moveEvent(id, { start: at("08:00", "2026-04-01"), end: at("11:00", "2026-04-01") });
+    await app.commands.syncEvents();
+    await app.commands.writeBlocksToGoogle();
+
+    expect(dynacalEvents(app).map((e) => [e.title, !e.allDay && e.start])).toEqual([["Flight", at("08:00", "2026-04-01")]]);
+    expect(app.calendar.dynacalEventsOn(dynacal).map((e) => [e.id, !e.allDay && e.start])).toEqual([
+      [id, at("08:00", "2026-04-01")],
+    ]);
+  });
+
+  it("is deleted in dynacal once Google says it's cancelled", async () => {
+    const { app, dynacal } = await connectedApp();
+    await createEvent(app, { title: "Flight", start: at("13:00"), end: at("14:00") });
+    const [{ id }] = app.calendar.dynacalEventsOn(dynacal);
+
+    app.calendar.moveEvent(id, { start: at("08:00", "2026-04-01"), end: at("11:00", "2026-04-01") });
+    app.calendar.deleteEvent(id);
+    await app.commands.syncEvents();
+
+    expect(dynacalEvents(app)).toEqual([]);
+  });
+});
+
 describe("dynacal Events changed while the Google connection is broken", () => {
   async function brokenApp() {
     const { app, dynacal } = await connectedApp();

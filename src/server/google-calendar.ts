@@ -196,15 +196,13 @@ export function createGoogleCalendarGateway({
         singleEvents: "true",
         maxResults: "2500",
       });
-      return items.flatMap((e): DynacalCalendarEventInGoogle[] => {
-        if (e.status === "cancelled") return [];
-        const common = { id: e.id, title: e.summary ?? "", description: e.description ?? "", marker: readMarker(e) };
-        if (e.start?.date && e.end?.date) return [{ ...common, allDay: true, startDate: e.start.date, endDate: e.end.date }];
-        if (e.start?.dateTime && e.end?.dateTime) {
-          return [{ ...common, allDay: false, start: new Date(e.start.dateTime), end: new Date(e.end.dateTime) }];
-        }
-        return [];
-      });
+      return items.flatMap((e) => dynacalCalendarEvent(e) ?? []);
+    },
+
+    async getDynacalCalendarEvent(calendarId: string, eventId: string): Promise<DynacalCalendarEventInGoogle | null> {
+      const response = await send("GET", `${eventsPath(calendarId)}/${encodeURIComponent(eventId)}`, { allow: [404, 410] });
+      if (!response.ok) return null;
+      return dynacalCalendarEvent((await response.json()) as GoogleEvent);
     },
   };
 }
@@ -244,6 +242,17 @@ function googleEvent(event: DynacalCalendarEvent) {
     reminders: { useDefault: false, overrides: [{ method: "popup", minutes: event.reminderMinutes }] },
     extendedProperties: { private: { [MARKER_KIND]: event.marker.kind, [MARKER_ID]: event.marker.dynacalId } },
   };
+}
+
+/** A Google `Event` on the dynacal calendar as dynacal reads it; null for a cancelled (deleted) one, or one with no usable time. */
+function dynacalCalendarEvent(e: GoogleEvent): DynacalCalendarEventInGoogle | null {
+  if (e.status === "cancelled") return null;
+  const common = { id: e.id, title: e.summary ?? "", description: e.description ?? "", marker: readMarker(e) };
+  if (e.start?.date && e.end?.date) return { ...common, allDay: true, startDate: e.start.date, endDate: e.end.date };
+  if (e.start?.dateTime && e.end?.dateTime) {
+    return { ...common, allDay: false, start: new Date(e.start.dateTime), end: new Date(e.end.dateTime) };
+  }
+  return null;
 }
 
 /** dynacal's marker on a Google `Event`; null if it has none (or not a whole one), as on Blocks written before markers. */
