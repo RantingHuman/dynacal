@@ -72,11 +72,6 @@ function dayLabel(date: string): string {
   return `${WEEKDAY_NAMES[index]} ${day} ${MONTHS[month - 1]}`;
 }
 
-function mondayOf(date: string): string {
-  const index = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"].indexOf(weekdayOf(date));
-  return addDays(date, -index);
-}
-
 /** The part of a span of time within one local day, in minutes after midnight. */
 interface Placed<T> {
   item: T;
@@ -228,11 +223,11 @@ export function Calendar({
     setEditingId(block.id);
   }
 
-  const days =
-    view === "day" ? [anchor] : Array.from({ length: 7 }, (_, i) => addDays(mondayOf(anchor), i));
+  // The Week view is seven days starting on the anchor day (today by default), not a Monday-to-Sunday week.
+  const days = view === "day" ? [anchor] : Array.from({ length: 7 }, (_, i) => addDays(anchor, i));
   const step = view === "day" ? 1 : 7;
-  const canGoBack = view === "day" ? anchor > today : mondayOf(anchor) > today;
-  const canGoForward = view === "day" ? anchor < lastDay : addDays(mondayOf(anchor), 7) <= lastDay;
+  const canGoBack = anchor > today;
+  const canGoForward = view === "day" ? anchor < lastDay : addDays(anchor, 7) <= lastDay;
   const move = (direction: 1 | -1) => {
     const next = addDays(anchor, direction * step);
     setAnchor(next < today ? today : next > lastDay ? lastDay : next);
