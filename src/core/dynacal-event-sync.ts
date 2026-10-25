@@ -80,12 +80,34 @@ export type DynacalEventEdit =
  */
 export function readDynacalEventEdit(written: DynacalEventContent, inGoogle: DynacalCalendarEventInGoogle | undefined): DynacalEventEdit {
   if (!inGoogle) return { kind: "deleted" };
-  const { id: _id, marker: _marker, title, description, ...timing } = inGoogle;
+  const { id: _id, marker: _marker, title, ...timing } = inGoogle;
+  // Google's own apps write descriptions as HTML; one left as dynacal wrote it is already plain text.
+  const description = inGoogle.description === written.description ? written.description : htmlToPlainText(inGoogle.description);
   const changes: DynacalEventChanges = {};
   if (title !== written.title) changes.title = title;
   if (description !== written.description) changes.notes = description;
   if (!sameTiming(timing, written)) changes.timing = timing;
   return { kind: "kept", changes, inGoogle: { ...timing, title, description, reminderMinutes: written.reminderMinutes } };
+}
+
+const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
+
+/**
+ * An event description from Google as plain text for a dynacal Event's notes: line breaks and paragraph ends
+ * become newlines, other tags are dropped and entities are decoded.
+ */
+export function htmlToPlainText(html: string): string {
+  return html
+    .replace(/<br\s*\/?>|<\/p\s*>/gi, "\n")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&(#x[0-9a-f]+|#[0-9]+|[a-z]+);/gi, (entity, name: string) => {
+      if (name[0] === "#") {
+        const code = name[1] === "x" || name[1] === "X" ? parseInt(name.slice(2), 16) : parseInt(name.slice(1), 10);
+        return code <= 0x10ffff ? String.fromCodePoint(code) : entity;
+      }
+      return ENTITIES[name.toLowerCase()] ?? entity;
+    })
+    .replace(/\n+$/, "");
 }
 
 /**

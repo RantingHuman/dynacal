@@ -210,6 +210,34 @@ describe("a dynacal Event retitled or given new notes in Google", () => {
   });
 });
 
+describe("a dynacal Event given formatted notes in Google", () => {
+  it("takes them in as plain text, and leaves Google's formatting alone", async () => {
+    const { app, dynacal } = await connectedApp();
+    await createEvent(app, { title: "Dentist", notes: "" });
+    const [{ id }] = app.calendar.dynacalEventsOn(dynacal);
+    const html = "<p>Floor 2</p><p>Ask for <b>Dr Patel</b> &amp; bring forms<br>Parking &lt;£5&gt;&nbsp;nearby</p>";
+    app.calendar.writes = [];
+
+    app.calendar.editEvent(id, { description: html });
+    await app.commands.syncEvents();
+    await app.commands.syncEvents();
+    await app.commands.writeBlocksToGoogle();
+
+    expect(dynacalEvents(app).map((e) => e.notes)).toEqual(["Floor 2\nAsk for Dr Patel & bring forms\nParking <£5> nearby"]);
+    expect(app.calendar.writes).toEqual([]);
+    expect(app.calendar.descriptionOf(id)).toBe(html);
+  });
+
+  it("keeps notes dynacal wrote that only look like markup", async () => {
+    const { app } = await connectedApp();
+    await createEvent(app, { title: "Dentist", notes: "Check <b> and a & b" });
+
+    await app.commands.syncEvents();
+
+    expect(dynacalEvents(app).map((e) => e.notes)).toEqual(["Check <b> and a & b"]);
+  });
+});
+
 describe("a dynacal Event turned all-day in Google", () => {
   it("becomes an all-day dynacal Event", async () => {
     const { app, dynacal } = await connectedApp();
