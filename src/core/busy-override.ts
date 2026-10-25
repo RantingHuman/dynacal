@@ -19,6 +19,15 @@ export interface EventRef {
 
 export type SetBusyOverrideResult = { ok: true } | { ok: false; notFound: true };
 
+/** A Busy Override as stored: whether it counts the Event as busy. */
+export function toBusyColumn(override: BusyOverride): boolean {
+  return override === "busy";
+}
+
+export function fromBusyColumn(busy: boolean): BusyOverride {
+  return busy ? "busy" : "not-busy";
+}
+
 /** A key for an Event that's unique across calendars, for looking overrides up. */
 export function eventKey({ calendarId, eventId }: EventRef): string {
   return `${calendarId}\u0000${eventId}`;

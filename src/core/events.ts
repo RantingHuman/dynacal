@@ -1,37 +1,55 @@
-import type { BusyOverride } from "./busy-override";
+import type { BusyOverride, EventRef } from "./busy-override";
 import type { CalendarEvent, EventTiming } from "./calendar-gateway";
-import { DAY_MS, type Interval } from "./time";
-import type { Settings } from "./settings";
-import { fromZoned } from "./time-zone";
 import { timingKey } from "./event-timing";
-import { DYNACAL_EVENTS_CALENDAR_ID } from "./dynacal-events";
+import type { Settings } from "./settings";
+import { DAY_MS, type Interval } from "./time";
+import { fromZoned } from "./time-zone";
 
 /**
- * Whether an Event counts as busy time: its Busy Override if it has one, else the owner's free/all-day
- * settings.
+ * The calendar ID that stands for dynacal itself in an Event's ref, so a dynacal Event can carry a Busy Override
+ * like any other Event. It's a reference namespace, not a Google calendar: not to be confused with the dynacal
+ * calendar in Google (`dynacalCalendarId()` in the command layer), and never a Busy Calendar's ID, so a sync of
+ * Busy Calendars never touches these refs.
+ */
+export const DYNACAL_EVENT_REF_CALENDAR = "dynacal";
+
+/** The name of the calendar dynacal owns in the owner's Google account (ADR-0002), and of dynacal Events' calendar. */
+export const DYNACAL_CALENDAR_NAME = "dynacal";
+
+/** Which Event this is, for its Busy Override. */
+export function eventRef(event: Pick<CalendarEvent, "calendarId" | "id">): EventRef {
+  return { calendarId: event.calendarId, eventId: event.id };
+}
+
+/** Whether an Event is a dynacal Event, rather than one from a Busy Calendar. */
+export function isDynacalEvent(event: Pick<CalendarEvent, "calendarId">): boolean {
+  return event.calendarId === DYNACAL_EVENT_REF_CALENDAR;
+}
+
+/**
+ * Whether an Event counts as busy time: its Busy Override if it has one, else the owner's Free and all-day
+ * settings. The owner makes a dynacal Event to block that time, so those settings (meant for other
+ * calendars' Free Events and all-day notes) don't apply to one.
  */
 export function countsAsBusy(
-  event: Pick<CalendarEvent, "free" | "allDay">,
+  event: CalendarEvent,
   { countFreeEvents, countAllDayEvents }: Pick<Settings, "countFreeEvents" | "countAllDayEvents">,
-  override: BusyOverride | null = null,
+  override: BusyOverride | null,
 ): boolean {
   if (override !== null) return override === "busy";
+  if (isDynacalEvent(event)) return true;
   if (event.free && !countFreeEvents) return false;
   if (event.allDay && !countAllDayEvents) return false;
   return true;
 }
 
 /**
- * Whether an Event from any calendar, dynacal's own included, counts as busy time. The owner makes a dynacal
- * Event to block that time, so the all-day setting (meant for other calendars' all-day notes) doesn't apply.
+ * The name of the calendar an Event is on: "dynacal" for a dynacal Event, else its Busy Calendar's name as
+ * Google last listed it, or the calendar's ID until that's known.
  */
-export function eventCountsAsBusy(
-  event: CalendarEvent,
-  current: Pick<Settings, "countFreeEvents" | "countAllDayEvents">,
-  override: BusyOverride | null,
-): boolean {
-  const dynacal = event.calendarId === DYNACAL_EVENTS_CALENDAR_ID;
-  return countsAsBusy(dynacal ? { free: false, allDay: false } : event, current, override);
+export function calendarNameOf(event: CalendarEvent, busyCalendarNames: Map<string, string | null>): string {
+  if (isDynacalEvent(event)) return DYNACAL_CALENDAR_NAME;
+  return busyCalendarNames.get(event.calendarId) ?? event.calendarId;
 }
 
 /** The time an Event takes up; an all-day Event runs from midnight to midnight in the owner's time zone. */

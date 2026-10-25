@@ -2,8 +2,9 @@
  * The record of what dynacal last wrote (or has seen the owner write) to each dynacal Event's event in the
  * dynacal calendar, so sync can tell the owner's edits in Google from its own writes.
  */
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import type { Db } from "./db";
+import { eventRefWhere } from "./db/event-ref";
 import { dynacalEventWrites } from "./db/schema";
 import type { WrittenDynacalEvent } from "./dynacal-event-sync";
 import { fromTimingColumns, toTimingColumns } from "./event-timing";
@@ -35,6 +36,6 @@ export function recordDynacalEventWrite(db: Pick<Db, "insert">, calendarId: stri
 /** Forgets the record of an event, once it's gone from Google or no longer kept in step. */
 export function forgetDynacalEventWrite(db: Pick<Db, "delete">, calendarId: string, eventId: string): void {
   db.delete(dynacalEventWrites)
-    .where(and(eq(dynacalEventWrites.calendarId, calendarId), eq(dynacalEventWrites.eventId, eventId)))
+    .where(eventRefWhere(dynacalEventWrites, { calendarId, eventId }))
     .run();
 }

@@ -51,6 +51,8 @@ import { blockCalendarEvent, planBlockEventWrites, type WantedBlockEvent } from 
 import {
   checkedOverride,
   eventKey,
+  fromBusyColumn,
+  toBusyColumn,
   syncOverrides,
   type BusyOverride,
   type EventRef,
@@ -59,7 +61,6 @@ import {
 } from "./busy-override";
 import {
   asCalendarEvent,
-  DYNACAL_EVENTS_CALENDAR_ID,
   dynacalEventRow,
   toDynacalEvent,
   validateDynacalEvent,
@@ -79,7 +80,18 @@ import {
   wantedDynacalEvents,
   type WrittenDynacalEvent,
 } from "./dynacal-event-sync";
-import { anyZoneSpan, eventCountsAsBusy, eventInterval, eventsFingerprint } from "./events";
+import {
+  anyZoneSpan,
+  calendarNameOf,
+  countsAsBusy,
+  DYNACAL_CALENDAR_NAME,
+  DYNACAL_EVENT_REF_CALENDAR,
+  eventInterval,
+  eventRef,
+  eventsFingerprint,
+  isDynacalEvent,
+} from "./events";
+import { eventRefWhere } from "./db/event-ref";
 import { fromTimingColumns, toTimingColumns } from "./event-timing";
 import { forgetDynacalEventWrite, readDynacalEventWrites, recordDynacalEventWrite } from "./dynacal-event-writes";
 import { validatePushSubscription, type PushSender, type PushSubscriptionInput, type SubscribeToPushResult } from "./push";
@@ -108,8 +120,7 @@ import {
 
 const SESSION_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
 
-/** The name of the calendar dynacal owns in the owner's Google account (ADR-0002). */
-export const DYNACAL_CALENDAR_NAME = "dynacal";
+export { DYNACAL_CALENDAR_NAME } from "./events";
 
 export interface CommandDeps {
   db: Db;
@@ -356,7 +367,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
   function removeDynacalEvent(tx: Pick<Db, "delete">, id: string) {
     const row = tx.delete(dynacalEvents).where(eq(dynacalEvents.id, id)).returning().get();
     tx.delete(busyOverrides)
-      .where(and(eq(busyOverrides.calendarId, DYNACAL_EVENTS_CALENDAR_ID), eq(busyOverrides.eventId, id)))
+      .where(eventRefWhere(busyOverrides, { calendarId: DYNACAL_EVENT_REF_CALENDAR, eventId: id }))
       .run();
     return row;
   }
@@ -385,7 +396,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     const changed = eventsFingerprint(fresh) !== eventsFingerprint(cachedEvents());
     const sync = syncOverrides(trackedOverrides(), {
       calendarsRead: calendarIds,
-      found: new Map(fresh.map((e) => [eventKey({ calendarId: e.calendarId, eventId: e.id }), anyZoneSpan(e)])),
+      found: new Map(fresh.map((e) => [eventKey(eventRef(e)), anyZoneSpan(e)])),
       range,
       now,
     });
@@ -399,25 +410,19 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       tx.delete(events).run();
       for (const e of fresh) {
         tx.insert(events)
-          .values({
-            calendarId: e.calendarId,
-            eventId: e.id,
-            title: e.title,
-            free: e.free,
-            ...toTimingColumns(e),
-          })
+          .values({ ...eventRef(e), title: e.title, free: e.free, ...toTimingColumns(e) })
           .onConflictDoNothing()
           .run();
       }
       for (const { ref, at } of sync.seen) {
         tx.update(busyOverrides)
           .set({ lastSeenStart: at.start, lastSeenEnd: at.end })
-          .where(and(eq(busyOverrides.calendarId, ref.calendarId), eq(busyOverrides.eventId, ref.eventId)))
+          .where(eventRefWhere(busyOverrides, ref))
           .run();
       }
       for (const ref of sync.drop) {
         tx.delete(busyOverrides)
-          .where(and(eq(busyOverrides.calendarId, ref.calendarId), eq(busyOverrides.eventId, ref.eventId)))
+          .where(eventRefWhere(busyOverrides, ref))
           .run();
       }
     });
@@ -450,9 +455,9 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     for (const c of calendars) db.update(busyCalendars).set({ name: c.name }).where(eq(busyCalendars.calendarId, c.id)).run();
   }
 
-  /** Each Busy Calendar's name, falling back to its ID when the name isn't known yet. */
-  function busyCalendarNames(): Map<string, string> {
-    return new Map(db.select().from(busyCalendars).all().map((b) => [b.calendarId, b.name ?? b.calendarId]));
+  /** Each Busy Calendar's name, as Google last listed it; null if not known yet. */
+  function busyCalendarNames(): Map<string, string | null> {
+    return new Map(db.select().from(busyCalendars).all().map((b) => [b.calendarId, b.name]));
   }
 
   /** The ID of the calendar dynacal writes Blocks to, once Google is connected. */
@@ -532,7 +537,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     const relink = (eventId: string, blockId: string) =>
       db.update(blockEvents)
         .set({ blockId })
-        .where(and(eq(blockEvents.calendarId, calendarId), eq(blockEvents.eventId, eventId)))
+        .where(eventRefWhere(blockEvents, { calendarId, eventId }))
         .run();
     const forget = (eventId: string) => forgetBlockEvent(calendarId, eventId);
     for (const { eventId, blockId } of writes.relink) relink(eventId, blockId);
@@ -617,7 +622,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
   /** Forgets the record of an event dynacal wrote, once it's gone from Google or no longer dynacal's to manage. */
   function forgetBlockEvent(calendarId: string, eventId: string): void {
     db.delete(blockEvents)
-      .where(and(eq(blockEvents.calendarId, calendarId), eq(blockEvents.eventId, eventId)))
+      .where(eventRefWhere(blockEvents, { calendarId, eventId }))
       .run();
   }
 
@@ -773,7 +778,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       }
       db.update(blockEvents)
         .set({ ...to, blockId })
-        .where(and(eq(blockEvents.calendarId, calendarId), eq(blockEvents.eventId, record.eventId)))
+        .where(eventRefWhere(blockEvents, { calendarId, eventId: record.eventId }))
         .run();
     }
     return changed;
@@ -786,7 +791,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         .select()
         .from(busyOverrides)
         .all()
-        .map((o) => [eventKey(o), o.busy ? "busy" : "not-busy"]),
+        .map((o) => [eventKey(o), fromBusyColumn(o.busy)]),
     );
   }
 
@@ -794,7 +799,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
   function busyTime(current: Settings, timeZone: string) {
     const overrides = readBusyOverrides();
     return allEvents()
-      .filter((e) => eventCountsAsBusy(e, current, overrides.get(eventKey({ calendarId: e.calendarId, eventId: e.id })) ?? null))
+      .filter((e) => countsAsBusy(e, current, overrides.get(eventKey(eventRef(e))) ?? null))
       .map((e) => eventInterval(e, timeZone));
   }
 
@@ -1194,15 +1199,15 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
      * recalculates. Stored only in dynacal; nothing is written to the Event in Google.
      */
     setBusyOverride(event: EventRef, override: BusyOverride | null): SetBusyOverrideResult {
-      const known = allEvents().find((e) => e.calendarId === event.calendarId && e.id === event.eventId);
+      const known = allEvents().find((e) => eventKey(eventRef(e)) === eventKey(event));
       if (!known) return { ok: false, notFound: true };
-      const key = { calendarId: event.calendarId, eventId: event.eventId };
+      const key = eventRef(known);
       if (override === null) {
         db.delete(busyOverrides)
-          .where(and(eq(busyOverrides.calendarId, key.calendarId), eq(busyOverrides.eventId, key.eventId)))
+          .where(eventRefWhere(busyOverrides, key))
           .run();
       } else {
-        const busy = override === "busy";
+        const busy = toBusyColumn(override);
         const span = anyZoneSpan(known);
         const set = { busy, lastSeenStart: span.start, lastSeenEnd: span.end };
         db.insert(busyOverrides)
@@ -1358,17 +1363,17 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       const dynacalById = new Map(listDynacalEvents().map((e) => [e.id, e]));
       const eventViews: EventView[] = allEvents()
         .map((e) => {
-          const dynacalEvent = e.calendarId === DYNACAL_EVENTS_CALENDAR_ID ? dynacalById.get(e.id)! : null;
-          const ref = { calendarId: e.calendarId, eventId: e.id };
+          const dynacalEvent = isDynacalEvent(e) ? dynacalById.get(e.id)! : null;
+          const ref = eventRef(e);
           const busyOverride = overrides.get(eventKey(ref)) ?? null;
           return {
             id: `${e.calendarId}/${e.id}`,
             ref,
             title: e.title,
-            calendarName: dynacalEvent ? DYNACAL_CALENDAR_NAME : (calendarNames.get(e.calendarId) ?? e.calendarId),
+            calendarName: calendarNameOf(e, calendarNames),
             allDay: e.allDay,
             free: e.free,
-            countsAsBusy: eventCountsAsBusy(e, current, busyOverride),
+            countsAsBusy: countsAsBusy(e, current, busyOverride),
             busyOverride,
             dynacalEvent,
             ...eventInterval(e, timeZone),
