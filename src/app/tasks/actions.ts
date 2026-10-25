@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import type { CompleteTaskResult } from "@/core/commands";
+import type { ClearDeclinedTimeResult, CompleteTaskResult } from "@/core/commands";
 import { PRIORITIES, type TaskResult, type UpdateTaskResult } from "@/core/tasks";
 import { getRuntime } from "@/server/runtime";
 import { requireOwner } from "@/server/session";
@@ -42,6 +42,13 @@ export async function deleteTask(id: string): Promise<void> {
 export async function completeTask(id: string): Promise<CompleteTaskResult> {
   await requireOwner();
   const result = getRuntime().commands.completeTask(z.string().parse(id));
+  revalidatePath("/");
+  return result;
+}
+
+export async function clearDeclinedTime(id: number): Promise<ClearDeclinedTimeResult> {
+  await requireOwner();
+  const result = getRuntime().commands.clearDeclinedTime(z.number().int().parse(id));
   revalidatePath("/");
   return result;
 }

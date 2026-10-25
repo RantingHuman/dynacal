@@ -48,6 +48,10 @@ _Avoid_: Locked block, fixed block, manual block
 An overlap between a Pinned Block and an Event that only the user can resolve.
 _Avoid_: Clash, double-booking, collision
 
+**Declined Time**:
+A time the user turned down for one Task by deleting its Block in Google; Recalculation keeps that Task out of it until it passes or the user clears it, while other Tasks may still use it.
+_Avoid_: Not then, avoid, banned slot
+
 **Unreviewed Block**:
 A Block whose time has passed without the user saying whether its work was done, not done, or partly done.
 _Avoid_: Missed block, stale block, pending block

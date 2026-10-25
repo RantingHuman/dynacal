@@ -4,9 +4,13 @@
   align-items: flex-start;
 }
 
-.item > :global(.task-row) {
+.body {
   flex: 1;
   min-width: 0;
+}
+
+.body > :global(.task-row) {
+  width: 100%;
 }
 
 .completed :global(.task-row) {

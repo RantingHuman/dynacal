@@ -47,6 +47,7 @@ export default async function HomePage() {
         <TaskPanel
           tasks={commands.listTasks()}
           flags={scheduleView.status === "ready" ? scheduleView.flags : {}}
+          timeZone={scheduleView.status === "ready" ? scheduleView.timeZone : null}
         />
         <section className="schedule-panel" aria-label="Schedule">
           {scheduleView.status === "needs-time-zone" ? (

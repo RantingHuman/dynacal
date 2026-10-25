@@ -97,7 +97,7 @@ Blocks appear in a separate "dynacal" calendar in my Google account, so I see my
 64. As the owner, I want to place a Pinned Block outside my Working Hours, so that I can choose to work on a weekend or evening.
 65. As the owner, I want time in Pinned Blocks to count toward the Task's Remaining Duration, so that the scheduler doesn't double-book the work.
 66. As the owner, I want moving or resizing a Block in Google Calendar to pin it, the same as in dynacal, so that I can adjust my plan from my phone.
-67. As the owner, I want deleting a Block in Google Calendar to mean "not then", so that its time gets rescheduled instead of the Task being deleted.
+67. As the owner, I want deleting a Block in Google Calendar to make that time a Declined Time for its Task, so that its time gets rescheduled elsewhere instead of the Task being deleted.
 68. As the owner, I want title or description edits to a Block in Google to be overwritten at the next sync, so that dynacal stays the source of truth for Block content.
 69. As the owner, I want a Conflict flagged when an Event overlaps a Pinned Block, so that I can decide what to do.
 70. As the owner, I want the app never to move a Pinned Block on its own, even when it conflicts, so that only I decide.
@@ -140,7 +140,7 @@ Blocks appear in a separate "dynacal" calendar in my Google account, so I see my
 - **Configuration**: the deployer provides the Google OAuth client ID and secret, the allowed owner email, the public base URL and the web push (VAPID) keys through environment variables. The app refuses to start if any are missing.
 - **Authentication**: Google sign-in, used both for login and for the calendar connection. Only the configured owner email is allowed in. There is no other user model.
 - **Scheduler module** (no I/O): a deterministic pure function, the core of the system.
-  - *Inputs*: the current time; the time zone; Working Hours (a weekly template, per-weekday windows); the Minimum Block Length; the Planning Horizon (14 days); the 15-minute grid; Tasks (id, Remaining Duration, optional deadline, optional Earliest Start, Priority, don't-split); busy Events; Pinned Blocks; fixed Blocks (past and in-progress); and the previous Schedule.
+  - *Inputs*: the current time; the time zone; Working Hours (a weekly template, per-weekday windows); the Minimum Block Length; the Planning Horizon (14 days); the 15-minute grid; Tasks (id, Remaining Duration, optional deadline, optional Earliest Start, Priority, don't-split); busy Events; Pinned Blocks; started Blocks (past and in-progress); each Task's Declined Times; and the previous Schedule.
   - *Outputs*: the new set of unpinned future Blocks; a per-Task flag (At Risk, Overdue, Unscheduled, or none); and the list of Conflicts.
   - *Rules*:
     - deadline-first ordering, with Priority deciding who goes first only when that pushes no other Task past its deadline, and deciding who misses when a miss can't be avoided (ADR-0003);
@@ -177,11 +177,13 @@ Blocks appear in a separate "dynacal" calendar in my Google account, so I see my
   - **Busy Calendars**: Google calendar IDs.
   - **Google connection**: tokens, dynacal calendar ID, push channel state, connection health.
   - **Cached Events**: the Events read from Busy Calendars.
+  - **Declined Times**: Task reference, start, end; forgotten once they pass.
   - **Push subscriptions**.
   
   At Risk, Overdue, Unscheduled and Conflict are worked out by each Recalculation, not entered by the user.
 - **Remaining Duration accounting**: estimated duration, minus time recorded as worked in past Blocks, minus the length of Unreviewed past Blocks (treated as worked until reviewed). Future Pinned Blocks reduce what the scheduler has to place, but not Remaining Duration itself.
-- **Edits made in Google**: a Block event moved or resized in Google pins that Block at its new time. A deleted Block event deletes the Block, and its time goes back into the pool to be scheduled. Title and description edits are overwritten at the next sync.
+- **Edits made in Google**: a Block event moved or resized in Google pins that Block at its new time. A deleted Block event deletes the Block and records its time as a **Declined Time** for that Task: the Task keeps its Remaining Duration, and Recalculation keeps it out of that time until the time passes, while other Tasks may use it. The Task list shows each Task's Declined Times, and the owner can clear one, which triggers a Recalculation. Title and description edits are overwritten at the next sync.
+  - *Ordering*: every path that writes Block events (sync, reconnecting, and the write after any Recalculation) first reads the dynacal calendar and applies the owner's edits, then recalculates if they changed anything, then writes. Writing first would undo a move, or revive a deleted event (Google revives a deleted event on a full rewrite).
 - **Broken Google connection**: while the connection is unhealthy, only automatic Recalculation is paused (the runs that commands, syncing and the passing of time trigger), and the UI shows a "reconnect Google" banner. The Recalculate button still works: it plans around the Events dynacal last saw, and a note beside it says so. Writes to Google wait until the owner reconnects. Task management and viewing keep working, and manual commands still update the local state.
 - **Reminders**: popup reminders on each Block event in Google, at the configured lead time. The app also sends its own web push notification at the same lead time, and drops it if the Block moves or is deleted first. Users get push by installing the app as a progressive web app (PWA).
 - **UI**: one main screen with a Task list (sorted by deadline, showing flags) beside a calendar with Day and Week views (Blocks draggable and resizable, Events read-only). It has a Recalculate button, an Unreviewed Blocks banner and a reconnect banner. Settings are a separate page, and there's a first-run setup flow (sign in, choose Busy Calendars, set Working Hours and time zone).
@@ -203,7 +205,7 @@ Blocks appear in a separate "dynacal" calendar in my Google account, so I see my
 - **Seam 2: the command layer**, run against in-memory SQLite, a fake clock and a fake calendar gateway that records writes and can simulate Google-side edits and outages. Tests cover:
   - which commands trigger Recalculation;
   - moving or resizing a Block pins it, whether in dynacal or in Google;
-  - deleting a Block in Google means "not then";
+  - deleting a Block in Google leaves a Declined Time, which the owner can clear;
   - Google-side title edits are overwritten;
   - completing a Task removes its future Blocks and cuts short the in-progress Block;
   - Remaining Duration arithmetic for done, not-done and partial reviews, and for Unreviewed Blocks;

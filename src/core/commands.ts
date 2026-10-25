@@ -18,7 +18,7 @@ import {
   calendarWatches,
   events,
   googleConnection,
-  notThenTimes,
+  declinedTimes,
   pushSubscriptions,
   remindersSent,
   sessions,
@@ -180,7 +180,18 @@ export interface TaskListItem extends Task {
   remainingMinutes: number;
   /** When the owner marked it complete, or null. */
   completedAt: Date | null;
+  /** Times the owner declined for this Task (by deleting its Block event in Google) that haven't passed, in time order. */
+  declinedTimes: DeclinedTimeView[];
 }
+
+/** A Declined Time: Recalculation keeps its Task out of it until it passes or the owner clears it. */
+export interface DeclinedTimeView {
+  id: number;
+  start: Date;
+  end: Date;
+}
+
+export type ClearDeclinedTimeResult = { ok: true } | { ok: false; notFound: true };
 
 export type CompleteTaskResult = { ok: true } | { ok: false; notFound: true };
 
@@ -493,7 +504,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
 
   /**
    * Edits made in Google: compares the dynacal calendar's events with what dynacal last wrote. A moved or
-   * resized event pins its Block at the new time; a deleted one means "not then"; a changed title or
+   * resized event pins its Block at the new time; a deleted one leaves a Declined Time; a changed title or
    * description is overwritten. Returns whether the Schedule changed, so it needs a
    * Recalculation.
    */
@@ -516,13 +527,13 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     for (const record of recorded) {
       const event = inGoogle.get(record.eventId);
       if (!event) {
-        // Deleted in Google: "not then". The Task keeps its Remaining Duration, to be scheduled elsewhere. The
-        // time declined is the event's, even if a Recalculation has since moved its Block.
+        // Deleted in Google: a Declined Time. The Task keeps its Remaining Duration, to be scheduled elsewhere.
+        // The time declined is the event's, even if a Recalculation has since moved its Block.
         const block = blockFor(record);
         if (block) db.delete(blocks).where(eq(blocks.id, block.id)).run();
         const task = db.select({ id: tasks.id }).from(tasks).where(eq(tasks.id, record.taskId)).get();
         if (task) {
-          db.insert(notThenTimes).values({ taskId: task.id, start: record.start, end: record.end }).run();
+          db.insert(declinedTimes).values({ taskId: task.id, start: record.start, end: record.end }).run();
           changed = true;
         }
         db.delete(blockEvents)
@@ -633,8 +644,8 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         .where(isNull(tasks.completedAt))
         .orderBy(tasks.createdAt, sql`rowid`)
         .all();
-      tx.delete(notThenTimes).where(lte(notThenTimes.end, now)).run();
-      const notThen = tx.select().from(notThenTimes).all();
+      tx.delete(declinedTimes).where(lte(declinedTimes.end, now)).run();
+      const declined = tx.select().from(declinedTimes).all();
       // Pinned Blocks stay where they are anyway, so only unpinned ones are worth keeping in place.
       const previousSchedule = tx
         .select()
@@ -665,7 +676,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
                 ),
           priority: row.priority,
           dontSplit: row.dontSplit,
-          avoid: notThen.filter((t) => t.taskId === row.id),
+          declinedTimes: declined.filter((t) => t.taskId === row.id),
         })),
         busy,
         pinnedBlocks: [...inProgress.filter((b) => b.pinned), ...pinnedAhead],
@@ -957,7 +968,14 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
 
     /** Every Task, in Task list order (completed Tasks last), with its Remaining Duration. */
     listTasks(): TaskListItem[] {
-      const remaining = remainingByTask(db, clock.now());
+      const now = clock.now();
+      const remaining = remainingByTask(db, now);
+      const declined = db
+        .select()
+        .from(declinedTimes)
+        .where(gt(declinedTimes.end, now))
+        .orderBy(declinedTimes.start)
+        .all();
       return db
         .select()
         .from(tasks)
@@ -966,6 +984,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
           ...toTask(row),
           remainingMinutes: remaining(row.id, row.estimatedMinutes),
           completedAt: row.completedAt,
+          declinedTimes: declined.filter((d) => d.taskId === row.id).map(({ id, start, end }) => ({ id, start, end })),
           createdAt: row.createdAt,
         }))
         .sort((a, b) => Number(a.completedAt !== null) - Number(b.completedAt !== null) || compareTasks(a, b))
@@ -982,6 +1001,14 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         .run();
       recalculateAutomatically();
       return { ok: true, settings: next };
+    },
+
+    /** Clears a Declined Time, so Recalculation may put its Task there again. */
+    clearDeclinedTime(id: number): ClearDeclinedTimeResult {
+      const row = db.delete(declinedTimes).where(eq(declinedTimes.id, id)).returning().get();
+      if (!row) return { ok: false, notFound: true };
+      recalculateAutomatically();
+      return { ok: true };
     },
 
     /** The Recalculate button. */

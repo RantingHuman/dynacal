@@ -120,7 +120,7 @@ describe("a Block event resized in Google", () => {
 });
 
 describe("a Block event deleted in Google", () => {
-  it('means "not then": the Block is removed and the Task\'s time is scheduled elsewhere', async () => {
+  it("leaves a Declined Time: the Block is removed and the Task's time is scheduled elsewhere", async () => {
     const { app, dynacal } = await connectedApp();
     await createTask(app);
 
@@ -133,6 +133,44 @@ describe("a Block event deleted in Google", () => {
     expect(app.calendar.blockEventsOn(dynacal).map(([title, start, end]) => [title, start, end])).toEqual([
       ["Write report", at("10:00"), at("11:00")],
     ]);
+  });
+
+  it("shows on its Task as a Declined Time", async () => {
+    const { app, dynacal } = await connectedApp();
+    await createTask(app);
+
+    app.calendar.deleteEvent(await eventAt(app, dynacal, at("09:00")));
+    await app.commands.syncEvents();
+
+    expect(app.commands.listTasks()[0].declinedTimes).toEqual([
+      { id: expect.any(Number), start: at("09:00"), end: at("10:00") },
+    ]);
+  });
+
+  it("leaves a Declined Time the owner can clear, which lets Recalculation use that time again", async () => {
+    const { app, dynacal } = await connectedApp();
+    await createTask(app);
+    app.calendar.deleteEvent(await eventAt(app, dynacal, at("09:00")));
+    await app.commands.syncEvents();
+    const [declined] = app.commands.listTasks()[0].declinedTimes;
+
+    expect(app.commands.clearDeclinedTime(declined.id)).toEqual({ ok: true });
+    await app.commands.writeBlocksToGoogle();
+
+    expect(app.commands.listTasks()[0].declinedTimes).toEqual([]);
+    expect(blocks(app)).toEqual([["Write report", at("09:00"), at("10:00"), false]]);
+    expect(app.commands.clearDeclinedTime(declined.id)).toEqual({ ok: false, notFound: true });
+  });
+
+  it("is forgotten once its time has passed", async () => {
+    const { app, dynacal } = await connectedApp();
+    await createTask(app);
+    app.calendar.deleteEvent(await eventAt(app, dynacal, at("09:00")));
+    await app.commands.syncEvents();
+
+    app.clock.set(at("10:00"));
+
+    expect(app.commands.listTasks()[0].declinedTimes).toEqual([]);
   });
 
   it("frees its time for other Tasks", async () => {

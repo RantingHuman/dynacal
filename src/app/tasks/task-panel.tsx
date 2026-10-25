@@ -6,6 +6,7 @@ import { PRIORITY_LABELS, formatDateOrDateTime, formatDuration, type Task } from
 import type { TaskFlag } from "@/core/scheduler";
 import { CompleteTaskButton } from "./complete-task-button";
 import completion from "./completion.module.css";
+import { DeclinedTimes } from "./declined-times";
 import { TaskForm } from "./task-form";
 
 const FLAG_LABELS: Record<TaskFlag, string> = {
@@ -16,7 +17,16 @@ const FLAG_LABELS: Record<TaskFlag, string> = {
 
 type Editing = { mode: "closed" } | { mode: "new" } | { mode: "edit"; task: Task };
 
-export function TaskPanel({ tasks, flags }: { tasks: TaskListItem[]; flags: Record<string, TaskFlag | null> }) {
+export function TaskPanel({
+  tasks,
+  flags,
+  timeZone,
+}: {
+  tasks: TaskListItem[];
+  flags: Record<string, TaskFlag | null>;
+  /** The owner's time zone, for showing Declined Times; null until it's saved. */
+  timeZone: string | null;
+}) {
   const [editing, setEditing] = useState<Editing>({ mode: "closed" });
 
   return (
@@ -45,31 +55,36 @@ export function TaskPanel({ tasks, flags }: { tasks: TaskListItem[]; flags: Reco
           {tasks.map((task) => (
             <li key={task.id} className={`${completion.item}${task.completedAt ? ` ${completion.completed}` : ""}`}>
               <CompleteTaskButton id={task.id} title={task.title} completed={task.completedAt !== null} />
-              <button
-                type="button"
-                className={`task-row${editing.mode === "edit" && editing.task.id === task.id ? " selected" : ""}`}
-                onClick={() => setEditing({ mode: "edit", task })}
-              >
-                <span className="task-title-row">
-                  <span className="task-title">{task.title}</span>
-                  {flags[task.id] && (
-                    <span className={`flag flag-${flags[task.id]}`}>{FLAG_LABELS[flags[task.id]!]}</span>
-                  )}
-                </span>
-                <span className="task-meta">
-                  <span className={`priority priority-${task.priority}`}>{PRIORITY_LABELS[task.priority]}</span>
-                  {task.completedAt ? (
-                    <span>Complete</span>
-                  ) : (
-                    <span title="Remaining Duration of the estimated duration">
-                      {formatDuration(task.remainingMinutes)} of {formatDuration(task.estimatedMinutes)} remaining
-                    </span>
-                  )}
-                  {task.deadline && <span>Due {formatDateOrDateTime(task.deadline)}</span>}
-                  {task.earliestStart && <span>From {formatDateOrDateTime(task.earliestStart)}</span>}
-                  {task.dontSplit && <span>Don’t split</span>}
-                </span>
-              </button>
+              <div className={completion.body}>
+                <button
+                  type="button"
+                  className={`task-row${editing.mode === "edit" && editing.task.id === task.id ? " selected" : ""}`}
+                  onClick={() => setEditing({ mode: "edit", task })}
+                >
+                  <span className="task-title-row">
+                    <span className="task-title">{task.title}</span>
+                    {flags[task.id] && (
+                      <span className={`flag flag-${flags[task.id]}`}>{FLAG_LABELS[flags[task.id]!]}</span>
+                    )}
+                  </span>
+                  <span className="task-meta">
+                    <span className={`priority priority-${task.priority}`}>{PRIORITY_LABELS[task.priority]}</span>
+                    {task.completedAt ? (
+                      <span>Complete</span>
+                    ) : (
+                      <span title="Remaining Duration of the estimated duration">
+                        {formatDuration(task.remainingMinutes)} of {formatDuration(task.estimatedMinutes)} remaining
+                      </span>
+                    )}
+                    {task.deadline && <span>Due {formatDateOrDateTime(task.deadline)}</span>}
+                    {task.earliestStart && <span>From {formatDateOrDateTime(task.earliestStart)}</span>}
+                    {task.dontSplit && <span>Don’t split</span>}
+                  </span>
+                </button>
+                {timeZone && !task.completedAt && (
+                  <DeclinedTimes taskTitle={task.title} declinedTimes={task.declinedTimes} timeZone={timeZone} />
+                )}
+              </div>
             </li>
           ))}
         </ul>

@@ -21,7 +21,7 @@ describe("Tasks", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(commands.listTasks()).toEqual([
-      { id: result.task.id, ...minimal, remainingMinutes: 90, completedAt: null },
+      { id: result.task.id, ...minimal, remainingMinutes: 90, completedAt: null, declinedTimes: [] },
     ]);
   });
 
@@ -73,7 +73,7 @@ describe("Tasks", () => {
 
     expect(result).toEqual({ ok: true, task: { id: created.task.id, ...edited } });
     expect(commands.listTasks()).toEqual([
-      { id: created.task.id, ...edited, remainingMinutes: 180, completedAt: null },
+      { id: created.task.id, ...edited, remainingMinutes: 180, completedAt: null, declinedTimes: [] },
     ]);
   });
 

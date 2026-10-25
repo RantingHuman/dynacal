@@ -684,10 +684,10 @@ describe("scheduler", () => {
   });
 });
 
-describe('"not then" times', () => {
+describe("Declined Times", () => {
   it("keep a Task out of them, while other Tasks may use them", () => {
-    const notThen = { start: new Date("2026-01-05T09:00:00Z"), end: new Date("2026-01-05T10:00:00Z") };
-    const result = schedule(input({ tasks: [task("a", { avoid: [notThen] }), task("b")] }));
+    const declined = { start: new Date("2026-01-05T09:00:00Z"), end: new Date("2026-01-05T10:00:00Z") };
+    const result = schedule(input({ tasks: [task("a", { declinedTimes: [declined] }), task("b")] }));
 
     expect(blocksOf(result)).toEqual([
       ["b", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"],

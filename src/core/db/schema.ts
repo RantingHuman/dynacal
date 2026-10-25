@@ -98,10 +98,10 @@ export const blockEvents = sqliteTable(
 );
 
 /**
- * "Not then": the times of Blocks the owner deleted in Google. Recalculation keeps each Task out of its own
- * such times; other Tasks may still use them.
+ * Declined Times: the times of Blocks the owner deleted in Google. Recalculation keeps each Task out of its own
+ * Declined Times until they pass or the owner clears them; other Tasks may still use them.
  */
-export const notThenTimes = sqliteTable("not_then_times", {
+export const declinedTimes = sqliteTable("declined_times", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   taskId: text("task_id")
     .notNull()
