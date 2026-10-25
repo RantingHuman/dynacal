@@ -178,6 +178,11 @@ export type ScheduleView =
       conflicts: { blockId: string; eventId: string }[];
     };
 
+/** A stored Block, with its Task's title, as the UI shows it. */
+function toBlockView({ block, taskTitle }: { block: typeof blocks.$inferSelect; taskTitle: string }): BlockView {
+  return { id: block.id, taskId: block.taskId, taskTitle, start: block.start, end: block.end, pinned: block.pinned };
+}
+
 /** An Unreviewed Block as the review banner shows it. */
 export interface UnreviewedBlockView extends BlockView {
   /** The prefill for "did part of it". */
@@ -425,10 +430,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         .set({ blockId })
         .where(and(eq(blockEvents.calendarId, calendarId), eq(blockEvents.eventId, eventId)))
         .run();
-    const forget = (eventId: string) =>
-      db.delete(blockEvents)
-        .where(and(eq(blockEvents.calendarId, calendarId), eq(blockEvents.eventId, eventId)))
-        .run();
+    const forget = (eventId: string) => forgetBlockEvent(calendarId, eventId);
     for (const { eventId, blockId } of writes.relink) relink(eventId, blockId);
     // Each write is recorded as soon as Google has it, so a failure part-way leaves an accurate record.
     for (const event of writes.delete) {
@@ -471,6 +473,13 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         forget(written.eventId);
       }
     }
+  }
+
+  /** Forgets the record of an event dynacal wrote, once it's gone from Google or no longer dynacal's to manage. */
+  function forgetBlockEvent(calendarId: string, eventId: string): void {
+    db.delete(blockEvents)
+      .where(and(eq(blockEvents.calendarId, calendarId), eq(blockEvents.eventId, eventId)))
+      .run();
   }
 
   /**
@@ -553,9 +562,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
           db.insert(declinedTimes).values({ taskId: task.id, start: record.start, end: record.end }).run();
           changed = true;
         }
-        db.delete(blockEvents)
-          .where(and(eq(blockEvents.calendarId, calendarId), eq(blockEvents.eventId, record.eventId)))
-          .run();
+        forgetBlockEvent(calendarId, record.eventId);
         continue;
       }
       const to = { start: event.start, end: event.end };
@@ -1116,15 +1123,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         .where(and(lte(blocks.end, clock.now()), isNull(blocks.review), isNull(tasks.completedAt)))
         .all()
         .sort((a, b) => a.block.start.getTime() - b.block.start.getTime())
-        .map(({ block, taskTitle }) => ({
-          id: block.id,
-          taskId: block.taskId,
-          taskTitle,
-          start: block.start,
-          end: block.end,
-          pinned: block.pinned,
-          suggestedWorkedMinutes: suggestedWorkedMinutes(block),
-        }));
+        .map((row) => ({ ...toBlockView(row), suggestedWorkedMinutes: suggestedWorkedMinutes(row.block) }));
     },
 
     getSchedule(): ScheduleView {
@@ -1145,14 +1144,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
           .all()
           .map(({ id, flag }) => [id, flag]),
       );
-      const blockViews: BlockView[] = rows.map(({ block, taskTitle }) => ({
-        id: block.id,
-        taskId: block.taskId,
-        taskTitle,
-        start: block.start,
-        end: block.end,
-        pinned: block.pinned,
-      }));
+      const blockViews = rows.map(toBlockView);
       const eventViews: EventView[] = cachedEvents()
         .filter((e) => countsAsBusy(e, current))
         .map((e) => ({ id: `${e.calendarId}/${e.id}`, title: e.title, allDay: e.allDay, ...eventInterval(e, timeZone) }))
