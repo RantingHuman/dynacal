@@ -7,6 +7,7 @@ import {
   OAUTH_VERIFIER_COOKIE,
   SESSION_COOKIE,
   currentSession,
+  decodeOAuthPurpose,
   secureCookies,
 } from "@/server/session";
 
@@ -25,15 +26,15 @@ export async function GET(request: Request) {
   const jar = await cookies();
   const expectedState = jar.get(OAUTH_STATE_COOKIE)?.value;
   const codeVerifier = jar.get(OAUTH_VERIFIER_COOKIE)?.value;
-  const purpose = jar.get(OAUTH_PURPOSE_COOKIE)?.value;
+  const purpose = decodeOAuthPurpose(jar.get(OAUTH_PURPOSE_COOKIE)?.value);
   jar.delete(OAUTH_STATE_COOKIE);
   jar.delete(OAUTH_VERIFIER_COOKIE);
   jar.delete(OAUTH_PURPOSE_COOKIE);
 
   const valid = code && state && expectedState && codeVerifier && state === expectedState;
 
-  if (purpose?.startsWith("connect-calendar:")) {
-    const page = purpose.endsWith(":settings") ? "settings" : purpose.endsWith(":home") ? "" : "setup";
+  if (purpose?.kind === "connect-calendar") {
+    const page = { setup: "setup", settings: "settings", home: "" }[purpose.returnTo];
     // A reconnect from the main screen's banner returns there, or to Settings to explain a failure.
     const back = (error?: string) =>
       Response.redirect(

@@ -7,6 +7,7 @@ import {
   OAUTH_STATE_COOKIE,
   OAUTH_VERIFIER_COOKIE,
   currentSession,
+  encodeOAuthPurpose,
   secureCookies,
 } from "@/server/session";
 
@@ -33,7 +34,7 @@ export async function GET(request: Request) {
   const options = { httpOnly: true, secure: secureCookies(), sameSite: "lax", path: "/", maxAge: 600 } as const;
   jar.set(OAUTH_STATE_COOKIE, state, options);
   jar.set(OAUTH_VERIFIER_COOKIE, codeVerifier, options);
-  jar.set(OAUTH_PURPOSE_COOKIE, `connect-calendar:${returnTo}`, options);
+  jar.set(OAUTH_PURPOSE_COOKIE, encodeOAuthPurpose({ kind: "connect-calendar", returnTo }), options);
 
   return Response.redirect(url);
 }
