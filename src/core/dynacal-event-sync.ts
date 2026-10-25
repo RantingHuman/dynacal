@@ -5,7 +5,7 @@
 import type { DynacalCalendarEvent, DynacalCalendarEventInGoogle, EventTiming } from "./calendar-gateway";
 import type { DynacalEvent } from "./dynacal-events";
 import { anyZoneSpan, eventInterval } from "./events";
-import { sameTiming } from "./event-timing";
+import { sameTiming, timingOf } from "./event-timing";
 import type { Interval } from "./time";
 
 /** What dynacal writes to Google for a dynacal Event: everything but the marker. */
@@ -95,6 +95,19 @@ export function readDynacalEventEdit(written: DynacalEventContent, inGoogle: Dyn
   if (description !== written.description) changes.notes = description;
   if (!sameTiming(timing, written)) changes.timing = timing;
   return { kind: "kept", changes, inGoogle: { ...timing, title, description, reminderMinutes: written.reminderMinutes } };
+}
+
+/**
+ * Google wins, field by field: the dynacal Event with the owner's changes in Google applied, or null if they
+ * changed nothing. Only a change of timing affects busy time; a new title or notes doesn't.
+ */
+export function mergeGoogleChanges(event: DynacalEvent, changes: DynacalEventChanges): { event: DynacalEvent; busyTimeChanged: boolean } | null {
+  const { title, notes, timing } = changes;
+  if (title === undefined && notes === undefined && timing === undefined) return null;
+  return {
+    event: { id: event.id, title: title ?? event.title, notes: notes ?? event.notes, ...(timing ?? timingOf(event)) },
+    busyTimeChanged: timing !== undefined,
+  };
 }
 
 const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };

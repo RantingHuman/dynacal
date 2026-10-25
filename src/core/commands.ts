@@ -72,6 +72,7 @@ import {
 import {
   dynacalEventCalendarEvent,
   editReadRange,
+  mergeGoogleChanges,
   hasEnded,
   planDynacalEventWrites,
   readDynacalEventEdit,
@@ -714,11 +715,10 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         }
         continue;
       }
-      const { title, notes, timing } = edit.changes;
-      if (event && (title !== undefined || notes !== undefined || timing !== undefined)) {
-        const merged = { ...event, ...(timing ?? {}), title: title ?? event.title, notes: notes ?? event.notes } as DynacalEventInput;
-        db.update(dynacalEvents).set(dynacalEventRow(merged)).where(eq(dynacalEvents.id, event.id)).run();
-        if (timing !== undefined) changed = true;
+      const merge = event && mergeGoogleChanges(event, edit.changes);
+      if (merge) {
+        db.update(dynacalEvents).set(dynacalEventRow(merge.event)).where(eq(dynacalEvents.id, merge.event.id)).run();
+        if (merge.busyTimeChanged) changed = true;
       }
       recordDynacalEventWrite(db, calendarId, { ...record, content: edit.inGoogle });
     }
