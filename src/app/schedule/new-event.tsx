@@ -1,7 +1,10 @@
 "use client";
 
 import { createContext, useContext, useState } from "react";
-import { GRID_MS, MINUTE_MS } from "@/core/time";
+import { GRID_MS, HOUR_MS } from "@/core/time";
+
+/** How long a New Event is to begin with. */
+export const NEW_EVENT_MS = HOUR_MS;
 
 /** The time a New Event form opens with, as ISO strings. */
 export interface NewEventDraft {
@@ -26,7 +29,7 @@ export function NewEventProvider({ enabled, children }: { enabled: boolean; chil
   function open(at?: NewEventDraft) {
     if (at) return setDraft(at);
     const start = Math.ceil(Date.now() / GRID_MS) * GRID_MS;
-    setDraft({ start: new Date(start).toISOString(), end: new Date(start + 60 * MINUTE_MS).toISOString() });
+    setDraft({ start: new Date(start).toISOString(), end: new Date(start + NEW_EVENT_MS).toISOString() });
   }
   return (
     <NewEventContext.Provider value={{ enabled, draft, open, close: () => setDraft(null) }}>

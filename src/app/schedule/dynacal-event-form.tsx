@@ -4,9 +4,13 @@ import { useState, useTransition } from "react";
 import type { DynacalEventErrors } from "@/core/dynacal-events";
 import type { WireTiming } from "@/core/event-timing";
 import { formatMinutes } from "@/core/settings";
+import { HOUR_MINUTES, MINUTE_MS } from "@/core/time";
 import { addDays, fromZoned, toZoned } from "@/core/time-zone";
 import { createDynacalEvent, deleteDynacalEvent, updateDynacalEvent } from "./actions";
-import type { NewEventDraft } from "./new-event";
+import { NEW_EVENT_MS, type NewEventDraft } from "./new-event";
+
+/** When an all-day Event switched to a timed one starts, on its first day, until the owner picks a time. */
+const TIMED_DEFAULT_START_MINUTES = 9 * HOUR_MINUTES;
 
 /** A dynacal Event as sent to the browser: instants as ISO strings, all-day `endDate` exclusive. */
 export type DynacalEventDetails = { id: string; title: string; notes: string } & WireTiming;
@@ -41,8 +45,8 @@ function initialFields(event: DynacalEventDetails | null, draft: NewEventDraft |
       title: event.title,
       notes: event.notes,
       allDay: true,
-      start: `${event.startDate}T09:00`,
-      end: `${event.startDate}T10:00`,
+      start: `${event.startDate}T${formatMinutes(TIMED_DEFAULT_START_MINUTES)}`,
+      end: `${event.startDate}T${formatMinutes(TIMED_DEFAULT_START_MINUTES + NEW_EVENT_MS / MINUTE_MS)}`,
       firstDay: event.startDate,
       lastDay: addDays(event.endDate, -1),
     };

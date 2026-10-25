@@ -1,7 +1,10 @@
 /** Time constants and the Planning Horizon, shared by the scheduler, the command layer and the UI. */
 
 export const MINUTE_MS = 60_000;
-export const DAY_MS = 24 * 60 * MINUTE_MS;
+export const HOUR_MINUTES = 60;
+export const HOUR_MS = HOUR_MINUTES * MINUTE_MS;
+export const DAY_MINUTES = 24 * HOUR_MINUTES;
+export const DAY_MS = DAY_MINUTES * MINUTE_MS;
 
 /** Blocks, Working Hours, estimates and the Minimum Block Length all sit on this grid. */
 export const GRID_MINUTES = 15;

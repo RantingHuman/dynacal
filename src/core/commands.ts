@@ -106,7 +106,7 @@ import {
   schedule,
   type TaskFlag,
 } from "./scheduler";
-import { GRID_MS, PLANNING_HORIZON_DAYS, planningHorizonEnd } from "./time";
+import { DAY_MS, GRID_MS, PLANNING_HORIZON_DAYS, planningHorizonEnd } from "./time";
 import { DEFAULT_SETTINGS, validateSettings, type Settings, type SettingsUpdate, type UpdateSettingsResult } from "./settings";
 import {
   compareTasks,
@@ -118,7 +118,7 @@ import {
   type UpdateTaskResult,
 } from "./tasks";
 
-const SESSION_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
+const SESSION_LIFETIME_MS = 30 * DAY_MS;
 
 export { DYNACAL_CALENDAR_NAME } from "./events";
 

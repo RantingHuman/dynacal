@@ -1,7 +1,7 @@
 import type { WorkingHours } from "./settings";
 import { PRIORITIES, type DateOrDateTime, type Priority } from "./tasks";
 import { addDays, fromZoned, toZoned, weekdayOf } from "./time-zone";
-import { DAY_MS, GRID_MS, MINUTE_MS, type Interval } from "./time";
+import { DAY_MINUTES, DAY_MS, GRID_MS, MINUTE_MS, type Interval } from "./time";
 
 /**
  * The scheduler (seam 1): a deterministic pure function from everything that shapes the Schedule
@@ -70,7 +70,7 @@ function minutesOf(time: string): number {
 export function resolveDeadline(value: DateOrDateTime, timeZone: string, workingHours: WorkingHours): Date {
   if (value.time !== null) return fromZoned({ date: value.date, minutes: minutesOf(value.time) }, timeZone);
   const ends = workingHours[weekdayOf(value.date)].map((w) => w.end);
-  return fromZoned({ date: value.date, minutes: ends.length ? Math.max(...ends) : 24 * 60 }, timeZone);
+  return fromZoned({ date: value.date, minutes: ends.length ? Math.max(...ends) : DAY_MINUTES }, timeZone);
 }
 
 /** An Earliest Start as an instant: a date only means the start of that day's Working Hours (or of the day, if it has none). */

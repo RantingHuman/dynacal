@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import type { BusyOverride, EventRef } from "@/core/busy-override";
 import { formatMinutes, type WorkingHours } from "@/core/settings";
-import { GRID_MINUTES, MINUTE_MS } from "@/core/time";
+import { DAY_MINUTES, GRID_MINUTES, MINUTE_MS } from "@/core/time";
 import { addDays, fromZoned, toZoned, weekdayOf } from "@/core/time-zone";
 import { moveBlock, recalculate } from "./actions";
 import { BlockEditor, moveError } from "./block-editor";
@@ -12,7 +12,7 @@ import dynacalStyles from "./dynacal-events.module.css";
 import { EventDetails } from "./event-details";
 import detailStyles from "./event-details.module.css";
 import freeStyles from "./free-events.module.css";
-import { useNewEvent } from "./new-event";
+import { NEW_EVENT_MS, useNewEvent } from "./new-event";
 import styles from "./pinning.module.css";
 
 /** A Block as sent to the browser: instants as ISO strings. */
@@ -107,7 +107,7 @@ function placeOnDays<T extends { start: string; end: string }>(items: T[], days:
     for (const day of days) {
       if (day < start.date || day > end.date) continue;
       const top = day === start.date ? start.minutes : 0;
-      const bottom = day === end.date ? end.minutes : 24 * 60;
+      const bottom = day === end.date ? end.minutes : DAY_MINUTES;
       if (bottom > top) byDay.get(day)!.push({ item, top, bottom });
     }
   }
@@ -300,7 +300,7 @@ export function Calendar({
     const start = fromZoned({ date: day, minutes }, timeZone);
     newEvent.open({
       start: start.toISOString(),
-      end: new Date(start.getTime() + 60 * MINUTE_MS).toISOString(),
+      end: new Date(start.getTime() + NEW_EVENT_MS).toISOString(),
     });
   }
 

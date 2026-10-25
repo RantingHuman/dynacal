@@ -1,4 +1,4 @@
-import { GRID_MINUTES } from "./time";
+import { DAY_MINUTES, GRID_MINUTES } from "./time";
 
 export const WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
 export type Weekday = (typeof WEEKDAYS)[number];
@@ -61,7 +61,6 @@ export function formatMinutes(minutes: number): string {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
-export const DAY_MINUTES = 24 * 60;
 
 function formatWindow({ start, end }: TimeWindow): string {
   return `${formatMinutes(start)}–${formatMinutes(end)}`;

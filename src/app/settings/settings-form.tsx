@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { DAY_MINUTES, WEEKDAYS, formatMinutes, type Settings, type SettingsErrors, type TimeWindow, type Weekday } from "@/core/settings";
+import { WEEKDAYS, formatMinutes, type Settings, type SettingsErrors, type TimeWindow, type Weekday } from "@/core/settings";
+import { DAY_MINUTES } from "@/core/time";
 import { saveSettings } from "./actions";
 import { CopyTo } from "./copy-to";
 
