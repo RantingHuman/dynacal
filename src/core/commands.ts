@@ -39,13 +39,13 @@ import {
   settings,
   tasks,
 } from "./db/schema";
-import { planBlockEventWrites, type WantedBlockEvent } from "./block-events";
+import { blockCalendarEvent, planBlockEventWrites, type WantedBlockEvent } from "./block-events";
 import { countsAsBusy, eventInterval, eventsFingerprint } from "./events";
 import { validatePushSubscription, type PushSender, type PushSubscriptionInput, type SubscribeToPushResult } from "./push";
 import { isHttps } from "./urls";
 import { validateBlockTime, type MoveBlockResult, type UnpinBlockResult } from "./pinning";
 import { dueReminders, reminderKey, reminderMessage } from "./reminders";
-import { editWindow, readGoogleEdit } from "./google-edits";
+import { blockEventsInGoogle, editWindow, readGoogleEdit } from "./google-edits";
 import { channelExpiry, planChannels } from "./push-channels";
 import { remainingByTask, schedulerTasks } from "./scheduler-input";
 import {
@@ -428,22 +428,21 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     for (const { eventId, blockId } of writes.relink) relink(eventId, blockId);
     // Each write is recorded as soon as Google has it, so a failure part-way leaves an accurate record.
     for (const event of writes.delete) {
-      await calendar.deleteBlockEvent(calendarId, event.eventId);
+      await calendar.deleteDynacalCalendarEvent(calendarId, event.eventId);
       forget(event.eventId);
     }
     for (const { eventId, event } of writes.update) {
-      const { taskId: _taskId, blockId: _blockId, ...blockEvent } = event;
-      if ((await calendar.updateBlockEvent(calendarId, eventId, blockEvent)) === "updated") {
+      const inCalendar = blockCalendarEvent(event.taskId, event);
+      if ((await calendar.updateDynacalCalendarEvent(calendarId, eventId, inCalendar)) === "updated") {
         record(eventId, event);
       } else {
         // The owner deleted it in Google; write it again.
         forget(eventId);
-        record(await calendar.createBlockEvent(calendarId, blockEvent), event);
+        record(await calendar.createDynacalCalendarEvent(calendarId, inCalendar), event);
       }
     }
     for (const event of writes.create) {
-      const { taskId: _taskId, blockId: _blockId, ...blockEvent } = event;
-      record(await calendar.createBlockEvent(calendarId, blockEvent), event);
+      record(await calendar.createDynacalCalendarEvent(calendarId, blockCalendarEvent(event.taskId, event)), event);
     }
     // An in-progress Block cut short (its Task completed part-way through) ends early in Google too.
     const inProgress = db
@@ -461,7 +460,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       if (!block || block.end >= written.end) continue;
       const { title, start, reminderMinutes } = written;
       const event = { title, start, end: block.end, reminderMinutes };
-      if ((await calendar.updateBlockEvent(calendarId, written.eventId, event)) === "updated") {
+      if ((await calendar.updateDynacalCalendarEvent(calendarId, written.eventId, blockCalendarEvent(written.taskId, event))) === "updated") {
         record(written.eventId, { ...event, taskId: written.taskId, blockId: block.id });
       } else {
         forget(written.eventId);
@@ -531,7 +530,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     const calendarId = dynacalCalendarId();
     if (calendarId === null) return false;
     const now = clock.now();
-    const inGoogle = new Map((await calendar.listBlockEvents(calendarId, editWindow(now))).map((e) => [e.id, e]));
+    const inGoogle = blockEventsInGoogle(await calendar.listDynacalCalendarEvents(calendarId, editWindow(now)));
     const recorded = db
       .select()
       .from(blockEvents)
@@ -554,7 +553,11 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       }
       if (edit.restoreContent && event) {
         const { title, reminderMinutes } = record;
-        await calendar.updateBlockEvent(calendarId, record.eventId, { title, reminderMinutes, start: event.start, end: event.end });
+        await calendar.updateDynacalCalendarEvent(
+          calendarId,
+          record.eventId,
+          blockCalendarEvent(record.taskId, { title, reminderMinutes, start: event.start, end: event.end }),
+        );
       }
       if (edit.movedTo === null) continue;
       const to = edit.movedTo;
