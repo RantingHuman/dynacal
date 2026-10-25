@@ -12,12 +12,23 @@ import {
 } from "./completion";
 import type { Db } from "./db";
 import {
+  markBroken,
+  markHealthy,
+  readBusyCalendarsChosenAt,
+  readConnection,
+  readDynacalCalendarId,
+  saveBusyCalendarsChosenAt,
+  saveDynacalCalendarId,
+  saveGrant,
+  type GoogleConnectionView,
+  type GoogleGrant,
+} from "./google-connection";
+import {
   blockEvents,
   blocks,
   busyCalendars,
   calendarWatches,
   events,
-  googleConnection,
   declinedTimes,
   pushSubscriptions,
   remindersSent,
@@ -64,13 +75,7 @@ export interface CommandDeps {
   calendar: CalendarGateway;
 }
 
-/** What Google handed over when the owner connected their calendar. */
-export interface GoogleGrant {
-  email: string;
-  refreshToken: string;
-  accessToken: string;
-  accessTokenExpiresAt: Date;
-}
+export type { GoogleConnectionView, GoogleGrant } from "./google-connection";
 
 export type ConnectGoogleResult = { ok: true } | { ok: false; reason: "not-owner" };
 
@@ -85,12 +90,6 @@ export interface SetupStatus {
 export type SyncEventsResult =
   | { ok: true; recalculated: boolean }
   | { ok: false; reason: "not-connected" | "connection-broken" };
-
-/** The Google Calendar connection. While it's broken, automatic Recalculation is paused until the owner reconnects. */
-export type GoogleConnectionView =
-  | { status: "not-connected" }
-  | { status: "connected"; email: string }
-  | { status: "broken"; email: string };
 
 export type WatchCalendarsResult =
   | { ok: true }
@@ -236,13 +235,11 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
   const calendar = watchConnectionHealth(gateway, markConnectionBroken);
 
   function markConnectionBroken(): void {
-    db.update(googleConnection).set({ brokenAt: clock.now() }).where(eq(googleConnection.id, 1)).run();
+    markBroken(db, clock.now());
   }
 
   function getGoogleConnection(): GoogleConnectionView {
-    const row = db.select().from(googleConnection).get();
-    if (!row) return { status: "not-connected" };
-    return row.brokenAt === null ? { status: "connected", email: row.email } : { status: "broken", email: row.email };
+    return readConnection(db);
   }
 
   function getSettings(): Settings {
@@ -348,13 +345,12 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
    * primary calendar on connecting, count as having chosen.
    */
   function busyCalendarsChosen(): boolean {
-    const row = db.select({ chosenAt: googleConnection.busyCalendarsChosenAt }).from(googleConnection).get();
-    return (row?.chosenAt ?? null) !== null || db.select().from(busyCalendars).get() !== undefined;
+    return readBusyCalendarsChosenAt(db) !== null || db.select().from(busyCalendars).get() !== undefined;
   }
 
   /** The ID of the calendar dynacal writes Blocks to, once Google is connected. */
   function dynacalCalendarId(): string | null {
-    return db.select({ id: googleConnection.dynacalCalendarId }).from(googleConnection).get()?.id ?? null;
+    return readDynacalCalendarId(db);
   }
 
   /**
@@ -369,7 +365,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       (await calendar.createCalendar(DYNACAL_CALENDAR_NAME)).id;
     if (id === recorded) return;
     db.transaction((tx) => {
-      tx.update(googleConnection).set({ dynacalCalendarId: id }).run();
+      saveDynacalCalendarId(tx, id);
       // Events written to a calendar that's gone are gone with it; a reused calendar's events aren't known.
       tx.delete(blockEvents).run();
       tx.delete(busyCalendars).where(eq(busyCalendars.calendarId, id)).run();
@@ -803,22 +799,10 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     async connectGoogle(grant: GoogleGrant): Promise<ConnectGoogleResult> {
       const email = grant.email.trim().toLowerCase();
       if (email !== owner) return { ok: false, reason: "not-owner" };
-      const row = {
-        email,
-        refreshToken: grant.refreshToken,
-        accessToken: grant.accessToken,
-        accessTokenExpiresAt: grant.accessTokenExpiresAt,
-        connectedAt: clock.now(),
-      };
-      // Not healthy until Google has answered with the new credentials: a first connection starts out broken,
-      // and a broken one stays so.
-      db.insert(googleConnection)
-        .values({ id: 1, ...row, brokenAt: clock.now() })
-        .onConflictDoUpdate({ target: googleConnection.id, set: row })
-        .run();
+      saveGrant(db, email, grant, clock.now());
       const calendars = await calendar.listCalendars();
-      // Connecting again is how the owner mends a broken connection.
-      db.update(googleConnection).set({ brokenAt: null }).run();
+      // Google has answered, so the connection is healthy: reconnecting is how the owner mends a broken one.
+      markHealthy(db);
       await ensureDynacalCalendar(calendars);
       await readEvents();
       // Edits the owner made in Google while disconnected come first, so the Recalculation keeps them.
@@ -846,7 +830,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       db.transaction((tx) => {
         tx.delete(busyCalendars).run();
         for (const calendarId of new Set(calendarIds)) tx.insert(busyCalendars).values({ calendarId }).run();
-        tx.update(googleConnection).set({ busyCalendarsChosenAt: clock.now() }).run();
+        saveBusyCalendarsChosenAt(tx, clock.now());
       });
       await readEvents();
       recalculateAutomatically();
@@ -939,7 +923,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
 
     /** First-run setup: connect Google (and choose Busy Calendars), then set Working Hours and time zone. */
     getSetupStatus(): SetupStatus {
-      const googleConnected = db.select({ id: googleConnection.id }).from(googleConnection).get() !== undefined;
+      const googleConnected = getGoogleConnection().status !== "not-connected";
       const chosen = busyCalendarsChosen();
       const timeZoneSaved = getSettings().timeZone !== null;
       return {

@@ -1,5 +1,4 @@
 import { OAuth2RequestError, type Google } from "arctic";
-import { eq } from "drizzle-orm";
 import {
   CalendarAuthError,
   type BlockEvent,
@@ -11,7 +10,7 @@ import {
 } from "@/core/calendar-gateway";
 import type { Clock } from "@/core/clock";
 import type { Db } from "@/core/db";
-import { googleConnection } from "@/core/db/schema";
+import { readTokens, saveTokens } from "@/core/google-connection";
 import type { Interval } from "@/core/time";
 
 const API = "https://www.googleapis.com/calendar/v3";
@@ -35,7 +34,7 @@ export function createGoogleCalendarGateway({
 }): CalendarGateway {
   /** A usable access token, refreshing it with the refresh token when it has expired (or `force` is set). */
   async function accessToken(force = false): Promise<string> {
-    const connection = db.select().from(googleConnection).where(eq(googleConnection.id, 1)).get();
+    const connection = readTokens(db);
     if (!connection) throw new CalendarAuthError("Google Calendar isn't connected.");
     const fresh =
       connection.accessToken &&
@@ -51,15 +50,12 @@ export function createGoogleCalendarGateway({
       if (error instanceof OAuth2RequestError) throw new CalendarAuthError(`Google refused to refresh access: ${error.code}`);
       throw error;
     }
-    db.update(googleConnection)
-      .set({
-        accessToken: tokens.accessToken(),
-        accessTokenExpiresAt: tokens.accessTokenExpiresAt(),
-        // Google normally keeps the same refresh token, but may rotate it.
-        ...(tokens.hasRefreshToken() ? { refreshToken: tokens.refreshToken() } : {}),
-      })
-      .where(eq(googleConnection.id, 1))
-      .run();
+    saveTokens(db, {
+      accessToken: tokens.accessToken(),
+      accessTokenExpiresAt: tokens.accessTokenExpiresAt(),
+      // Google normally keeps the same refresh token, but may rotate it.
+      ...(tokens.hasRefreshToken() ? { refreshToken: tokens.refreshToken() } : {}),
+    });
     return tokens.accessToken();
   }
 

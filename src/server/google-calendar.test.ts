@@ -2,7 +2,7 @@ import { Google } from "arctic";
 import { describe, expect, it } from "vitest";
 import { CalendarAuthError } from "@/core/calendar-gateway";
 import { openDatabase } from "@/core/db";
-import { googleConnection } from "@/core/db/schema";
+import { saveGrant } from "@/core/google-connection";
 import { FakeClock } from "@/core/testing";
 import { createGoogleCalendarGateway } from "./google-calendar";
 
@@ -12,16 +12,13 @@ import { createGoogleCalendarGateway } from "./google-calendar";
 function gatewayAnswering(status: number, reason: string) {
   const db = openDatabase(":memory:");
   const clock = new FakeClock();
-  db.insert(googleConnection)
-    .values({
-      id: 1,
-      email: "owner@example.com",
-      refreshToken: "refresh-token",
-      accessToken: "access-token",
-      accessTokenExpiresAt: new Date(clock.now().getTime() + 60 * 60_000),
-      connectedAt: clock.now(),
-    })
-    .run();
+  const grant = {
+    email: "owner@example.com",
+    refreshToken: "refresh-token",
+    accessToken: "access-token",
+    accessTokenExpiresAt: new Date(clock.now().getTime() + 60 * 60_000),
+  };
+  saveGrant(db, grant.email, grant, clock.now());
   const fetch = (async () =>
     new Response(JSON.stringify({ error: { code: status, message: reason, errors: [{ domain: "global", reason }] } }), {
       status,
