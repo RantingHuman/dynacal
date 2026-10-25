@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { DAY_MINUTES, WEEKDAYS, formatMinutes, type Settings, type SettingsErrors, type TimeWindow, type Weekday } from "@/core/settings";
 import { saveSettings } from "./actions";
+import { CopyTo } from "./copy-to";
 
 const DAY_NAMES: Record<Weekday, string> = {
   mon: "Monday",
@@ -54,6 +55,7 @@ export function SettingsForm({
   const [status, setStatus] = useState<"idle" | "saved">("idle");
   const [timeZones, setTimeZones] = useState<string[]>([]);
   const [saving, startSaving] = useTransition();
+  const [copyingFrom, setCopyingFrom] = useState<Weekday | null>(null);
 
   useEffect(() => {
     setTimeZones(Intl.supportedValuesOf("timeZone"));
@@ -67,6 +69,14 @@ export function SettingsForm({
 
   function updateDay(day: Weekday, windows: TimeWindow[]) {
     update({ workingHours: { ...settings.workingHours, [day]: windows } });
+  }
+
+  /** Replaces the target days' windows with copies of the source day's; the form stays unsaved. */
+  function copyDay(source: Weekday, targets: Weekday[]) {
+    const workingHours = { ...settings.workingHours };
+    for (const day of targets) workingHours[day] = settings.workingHours[source].map((w) => ({ ...w }));
+    update({ workingHours });
+    setCopyingFrom(null);
   }
 
   function save(event: React.FormEvent) {
@@ -138,6 +148,22 @@ export function SettingsForm({
               >
                 Add window
               </button>
+              <button
+                type="button"
+                className="link"
+                aria-expanded={copyingFrom === day}
+                onClick={() => setCopyingFrom(copyingFrom === day ? null : day)}
+              >
+                Copy to…
+              </button>
+              {copyingFrom === day && (
+                <CopyTo
+                  source={day}
+                  dayNames={DAY_NAMES}
+                  onCopy={(targets) => copyDay(day, targets)}
+                  onClose={() => setCopyingFrom(null)}
+                />
+              )}
               {errors.workingHours?.[day] && <span className="field-error">{errors.workingHours[day]}</span>}
             </div>
           </div>
