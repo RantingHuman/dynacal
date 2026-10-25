@@ -152,6 +152,10 @@ export interface EventView {
   start: Date;
   end: Date;
   allDay: boolean;
+  /** A Free Event: marked Free (not busy) in its own calendar. */
+  free: boolean;
+  /** Whether dynacal counts it as busy time; one that doesn't is still shown, but Blocks may be placed over it. */
+  countsAsBusy: boolean;
 }
 
 /** A Block as the UI shows it. */
@@ -174,10 +178,10 @@ export type ScheduleView =
       /** The Planning Horizon: from now until this many days ahead. */
       horizon: { start: Date; end: Date };
       blocks: BlockView[];
-      /** Events that count as busy time, in time order. */
+      /** Every Event on the Busy Calendars, whether or not it counts as busy, in time order. */
       events: EventView[];
       flags: Record<string, TaskFlag | null>;
-      /** Events overlapping Pinned Blocks that haven't ended, for the owner to resolve. */
+      /** Events that count as busy overlapping Pinned Blocks that haven't ended, for the owner to resolve. */
       conflicts: { blockId: string; eventId: string }[];
     };
 
@@ -1073,8 +1077,14 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       );
       const blockViews = rows.map(toBlockView);
       const eventViews: EventView[] = cachedEvents()
-        .filter((e) => countsAsBusy(e, current))
-        .map((e) => ({ id: `${e.calendarId}/${e.id}`, title: e.title, allDay: e.allDay, ...eventInterval(e, timeZone) }))
+        .map((e) => ({
+          id: `${e.calendarId}/${e.id}`,
+          title: e.title,
+          allDay: e.allDay,
+          free: e.free,
+          countsAsBusy: countsAsBusy(e, current),
+          ...eventInterval(e, timeZone),
+        }))
         .sort((a, b) => a.start.getTime() - b.start.getTime());
       const pinnedAhead = blockViews.filter((b) => b.pinned && b.end > now);
       return {
@@ -1084,7 +1094,10 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         blocks: blockViews,
         events: eventViews,
         flags,
-        conflicts: findConflicts(pinnedAhead, eventViews).map(({ block, event }) => ({
+        conflicts: findConflicts(
+          pinnedAhead,
+          eventViews.filter((e) => e.countsAsBusy),
+        ).map(({ block, event }) => ({
           blockId: block.id,
           eventId: event.id,
         })),

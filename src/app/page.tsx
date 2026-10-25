@@ -77,6 +77,7 @@ export default async function HomePage() {
                 allDay: e.allDay,
                 start: e.start.toISOString(),
                 end: e.end.toISOString(),
+                countsAsBusy: e.countsAsBusy,
               }))}
               conflicts={scheduleView.conflicts}
               workingHours={commands.getSettings().workingHours}

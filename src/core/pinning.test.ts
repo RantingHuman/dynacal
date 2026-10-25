@@ -214,6 +214,22 @@ describe("Conflicts", () => {
     expect(blocks(app)).toEqual([["Report", at("13:30"), at("14:30"), true]]);
   });
 
+  it("flags a Free Event overlapping a Pinned Block only once it counts as busy", async () => {
+    const app = await appWithMeeting();
+    const flight = app.calendar.addEvent("work", { title: "Flight", free: true, start: at("16:00"), end: at("18:00") });
+    await app.commands.syncEvents();
+    createTask(app, { title: "Report" });
+    const id = blockOf(app, "Report").id;
+
+    app.commands.moveBlock(id, { start: at("16:30"), end: at("17:30") });
+
+    expect(view(app).conflicts).toEqual([]);
+
+    app.commands.updateSettings({ countFreeEvents: true });
+
+    expect(view(app).conflicts).toEqual([{ blockId: id, eventId: `work/${flight}` }]);
+  });
+
   it("flags a Conflict when an Event arrives on top of a Pinned Block, and clears it when the Event moves away", async () => {
     const app = await appWithMeeting();
     createTask(app, { title: "Report" });

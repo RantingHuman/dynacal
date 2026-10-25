@@ -64,7 +64,7 @@ function blocks(app: App) {
 function events(app: App) {
   const view = app.commands.getSchedule();
   if (view.status !== "ready") throw new Error(`Schedule not ready: ${view.status}`);
-  return view.events.map((e) => [e.title, e.start, e.end, e.allDay]);
+  return view.events.map((e) => [e.title, e.start, e.end, e.allDay, e.free, e.countsAsBusy]);
 }
 
 describe("connecting Google", () => {
@@ -260,19 +260,33 @@ describe("Events on Busy Calendars", () => {
     expect(blocks(app)).toEqual([["Write report", at("01:00", "2026-01-07"), at("02:00", "2026-01-07")]]);
   });
 
-  it("that count as busy are shown alongside the Schedule", async () => {
+  it("are all shown alongside the Schedule, each marked Free or not and whether it counts as busy", async () => {
     const app = appInLondonWithCalendars();
     app.calendar.addEvent("work", { title: "Standup", start: at("09:00"), end: at("09:30") });
-    app.calendar.addEvent("work", { title: "Optional talk", free: true, start: at("12:00"), end: at("13:00") });
+    app.calendar.addEvent("work", { title: "Flight", free: true, start: at("12:00"), end: at("13:00") });
     app.calendar.addEvent("work", { title: "Holiday", startDate: "2026-01-06", endDate: "2026-01-07" });
     await connect(app);
-    expect(events(app)).toEqual([["Standup", at("09:00"), at("09:30"), false]]);
+    // [title, start, end, all-day, Free in its calendar, counts as busy]
+    expect(events(app)).toEqual([
+      ["Standup", at("09:00"), at("09:30"), false, false, true],
+      ["Flight", at("12:00"), at("13:00"), false, true, false],
+      ["Holiday", at("00:00", "2026-01-06"), at("00:00", "2026-01-07"), true, false, false],
+    ]);
 
     app.commands.updateSettings({ countAllDayEvents: true });
 
     expect(events(app)).toEqual([
-      ["Standup", at("09:00"), at("09:30"), false],
-      ["Holiday", at("00:00", "2026-01-06"), at("00:00", "2026-01-07"), true],
+      ["Standup", at("09:00"), at("09:30"), false, false, true],
+      ["Flight", at("12:00"), at("13:00"), false, true, false],
+      ["Holiday", at("00:00", "2026-01-06"), at("00:00", "2026-01-07"), true, false, true],
+    ]);
+
+    app.commands.updateSettings({ countFreeEvents: true });
+
+    expect(events(app)).toEqual([
+      ["Standup", at("09:00"), at("09:30"), false, false, true],
+      ["Flight", at("12:00"), at("13:00"), false, true, true],
+      ["Holiday", at("00:00", "2026-01-06"), at("00:00", "2026-01-07"), true, false, true],
     ]);
   });
 
