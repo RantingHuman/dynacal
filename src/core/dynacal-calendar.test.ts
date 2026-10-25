@@ -71,6 +71,7 @@ describe("the dynacal calendar", () => {
     expect(await app.commands.getGoogleCalendars()).toEqual({
       status: "connected",
       email: "owner@example.com",
+      busyCalendarsChosen: false,
       calendars: [{ id: "work", name: "Work", primary: true, busy: true }],
     });
   });
@@ -102,6 +103,7 @@ describe("the dynacal calendar", () => {
 /** Connects Google and returns the dynacal calendar's ID. */
 async function connect(app: App): Promise<string> {
   await app.commands.connectGoogle(grant);
+  await app.commands.setBusyCalendars(["work"]);
   return (await app.calendar.listCalendars()).find((c) => c.name === "dynacal")!.id;
 }
 

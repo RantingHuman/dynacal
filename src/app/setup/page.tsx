@@ -17,7 +17,7 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
       <p className="muted">Three steps, and dynacal can start planning your Tasks around your calendar.</p>
 
       <ol className="setup-steps">
-        <li className={status.googleConnected ? "done" : undefined}>
+        <li className={status.googleConnected && status.busyCalendarsChosen ? "done" : undefined}>
           <h2>Connect Google Calendar and choose Busy Calendars</h2>
           <GoogleCalendarSection from="setup" error={google} />
         </li>
@@ -33,7 +33,11 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
             </a>
           ) : (
             <p className="muted">
-              {status.googleConnected ? "Save your Working Hours and time zone to finish." : "Connect Google Calendar to finish."}
+              {!status.googleConnected
+                ? "Connect Google Calendar to finish."
+                : !status.busyCalendarsChosen
+                  ? "Confirm your Busy Calendars to finish."
+                  : "Save your Working Hours and time zone to finish."}
             </p>
           )}
         </li>

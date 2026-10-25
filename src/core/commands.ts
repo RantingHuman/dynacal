@@ -76,6 +76,8 @@ export type ConnectGoogleResult = { ok: true } | { ok: false; reason: "not-owner
 
 export interface SetupStatus {
   googleConnected: boolean;
+  /** The owner has saved their Busy Calendars at least once (the primary calendar is only a suggestion until then). */
+  busyCalendarsChosen: boolean;
   timeZoneSaved: boolean;
   complete: boolean;
 }
@@ -110,11 +112,19 @@ export type ReceiveCalendarNotificationResult = { ok: true } | { ok: false; reas
 
 export type SetBusyCalendarsResult = { ok: true } | { ok: false; errors: { busyCalendars: string } };
 
-/** The owner's Google calendars, each marked with whether it's a Busy Calendar. */
+/**
+ * The owner's Google calendars, each marked with whether it's a Busy Calendar. Until the owner first saves a
+ * choice (`busyCalendarsChosen` false), `busy` is only a suggestion: their primary calendar.
+ */
 export type GoogleCalendarsView =
   | { status: "not-connected" }
   | { status: "broken"; email: string }
-  | { status: "connected"; email: string; calendars: (GoogleCalendar & { busy: boolean })[] };
+  | {
+      status: "connected";
+      email: string;
+      busyCalendarsChosen: boolean;
+      calendars: (GoogleCalendar & { busy: boolean })[];
+    };
 
 /** The identity Google vouched for at the end of the OAuth flow. */
 export interface GoogleIdentity {
@@ -328,6 +338,15 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       }
     });
     return changed;
+  }
+
+  /**
+   * Whether the owner has chosen their Busy Calendars. Installs from before this was recorded, which saved the
+   * primary calendar on connecting, count as having chosen.
+   */
+  function busyCalendarsChosen(): boolean {
+    const row = db.select({ chosenAt: googleConnection.busyCalendarsChosenAt }).from(googleConnection).get();
+    return (row?.chosenAt ?? null) !== null || db.select().from(busyCalendars).get() !== undefined;
   }
 
   /** The ID of the calendar dynacal writes Blocks to, once Google is connected. */
@@ -774,7 +793,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
 
     /**
      * Stores the owner's Google Calendar connection. Only the owner's own Google account may be connected.
-     * On the first connection, their primary calendar becomes a Busy Calendar.
+     * Busy Calendars are left to the owner to choose (the primary calendar is suggested, not saved).
      */
     async connectGoogle(grant: GoogleGrant): Promise<ConnectGoogleResult> {
       const email = grant.email.trim().toLowerCase();
@@ -795,10 +814,6 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       const calendars = await calendar.listCalendars();
       // Connecting again is how the owner mends a broken connection.
       db.update(googleConnection).set({ brokenAt: null }).run();
-      if (!db.select().from(busyCalendars).get()) {
-        const primary = calendars.find((c) => c.primary);
-        if (primary) db.insert(busyCalendars).values({ calendarId: primary.id }).run();
-      }
       await ensureDynacalCalendar(calendars);
       await readEvents();
       // Edits the owner made in Google while disconnected come first, so the Recalculation keeps them.
@@ -826,6 +841,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       db.transaction((tx) => {
         tx.delete(busyCalendars).run();
         for (const calendarId of new Set(calendarIds)) tx.insert(busyCalendars).values({ calendarId }).run();
+        tx.update(googleConnection).set({ busyCalendarsChosenAt: clock.now() }).run();
       });
       await readEvents();
       recalculateAutomatically();
@@ -919,8 +935,14 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     /** First-run setup: connect Google (and choose Busy Calendars), then set Working Hours and time zone. */
     getSetupStatus(): SetupStatus {
       const googleConnected = db.select({ id: googleConnection.id }).from(googleConnection).get() !== undefined;
+      const chosen = busyCalendarsChosen();
       const timeZoneSaved = getSettings().timeZone !== null;
-      return { googleConnected, timeZoneSaved, complete: googleConnected && timeZoneSaved };
+      return {
+        googleConnected,
+        busyCalendarsChosen: chosen,
+        timeZoneSaved,
+        complete: googleConnected && chosen && timeZoneSaved,
+      };
     },
 
     async getGoogleCalendars(): Promise<GoogleCalendarsView> {
@@ -934,12 +956,14 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         if (error instanceof CalendarAuthError) return { status: "broken", email: connection.email };
         throw error;
       }
+      const chosen = busyCalendarsChosen();
       return {
         status: "connected",
         email: connection.email,
+        busyCalendarsChosen: chosen,
         calendars: calendars
           .filter((c) => c.id !== dynacalCalendarId())
-          .map((c) => ({ ...c, busy: busy.has(c.id) })),
+          .map((c) => ({ ...c, busy: chosen ? busy.has(c.id) : c.primary })),
       };
     },
 

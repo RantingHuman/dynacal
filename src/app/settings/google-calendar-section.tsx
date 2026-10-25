@@ -54,10 +54,10 @@ export async function GoogleCalendarSection({ from, error }: { from: "setup" | "
           </p>
           <p className="muted">
             Your Blocks are kept in a calendar called <strong>dynacal</strong> in your Google account, with a
-            reminder before each one, so your plan shows up in any Google Calendar app.
+            reminder before each one, so your Schedule shows up in any Google Calendar app.
           </p>
           <h3>Busy Calendars</h3>
-          <BusyCalendarsForm calendars={view.calendars} />
+          <BusyCalendarsForm calendars={view.calendars} chosen={view.busyCalendarsChosen} />
         </>
       )}
     </section>

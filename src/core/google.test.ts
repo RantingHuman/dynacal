@@ -21,6 +21,12 @@ function appWithCalendars() {
 
 type App = ReturnType<typeof createTestApp>;
 
+/** Connects Google and confirms the suggested primary calendar as the Busy Calendar, as the owner does in setup. */
+async function connect(app: App) {
+  await app.commands.connectGoogle(grant);
+  await app.commands.setBusyCalendars(["work"]);
+}
+
 function appInLondonWithCalendars() {
   const app = appWithCalendars();
   app.commands.updateSettings({ timeZone: "Europe/London" });
@@ -62,7 +68,7 @@ function events(app: App) {
 }
 
 describe("connecting Google", () => {
-  it("lists the owner's calendars, with their primary calendar chosen as a Busy Calendar", async () => {
+  it("lists the owner's calendars, suggesting their primary calendar as a Busy Calendar", async () => {
     const { commands } = appWithCalendars();
 
     expect(await commands.connectGoogle(grant)).toEqual({ ok: true });
@@ -70,10 +76,41 @@ describe("connecting Google", () => {
     expect(await commands.getGoogleCalendars()).toEqual({
       status: "connected",
       email: "owner@example.com",
+      busyCalendarsChosen: false,
       calendars: [
         { id: "work", name: "Work", primary: true, busy: true },
         { id: "family", name: "Family", primary: false, busy: false },
         { id: "holidays", name: "UK holidays", primary: false, busy: false },
+      ],
+    });
+  });
+
+  it("doesn't count the suggested primary calendar as busy until the owner confirms it", async () => {
+    const app = appInLondonWithCalendars();
+    app.calendar.addEvent("work", { title: "Standup", start: at("09:00"), end: at("10:00") });
+    await app.commands.connectGoogle(grant);
+    createTask(app);
+    expect(blocks(app)).toEqual([["Write report", at("09:00"), at("10:00")]]);
+
+    await app.commands.setBusyCalendars(["work"]);
+
+    expect(blocks(app)).toEqual([["Write report", at("10:00"), at("11:00")]]);
+    expect(await app.commands.getGoogleCalendars()).toMatchObject({ busyCalendarsChosen: true });
+  });
+
+  it("keeps the owner's choice of no Busy Calendars through reconnecting", async () => {
+    const { commands } = appWithCalendars();
+    await commands.connectGoogle(grant);
+    await commands.setBusyCalendars([]);
+
+    await commands.connectGoogle(grant);
+
+    expect(await commands.getGoogleCalendars()).toMatchObject({
+      busyCalendarsChosen: true,
+      calendars: [
+        { id: "work", busy: false },
+        { id: "family", busy: false },
+        { id: "holidays", busy: false },
       ],
     });
   });
@@ -90,22 +127,31 @@ describe("connecting Google", () => {
 });
 
 describe("first-run setup", () => {
-  it("is finished once Google is connected and a time zone is saved", async () => {
+  it("is finished once Google is connected, the owner has chosen Busy Calendars, and a time zone is saved", async () => {
     const { commands } = appWithCalendars();
-    expect(commands.getSetupStatus()).toEqual({ googleConnected: false, timeZoneSaved: false, complete: false });
+    const status = (googleConnected: boolean, busyCalendarsChosen: boolean, timeZoneSaved: boolean, complete: boolean) => ({
+      googleConnected,
+      busyCalendarsChosen,
+      timeZoneSaved,
+      complete,
+    });
+    expect(commands.getSetupStatus()).toEqual(status(false, false, false, false));
 
     await commands.connectGoogle(grant);
-    expect(commands.getSetupStatus()).toEqual({ googleConnected: true, timeZoneSaved: false, complete: false });
+    expect(commands.getSetupStatus()).toEqual(status(true, false, false, false));
 
     commands.updateSettings({ timeZone: "Europe/London" });
-    expect(commands.getSetupStatus()).toEqual({ googleConnected: true, timeZoneSaved: true, complete: true });
+    expect(commands.getSetupStatus()).toEqual(status(true, false, true, false));
+
+    await commands.setBusyCalendars(["work"]);
+    expect(commands.getSetupStatus()).toEqual(status(true, true, true, true));
   });
 });
 
 describe("polling Google for Event changes", () => {
   it("recalculates when an Event is added", async () => {
     const app = appInLondonWithCalendars();
-    await app.commands.connectGoogle(grant);
+    await connect(app);
     createTask(app);
     app.calendar.addEvent("work", { title: "Standup", start: at("09:00"), end: at("10:00") });
 
@@ -117,7 +163,7 @@ describe("polling Google for Event changes", () => {
   it("recalculates when an Event is moved", async () => {
     const app = appInLondonWithCalendars();
     const standup = app.calendar.addEvent("work", { title: "Standup", start: at("09:00"), end: at("10:00") });
-    await app.commands.connectGoogle(grant);
+    await connect(app);
     createTask(app);
     app.calendar.moveEvent(standup, { start: at("10:00"), end: at("11:00") });
 
@@ -129,7 +175,7 @@ describe("polling Google for Event changes", () => {
   it("recalculates when an Event is deleted", async () => {
     const app = appInLondonWithCalendars();
     const standup = app.calendar.addEvent("work", { title: "Standup", start: at("09:00"), end: at("10:00") });
-    await app.commands.connectGoogle(grant);
+    await connect(app);
     createTask(app);
     app.calendar.deleteEvent(standup);
 
@@ -142,7 +188,7 @@ describe("polling Google for Event changes", () => {
     const app = appInLondonWithCalendars();
     app.calendar.addEvent("work", { title: "Standup", start: at("09:00"), end: at("10:00") });
     app.calendar.addEvent("work", { title: "Holiday", startDate: "2026-01-06", endDate: "2026-01-07" });
-    await app.commands.connectGoogle(grant);
+    await connect(app);
 
     expect(await app.commands.syncEvents()).toEqual({ ok: true, recalculated: false });
   });
@@ -161,7 +207,7 @@ describe("Events on Busy Calendars", () => {
     createTask(app);
     expect(blocks(app)).toEqual([["Write report", at("09:00"), at("10:00")]]);
 
-    await app.commands.connectGoogle(grant);
+    await connect(app);
 
     expect(blocks(app)).toEqual([["Write report", at("10:00"), at("11:00")]]);
   });
@@ -170,7 +216,7 @@ describe("Events on Busy Calendars", () => {
     const app = appInLondonWithCalendars();
     app.calendar.addEvent("work", { title: "Standup", start: at("09:00"), end: at("10:00") });
     app.calendar.addEvent("family", { title: "School run", start: at("10:00"), end: at("11:00") });
-    await app.commands.connectGoogle(grant);
+    await connect(app);
     createTask(app);
     expect(blocks(app)).toEqual([["Write report", at("10:00"), at("11:00")]]);
 
@@ -186,7 +232,7 @@ describe("Events on Busy Calendars", () => {
   it("marked free are ignored, unless the owner chooses to count them", async () => {
     const app = appInLondonWithCalendars();
     app.calendar.addEvent("work", { title: "Office hours (optional)", free: true, start: at("09:00"), end: at("10:00") });
-    await app.commands.connectGoogle(grant);
+    await connect(app);
     createTask(app);
     expect(blocks(app)).toEqual([["Write report", at("09:00"), at("10:00")]]);
 
@@ -204,7 +250,7 @@ describe("Events on Busy Calendars", () => {
       workingHours: { mon: evening, tue: evening, wed: evening, thu: evening, fri: evening, sat: [], sun: [] },
     });
     app.calendar.addEvent("work", { title: "Offsite", startDate: "2026-01-05", endDate: "2026-01-06" });
-    await app.commands.connectGoogle(grant);
+    await connect(app);
     createTask(app);
     expect(blocks(app)).toEqual([["Write report", at("01:00", "2026-01-06"), at("02:00", "2026-01-06")]]);
 
@@ -219,7 +265,7 @@ describe("Events on Busy Calendars", () => {
     app.calendar.addEvent("work", { title: "Standup", start: at("09:00"), end: at("09:30") });
     app.calendar.addEvent("work", { title: "Optional talk", free: true, start: at("12:00"), end: at("13:00") });
     app.calendar.addEvent("work", { title: "Holiday", startDate: "2026-01-06", endDate: "2026-01-07" });
-    await app.commands.connectGoogle(grant);
+    await connect(app);
     expect(events(app)).toEqual([["Standup", at("09:00"), at("09:30"), false]]);
 
     app.commands.updateSettings({ countAllDayEvents: true });
@@ -232,7 +278,7 @@ describe("Events on Busy Calendars", () => {
 
   it("can't come from a calendar that isn't in the owner's Google account", async () => {
     const app = appInLondonWithCalendars();
-    await app.commands.connectGoogle(grant);
+    await connect(app);
 
     expect(await app.commands.setBusyCalendars(["work", "someone-elses"])).toEqual({
       ok: false,

@@ -64,15 +64,15 @@ Open `PUBLIC_BASE_URL` and choose **Sign in with Google** using the `OWNER_EMAIL
 The first time you sign in, dynacal walks you through setup:
 
 1. **Connect Google Calendar.** This is a second Google consent, separate from signing in, that grants calendar access. Connect the same `OWNER_EMAIL` account; any other account is refused. It uses the same redirect URI as sign-in, so there's nothing extra to register.
-2. **Choose your Busy Calendars**: the calendars whose Events dynacal plans around. Your primary calendar is chosen to start with.
+2. **Choose your Busy Calendars**: the calendars whose Events dynacal plans around. Your primary calendar is suggested to start with; nothing counts as busy time until you confirm your choice.
 3. **Set your Working Hours and time zone.**
 
 You can change Busy Calendars, and whether Events marked "free" or all-day Events count as busy, under **Settings** at any time. If Google access stops working, choose **Reconnect** in Settings.
 
-You can also adjust your plan from any Google Calendar app, by editing Blocks in the "dynacal" calendar:
+You can also adjust your Schedule from any Google Calendar app, by editing Blocks in the "dynacal" calendar:
 
 - **Move or resize a Block** and dynacal pins it at its new time, just as dragging it in dynacal does.
-- **Delete a Block** to say "not then": dynacal schedules that time for the Task somewhere else. The Task itself isn't deleted.
+- **Delete a Block** to decline that time for its Task: dynacal schedules the Task somewhere else and keeps it out of that time until it passes. The Task itself isn't deleted. The Task list shows these Declined Times, and you can clear one to let the Task go there again.
 - **Title and description** edits are put back at the next sync; edit the Task in dynacal instead.
 
 ## 7. Instant sync (push notifications)

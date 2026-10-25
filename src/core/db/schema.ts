@@ -70,6 +70,11 @@ export const googleConnection = sqliteTable("google_connection", {
   brokenAt: integer("broken_at", { mode: "timestamp_ms" }),
   /** The calendar dynacal owns and writes Blocks to (ADR-0002); null until it's created. */
   dynacalCalendarId: text("dynacal_calendar_id"),
+  /**
+   * When the owner last saved their Busy Calendars; null until they first do. Until then the primary calendar
+   * is only suggested, never saved. (Installs from before this column count as chosen if they have any.)
+   */
+  busyCalendarsChosenAt: integer("busy_calendars_chosen_at", { mode: "timestamp_ms" }),
 });
 
 /**

@@ -24,6 +24,7 @@ async function connectedApp(): Promise<{ app: App; dynacal: string }> {
   app.calendar.addCalendar({ id: "family", name: "Family" });
   app.commands.updateSettings({ timeZone: "Europe/London" });
   await app.commands.connectGoogle(grant);
+  await app.commands.setBusyCalendars(["work"]);
   const dynacal = (await app.calendar.listCalendars()).find((c) => c.name === "dynacal")!.id;
   return { app, dynacal };
 }

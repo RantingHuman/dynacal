@@ -23,6 +23,7 @@ async function connectedApp() {
   app.calendar.addCalendar({ id: "work", name: "Work", primary: true });
   app.commands.updateSettings({ timeZone: "Europe/London" });
   await app.commands.connectGoogle(grant);
+  await app.commands.setBusyCalendars(["work"]);
   return app;
 }
 

@@ -197,6 +197,7 @@ describe("Conflicts", () => {
       accessToken: "access-token",
       accessTokenExpiresAt: at("10:00"),
     });
+    await app.commands.setBusyCalendars(["work"]);
     return app;
   }
 

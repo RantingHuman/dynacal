@@ -1,0 +1,1 @@
+ALTER TABLE `google_connection` ADD `busy_calendars_chosen_at` integer;
