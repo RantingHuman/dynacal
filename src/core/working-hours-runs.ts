@@ -1,4 +1,4 @@
-import { WEEKDAYS, type TimeWindow, type Weekday, type WorkingHours } from "./settings";
+import { WEEKDAYS, formatMinutes, type TimeWindow, type Weekday, type WorkingHours } from "./settings";
 
 /** Adjacent days, Monday to Sunday, that share the same Working Hours windows. */
 export interface WorkingHoursRun {
@@ -42,6 +42,17 @@ const DAY_NAMES: Record<Weekday, string> = {
   sat: "Saturday",
   sun: "Sunday",
 };
+
+/** Joins items as a sentence would: "a", "a and b", "a, b and c". */
+export function andList(items: readonly string[]): string {
+  if (items.length <= 1) return items.join("");
+  return `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
+}
+
+/** A run's windows in words: "09:00–12:00 and 13:00–17:00". */
+export function runHours(windows: readonly TimeWindow[]): string {
+  return andList(windows.map((w) => `${formatMinutes(w.start)}–${formatMinutes(w.end)}`));
+}
 
 /** Names a run's days as a sentence would: "Friday", "Saturday and Sunday", "Monday to Thursday". */
 export function runDays(days: readonly Weekday[]): string {

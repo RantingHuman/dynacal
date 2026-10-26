@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_SETTINGS, type TimeWindow, type WorkingHours } from "./settings";
-import { runDays, setRunHours, workingHoursRuns } from "./working-hours-runs";
+import { runDays, runHours, setRunHours, workingHoursRuns } from "./working-hours-runs";
 
 const window = (startHour: number, endHour: number): TimeWindow => ({ start: startHour * 60, end: endHour * 60 });
 
@@ -84,6 +84,14 @@ describe("editing Working Hours by run", () => {
     const hours = setRunHours(weekdaysNineToFive, ["mon", "tue"], [window(9, 17)]);
 
     expect(hours.mon[0]).not.toBe(hours.tue[0]);
+  });
+});
+
+describe("a run's hours in words", () => {
+  it("lists one, two or more windows as a sentence would, with midnight at the end of the day as 24:00", () => {
+    expect(runHours([window(9, 17)])).toBe("09:00–17:00");
+    expect(runHours([window(9, 12), window(13, 17)])).toBe("09:00–12:00 and 13:00–17:00");
+    expect(runHours([window(6, 8), window(9, 12), window(22, 24)])).toBe("06:00–08:00, 09:00–12:00 and 22:00–24:00");
   });
 });
 
