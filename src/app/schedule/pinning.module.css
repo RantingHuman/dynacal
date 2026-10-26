@@ -1,8 +1,21 @@
 /* Pinned Blocks, Conflicts, dragging, resize handles, the Block's checkbox and the Block editor. */
 
+/*
+ * A Block you can move lifts 2px on hover. Picked up, it grows and (when moving, not resizing) tilts, and
+ * follows the pointer with no lag: only its look is animated, never its place.
+ */
 .movable {
   cursor: grab;
   touch-action: auto;
+  transition:
+    transform var(--hover) var(--expo),
+    box-shadow var(--hover) var(--expo),
+    opacity var(--base) var(--expo);
+}
+
+.movable:hover:not(.dragging) {
+  transform: translateY(-2px);
+  box-shadow: 0 3px 8px color-mix(in srgb, var(--ink) 14%, transparent);
 }
 
 .dragging {
@@ -10,6 +23,98 @@
   opacity: 0.85;
   box-shadow: 0 4px 12px color-mix(in srgb, var(--ink) 25%, transparent);
   z-index: 3;
+  transition:
+    transform var(--pick) var(--bounce),
+    box-shadow var(--pick) var(--expo);
+}
+
+.lifted {
+  transform: rotate(3deg) scale(1.07);
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--ink) 28%, transparent);
+}
+
+/* Dropped (the owner's own drop, the one delight a Block gets): a boing from the lifted pose, and a flash. */
+.dropped {
+  animation: boing var(--slow) var(--bounce);
+}
+
+.dropped::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--accent);
+  pointer-events: none;
+  animation: flash var(--rise) var(--expo) both;
+}
+
+@keyframes boing {
+  from {
+    transform: rotate(3deg) scale(1.07);
+  }
+}
+
+@keyframes flash {
+  from {
+    opacity: 0.45;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* Resized: the edge settles with a small overshoot. No tilt, no flash. */
+.resized {
+  animation: settle var(--base) var(--bounce);
+}
+
+@keyframes settle {
+  from {
+    transform: scaleY(1.04);
+  }
+}
+
+/* A refused move springs back with one small horizontal shake; the toast says why. */
+.refused {
+  animation: shake var(--base) var(--expo);
+}
+
+@keyframes shake {
+  25% {
+    transform: translateX(-4px);
+  }
+  60% {
+    transform: translateX(3px);
+  }
+}
+
+/* After a Recalculation, moved Blocks glide on the spring, one after another. Never while dragging. */
+.glide:not(.dragging) {
+  transition:
+    top var(--slow) var(--spring),
+    height var(--slow) var(--spring);
+  transition-delay: calc(var(--stagger) * var(--glide-index, 0));
+}
+
+/* A Task just completed: all of its Blocks dim together. */
+.done {
+  opacity: 0.45;
+}
+
+/* Where a New Event from clicked time will go. */
+.draft {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  border: var(--hairline) dashed var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  pointer-events: none;
+  animation: appear var(--base) var(--expo);
+}
+
+@keyframes appear {
+  from {
+    opacity: 0;
+  }
 }
 
 /* A Block or Event that has ended: faded, as it's history. */
@@ -127,13 +232,45 @@
   color: var(--accent);
 }
 
+/* Ticked: the box springs back from its press while the tick draws in, as in the Task list. */
+.check[data-ticked] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+  cursor: default;
+  animation: press var(--base) var(--bounce);
+}
+
+.check[data-ticked] path {
+  stroke-dasharray: 1;
+  animation: draw var(--base) var(--expo) both;
+}
+
+@keyframes press {
+  from {
+    transform: scale(0.85);
+  }
+}
+
+@keyframes draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
 /* A Block with a check leaves room for it beside its title. */
 .hasCheck :global(.block-title) {
   padding-right: 16px;
 }
 
-/* The Conflict strip under the calendar's heading line. */
+/* The Conflict strip under the calendar's heading line. It fades and grows to its height as it appears. */
 .conflicts {
+  interpolate-size: allow-keywords;
+  overflow: hidden;
+  animation: grow var(--base) var(--expo);
   margin: 0;
   padding: var(--space-2) var(--space-3);
   border-left: 3px solid var(--accent);
@@ -186,4 +323,12 @@
   display: flex;
   gap: var(--space-3);
   align-items: center;
+}
+
+@keyframes grow {
+  from {
+    height: 0;
+    padding-block: 0;
+    opacity: 0;
+  }
 }

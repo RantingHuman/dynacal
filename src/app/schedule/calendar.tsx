@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { addTransitionType, useCallback, useEffect, useRef, useState, useTransition, ViewTransition } from "react";
 import type { BusyOverride, EventRef } from "@/core/busy-override";
+import { movedBlocks } from "@/core/motion";
 import { formatMinutes, type WorkingHours } from "@/core/settings";
 import { DAY_MINUTES, GRID_MINUTES, MINUTE_MS } from "@/core/time";
 import { addDays, fromZoned, toZoned, weekdayOf } from "@/core/time-zone";
-import { completeTask } from "../tasks/actions";
+import { useCompletion } from "../tasks/completion";
 import { moveBlock, recalculate } from "./actions";
 import { BlockEditor, moveError } from "./block-editor";
 import calendarStyles from "./calendar.module.css";
@@ -62,6 +63,29 @@ export interface CalendarEvent {
 type View = "day" | "week";
 
 const HOUR_PX = 48;
+
+/** How long moved Blocks glide after a Recalculation, and the gap between one starting and the next (--slow, --stagger). */
+const GLIDE_MS = 600;
+const STAGGER_MS = 30;
+/** Long enough for a landing's longest part, the drop's flash (--rise). */
+const LANDING_MS = 900;
+
+/** A toast: information goes by itself, an error stays until dismissed. */
+interface Note {
+  text: string;
+  tone: "info" | "error";
+}
+
+/** How a Block just landed, for its one-off animation: a drop boings and flashes, a resize settles, a refusal shakes. */
+interface Landing {
+  id: string;
+  kind: "dropped" | "resized" | "refused";
+}
+
+/** The view-transition name that lets a Block glide to another day after a Recalculation. */
+function glideName(displayKey: string): string {
+  return `block-${displayKey.replace(/[^\w-]/g, "_")}`;
+}
 
 /** What a mouse drag on a Block is doing: moving it, or moving one of its edges. */
 type DragMode = "move" | "start" | "end";
@@ -134,27 +158,29 @@ function rangeLabel(days: string[]): string {
  * Block's details.
  */
 function BlockCheck({ block, onError }: { block: CalendarBlock; onError: (message: string) => void }) {
-  const [pending, startTransition] = useTransition();
+  const { ticked, complete } = useCompletion();
+  const done = ticked.has(block.taskId);
   const stop = (e: React.SyntheticEvent) => e.stopPropagation();
   return (
     <button
       type="button"
       className={styles.check}
-      aria-label={`Mark “${block.taskTitle}” done`}
-      title="Mark the Task done"
-      disabled={pending}
+      aria-label={done ? `“${block.taskTitle}” is done` : `Mark “${block.taskTitle}” done`}
+      title={done ? undefined : "Mark the Task done"}
+      disabled={done}
+      data-ticked={done || undefined}
       onPointerDown={stop}
       onKeyDown={stop}
       onClick={(e) => {
         e.stopPropagation();
-        startTransition(async () => {
-          const result = await completeTask(block.taskId);
+        // The same completion as the Task list's tick: its row sweeps and slides, and this Task's Blocks dim.
+        void complete(block.taskId).then((result) => {
           if (!result.ok) onError("This Task no longer exists.");
         });
       }}
     >
       <svg viewBox="0 0 16 16" aria-hidden>
-        <path d="M3.5 8.5l3 3 6-7" />
+        <path d="M3.5 8.5l3 3 6-7" pathLength={1} />
       </svg>
     </button>
   );
@@ -195,10 +221,17 @@ export function Calendar({
   const [moving, startMoving] = useTransition();
   const [editingId, setEditingId] = useState<string | null>(openBlockId ?? null);
   const [openEventId, setOpenEventId] = useState<string | null>(null);
-  const [preview, setPreview] = useState<{ id: string; start: number; end: number } | null>(null);
-  /** The message toast, e.g. why a move was refused. */
-  const [toast, setToast] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{ id: string; start: number; end: number; mode: DragMode } | null>(null);
+  /** The message toast, e.g. why a move was refused, or "Pinned at 14:00". */
+  const [toast, setToast] = useState<Note | null>(null);
   const clearToast = useCallback(() => setToast(null), []);
+  const showError = useCallback((text: string) => setToast({ text, tone: "error" }), []);
+  const [landing, setLanding] = useState<Landing | null>(null);
+  /** The Blocks as they were when Recalculate was pressed, until the moved ones have glided into place. */
+  const [glideFrom, setGlideFrom] = useState<CalendarBlock[] | null>(null);
+  /** Which way the grid last changed, so it slides (or fades) in; null until it first does. */
+  const [shift, setShift] = useState<{ n: number; way: "back" | "forward" | "view" } | null>(null);
+  const { ticked } = useCompletion();
   const drag = useRef<Drag | null>(null);
   /**
    * Set when a drag ends, and cleared only once the click that follows it has been handled, so the end of a
@@ -217,6 +250,23 @@ export function Calendar({
     setEditingId(null);
     setOpenEventId(null);
   }, [newEvent.draft]);
+
+  // A landing plays once; clearing it lets the same Block play it again next time. (The flash, the longest, is 900ms.)
+  useEffect(() => {
+    if (landing === null) return;
+    const timer = setTimeout(() => setLanding(null), LANDING_MS);
+    return () => clearTimeout(timer);
+  }, [landing]);
+
+  // A Recalculation has finished: say how many Blocks moved, and stop gliding once the last has landed.
+  const finished = !pending && glideFrom !== null;
+  const movedCount = finished ? movedBlocks(glideFrom, blocks).length : 0;
+  useEffect(() => {
+    if (!finished) return;
+    if (movedCount > 0) setToast({ text: `${movedCount} ${movedCount === 1 ? "Block" : "Blocks"} moved`, tone: "info" });
+    const timer = setTimeout(() => setGlideFrom(null), GLIDE_MS + movedCount * STAGGER_MS);
+    return () => clearTimeout(timer);
+  }, [finished, movedCount]);
 
   const conflictingBlocks = new Set(conflicts.map((c) => c.blockId));
   const conflictingEvents = new Set(conflicts.map((c) => c.eventId));
@@ -285,7 +335,7 @@ export function Calendar({
       start = Math.min(shifted(d.start, 0, minutes, timeZone), d.end - GRID_MINUTES * MINUTE_MS);
     }
     d.to = { start, end };
-    setPreview({ id: d.blockId, start, end });
+    setPreview({ id: d.blockId, start, end, mode: d.mode });
   }
 
   function endDrag(e: PointerEvent) {
@@ -306,10 +356,19 @@ export function Calendar({
     const to = { start: new Date(d.to.start).toISOString(), end: new Date(d.to.end).toISOString() };
     setToast(null);
     startMoving(async () => {
-      // A refused move snaps back (the preview goes) and says why in the toast.
+      // A refused move springs back (the preview goes) with a small shake, and says why in the toast. One that
+      // lands boings (a drop) or settles (a resize) and says where it's pinned.
       const message = moveError(await moveBlock(d.blockId, to));
-      setToast(message);
       setPreview(null);
+      if (message) {
+        setLanding({ id: d.blockId, kind: "refused" });
+        setToast({ text: message, tone: "error" });
+        return;
+      }
+      const start = formatMinutes(toZoned(new Date(d.to.start), timeZone).minutes);
+      const end = formatMinutes(toZoned(new Date(d.to.end), timeZone).minutes);
+      setLanding({ id: d.blockId, kind: d.mode === "move" ? "dropped" : "resized" });
+      setToast({ text: d.mode === "move" ? `Pinned at ${start}` : `Pinned, ${start}–${end}`, tone: "info" });
     });
   }
 
@@ -404,10 +463,36 @@ export function Calendar({
   const days = Array.from({ length: step }, (_, i) => addDays(shownFrom, i));
   const canGoBack = shownFrom > today;
   const canGoForward = shownFrom < latestStart;
+  /** Shows another day or week: the grid slides 24px the way you moved and cross-fades. */
+  const goTo = (day: string) => {
+    if (day === shownFrom) return;
+    setShift((prev) => ({ n: (prev?.n ?? 0) + 1, way: day > shownFrom ? "forward" : "back" }));
+    setAnchor(day);
+  };
   const move = (direction: 1 | -1) => {
     const next = addDays(shownFrom, direction * step);
-    setAnchor(next < today ? today : next > latestStart ? latestStart : next);
+    goTo(next < today ? today : next > latestStart ? latestStart : next);
   };
+  const switchView = (next: View) => {
+    if (next === view) return;
+    setShift((prev) => ({ n: (prev?.n ?? 0) + 1, way: "view" }));
+    setView(next);
+  };
+
+  /**
+   * Recalculate: a squiggle ripples under the button while it runs. As it finishes, the Blocks it moved glide into
+   * place one after another (on another day, through `<ViewTransition>`), and the toast says how many moved.
+   */
+  function runRecalculate() {
+    setGlideFrom(blocks);
+    setToast(null);
+    startTransition(async () => {
+      addTransitionType("recalculate");
+      await recalculate();
+    });
+  }
+  const gliding = glideFrom === null ? [] : movedBlocks(glideFrom, blocks);
+  const glideOrder = new Map(gliding.map((key, i) => [key, i]));
 
   const placedByDay = placeOnDays(shown, days, timeZone);
   const eventsByDay = placeOnDays(
@@ -421,6 +506,7 @@ export function Calendar({
     timeZone,
   );
   const hasAllDay = days.some((d) => allDayByDay.get(d)!.length > 0);
+  const draftByDay = newEvent.draft && placeOnDays([newEvent.draft], days, timeZone);
 
   // Show the hours that matter: Working Hours on the days in view and any Block or Event, at least 08:00–18:00.
   let first = 8 * 60;
@@ -458,7 +544,7 @@ export function Calendar({
             >
               ‹
             </button>
-            <button type="button" className="link" onClick={() => setAnchor(today)} disabled={shownFrom === today}>
+            <button type="button" className="link" onClick={() => goTo(today)} disabled={shownFrom === today}>
               Today
             </button>
             <button
@@ -472,21 +558,21 @@ export function Calendar({
             </button>
             <span className={calendarStyles.range}>{rangeLabel(days)}</span>
           </span>
-          <span className={`segmented ${calendarStyles.segmented}`} role="group" aria-label="Calendar view">
+          <span className={`segmented ${calendarStyles.segmented}`} data-view={view} role="group" aria-label="Calendar view">
             {(["day", "week"] as const).map((v) => (
-              <button key={v} type="button" aria-pressed={view === v} onClick={() => setView(v)}>
+              <button key={v} type="button" aria-pressed={view === v} onClick={() => switchView(v)}>
                 {v === "day" ? "Day" : "Week"}
               </button>
             ))}
           </span>
           <span className={calendarStyles.recalculate}>
-            <button
-              type="button"
-              className="link"
-              disabled={pending}
-              onClick={() => startTransition(async () => void (await recalculate()))}
-            >
+            <button type="button" className={`link ${calendarStyles.recalculateButton}`} disabled={pending} onClick={runRecalculate}>
               {pending ? "Recalculating…" : "Recalculate"}
+              {pending && (
+                <svg className={calendarStyles.ripple} viewBox="0 0 60 6" preserveAspectRatio="none" aria-hidden>
+                  <path d="M-12 3 Q -9 0, -6 3 T 0 3 T 6 3 T 12 3 T 18 3 T 24 3 T 30 3 T 36 3 T 42 3 T 48 3 T 54 3 T 60 3 T 66 3 T 72 3" />
+                </svg>
+              )}
             </button>
             {connectionBroken && <span className={calendarStyles.note}>Uses the last Events dynacal saw</span>}
           </span>
@@ -553,10 +639,14 @@ export function Calendar({
         />
       )}
 
-      <Toast message={toast} onDone={clearToast} />
+      <Toast message={toast?.text ?? null} tone={toast?.tone} onDone={clearToast} />
 
-
-      <div className="calendar-grid" style={{ gridTemplateColumns: `3.5rem repeat(${days.length}, minmax(0, 1fr))` }}>
+      <div
+        key={shift?.n ?? 0}
+        className={`calendar-grid ${calendarStyles.grid}`}
+        data-shift={shift?.way}
+        style={{ gridTemplateColumns: `3.5rem repeat(${days.length}, minmax(0, 1fr))` }}
+      >
         <div />
         {days.map((day) => (
           <div key={day} className={`calendar-day-label${day === today ? " today" : ""}`}>
@@ -612,6 +702,10 @@ export function Calendar({
                 />
               ))}
               {day === nowZoned.date && <div className="now-line" style={{ top: px(nowZoned.minutes) }} />}
+              {/* Where a New Event from clicked time will go: a faint box. */}
+              {draftByDay?.get(day)!.map(({ top, bottom }) => (
+                <div key="draft" className={styles.draft} style={{ top: px(top), height: px(bottom) - px(top) }} aria-hidden />
+              ))}
               {eventsByDay.get(day)!.map(({ item: event, top, bottom }) => {
                 const props = eventProps(
                   event,
@@ -640,51 +734,65 @@ export function Calendar({
                 const conflict = conflictingBlocks.has(block.id);
                 // A Block over an Event (one Blocks may go over, say) sits beside it, so the Event can still be selected.
                 const overEvent = eventsByDay.get(day)!.some((p) => p.top < bottom && p.bottom > top);
+                const glide = glideOrder.get(block.displayKey);
+                const landed = landing?.id === block.id ? landing.kind : null;
                 const classes = [
                   "block",
                   overEvent && detailStyles.besideEvent,
                   conflict && styles.conflict,
                   ended ? styles.past : `${styles.movable} ${styles.hasCheck}`,
                   preview?.id === block.id && styles.dragging,
+                  preview?.id === block.id && preview.mode === "move" && styles.lifted,
+                  landed && styles[landed],
+                  glide !== undefined && styles.glide,
+                  ticked.has(block.taskId) && styles.done,
                 ].filter(Boolean);
+                // Only a Block's first part carries its name: a name must be unique on the page.
+                const first = toZoned(new Date(block.start), timeZone).date === day;
                 const label = `${block.taskTitle}, ${formatMinutes(top)}–${formatMinutes(bottom)}${block.pinned ? ", Pinned Block" : ""}${conflict ? ", Conflict" : ""}`;
                 return (
-                  <div
+                  <ViewTransition
                     key={`${block.displayKey}-${day}`}
-                    className={classes.join(" ")}
-                    style={{ top: px(top), height: px(bottom) - px(top) }}
-                    title={label}
-                    aria-label={ended ? label : `${label}. Select to change its time.`}
-                    role={ended ? undefined : "button"}
-                    tabIndex={ended ? undefined : 0}
-                    onPointerDown={(e) => beginDrag(e, block, day)}
-                    onClick={(e) => {
-                      // A Block isn't empty time, so a click (or the end of a drag) on it never adds an Event.
-                      e.stopPropagation();
-                      openEditor(block);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        openEditor(block);
-                      }
-                    }}
+                    name={first ? glideName(block.displayKey) : undefined}
+                    default="none"
+                    share={{ recalculate: "block-glide", default: "none" }}
                   >
-                    {!ended && !started && <span className={`${styles.handle} ${styles.handleTop}`} data-handle="start" />}
-                    <span className="block-title">
-                      {block.pinned && (
-                        <span className={styles.pinMark} aria-hidden>
-                          ◆{" "}
-                        </span>
-                      )}
-                      {block.taskTitle}
-                    </span>
-                    <span className="block-time">
-                      {formatMinutes(top)}–{formatMinutes(bottom)}
-                    </span>
-                    {!ended && <BlockCheck block={block} onError={setToast} />}
-                    {!ended && <span className={`${styles.handle} ${styles.handleBottom}`} data-handle="end" />}
-                  </div>
+                    <div
+                      className={classes.join(" ")}
+                      style={{ top: px(top), height: px(bottom) - px(top), ["--glide-index" as string]: glide ?? 0 }}
+                      title={label}
+                      aria-label={ended ? label : `${label}. Select to change its time.`}
+                      role={ended ? undefined : "button"}
+                      tabIndex={ended ? undefined : 0}
+                      onPointerDown={(e) => beginDrag(e, block, day)}
+                      onClick={(e) => {
+                        // A Block isn't empty time, so a click (or the end of a drag) on it never adds an Event.
+                        e.stopPropagation();
+                        openEditor(block);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          openEditor(block);
+                        }
+                      }}
+                    >
+                      {!ended && !started && <span className={`${styles.handle} ${styles.handleTop}`} data-handle="start" />}
+                      <span className="block-title">
+                        {block.pinned && (
+                          <span className={styles.pinMark} aria-hidden>
+                            ◆{" "}
+                          </span>
+                        )}
+                        {block.taskTitle}
+                      </span>
+                      <span className="block-time">
+                        {formatMinutes(top)}–{formatMinutes(bottom)}
+                      </span>
+                      {!ended && <BlockCheck block={block} onError={showError} />}
+                      {!ended && <span className={`${styles.handle} ${styles.handleBottom}`} data-handle="end" />}
+                    </div>
+                  </ViewTransition>
                 );
               })}
             </div>

@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect } from "react";
+import { startTransition, useEffect, ViewTransition } from "react";
 import styles from "./floating-label.module.css";
 
 /**
  * The floating label in the corner of the screen, where Block and Event details, the New Event form and Conflict
  * resolution open, so the calendar stays in view. Escape closes it.
+ *
+ * It rises 24px and fades in as it opens (CSS), and fades out quickly as it closes: closing runs in a Transition,
+ * so its `<ViewTransition>` can show the exit. Render it as the top element of whatever opens it.
  */
 export function FloatingLabel({
   kind,
@@ -22,22 +25,24 @@ export function FloatingLabel({
 }) {
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") startTransition(onClose);
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
 
   return (
-    <aside className={styles.label} aria-labelledby={labelledBy}>
-      <div className={styles.top}>
-        <span className={styles.kind}>{kind}</span>
-        <button type="button" className={`link ${styles.close}`} onClick={onClose}>
-          Close
-        </button>
-      </div>
-      {children}
-    </aside>
+    <ViewTransition default="none" exit="label-close">
+      <aside className={styles.label} aria-labelledby={labelledBy}>
+        <div className={styles.top}>
+          <span className={styles.kind}>{kind}</span>
+          <button type="button" className={`link ${styles.close}`} onClick={() => startTransition(onClose)}>
+            Close
+          </button>
+        </div>
+        {children}
+      </aside>
+    </ViewTransition>
   );
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { startTransition, useEffect, useState, useTransition, ViewTransition } from "react";
 import { blockMinutes, canBePartlyDone, type ReviewOutcome } from "@/core/completion";
 import { formatDuration } from "@/core/tasks";
 import { reviewBlock } from "./actions";
@@ -15,19 +15,62 @@ export interface UnreviewedBlockProps {
   suggestedWorkedMinutes: number;
 }
 
+/** How long "All caught up." stays before the box fades away. */
+const CAUGHT_UP_MS = 2000;
+
 /**
  * The Unreviewed Blocks, as a quote box under the Task list: one Block at a time, asking whether its work
- * happened, with a "1 of 4 ‹ ›" pager when there are several. It disappears once all are reviewed.
+ * happened, with a "1 of 4 ‹ ›" pager when there are several. An answered card fades as the next slides in from
+ * the right. Reviewing the last one gives way to "All caught up." with a squiggle drawing under it, then the box
+ * fades out.
  */
 export function ReviewBox({ blocks, timeZone }: { blocks: UnreviewedBlockProps[]; timeZone: string }) {
   const [index, setIndex] = useState(0);
-  if (blocks.length === 0) return null;
+  // Caught up: the last Block was reviewed here (the box had some, and now has none).
+  const [had, setHad] = useState(blocks.length > 0);
+  const [stage, setStage] = useState<"reviewing" | "caught-up" | "fading" | "gone">("reviewing");
+  if (blocks.length > 0 && (!had || stage !== "reviewing")) {
+    setHad(true);
+    setStage("reviewing");
+  }
+  if (blocks.length === 0 && had && stage === "reviewing") setStage("caught-up");
+
+  useEffect(() => {
+    if (stage !== "caught-up") return;
+    const timer = setTimeout(() => setStage("fading"), CAUGHT_UP_MS);
+    return () => clearTimeout(timer);
+  }, [stage]);
+
+  if (blocks.length === 0) {
+    if (stage !== "caught-up" && stage !== "fading") return null;
+    return (
+      <section
+        className={styles.box}
+        data-fading={stage === "fading" || undefined}
+        aria-label="Unreviewed Blocks"
+        onAnimationEnd={(e) => {
+          if (stage === "fading" && e.target === e.currentTarget) setStage("gone");
+        }}
+      >
+        <p className={styles.caughtUp} role="status">
+          All caught up.
+          <svg className={styles.squiggle} viewBox="0 0 120 8" preserveAspectRatio="none" aria-hidden>
+            <path pathLength={1} d="M2 4 Q 8 0, 14 4 T 26 4 T 38 4 T 50 4 T 62 4 T 74 4 T 86 4 T 98 4 T 110 4 T 118 4" />
+          </svg>
+        </p>
+      </section>
+    );
+  }
   // A reviewed Block leaves the list, so the one after it takes its place; past the end, show the last.
   const shown = Math.min(index, blocks.length - 1);
   const block = blocks[shown];
   return (
     <section className={styles.box} aria-label="Unreviewed Blocks">
-      <ReviewQuote key={block.id} block={block} timeZone={timeZone} />
+      <ViewTransition key={block.id} default="none" enter="review-in" exit="review-out">
+        <div className={styles.card}>
+          <ReviewQuote block={block} timeZone={timeZone} />
+        </div>
+      </ViewTransition>
       {blocks.length > 1 && (
         <div className={styles.pager}>
           <button
@@ -35,7 +78,7 @@ export function ReviewBox({ blocks, timeZone }: { blocks: UnreviewedBlockProps[]
             className={styles.arrow}
             aria-label="Previous Unreviewed Block"
             disabled={shown === 0}
-            onClick={() => setIndex(shown - 1)}
+            onClick={() => startTransition(() => setIndex(shown - 1))}
           >
             ‹
           </button>
@@ -47,7 +90,7 @@ export function ReviewBox({ blocks, timeZone }: { blocks: UnreviewedBlockProps[]
             className={styles.arrow}
             aria-label="Next Unreviewed Block"
             disabled={shown === blocks.length - 1}
-            onClick={() => setIndex(shown + 1)}
+            onClick={() => startTransition(() => setIndex(shown + 1))}
           >
             ›
           </button>
