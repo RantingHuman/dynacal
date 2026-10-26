@@ -3,6 +3,7 @@
 import { useTransition } from "react";
 import type { DeclinedTimeView } from "@/core/commands";
 import { spanLabel } from "@/core/day-labels";
+import { OFFLINE_REASON, useOnline } from "../states/use-online";
 import { clearDeclinedTime } from "./actions";
 import styles from "./declined-times.module.css";
 
@@ -41,6 +42,7 @@ function DeclinedTimeRow({
   timeZone: string;
 }) {
   const [pending, startTransition] = useTransition();
+  const online = useOnline();
   const span = spanLabel(declined, timeZone);
   return (
     <li>
@@ -48,7 +50,8 @@ function DeclinedTimeRow({
       <button
         type="button"
         className="link"
-        disabled={pending}
+        disabled={pending || !online}
+        title={online ? undefined : OFFLINE_REASON}
         aria-label={`Clear the Declined Time ${span} for “${taskTitle}”`}
         onClick={() => startTransition(async () => void (await clearDeclinedTime(declined.id)))}
       >

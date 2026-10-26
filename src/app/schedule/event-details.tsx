@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import type { BusyOverride } from "@/core/busy-override";
 import { dayLabel, spanLabel } from "@/core/day-labels";
 import { addDays, toZoned } from "@/core/time-zone";
+import { OFFLINE_REASON, useOnline } from "../states/use-online";
 import { setBusyOverride } from "./actions";
 import type { CalendarEvent } from "./calendar";
 import { DynacalEventForm } from "./dynacal-event-form";
@@ -44,9 +45,11 @@ export function EventDetails({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const current: Choice = event.busyOverride ?? "follow";
+  // Offline, the Event can be read but its Busy Override not changed.
+  const online = useOnline();
 
   function choose(choice: Choice) {
-    if (choice === current) return;
+    if (choice === current || !online) return;
     setError(null);
     startTransition(async () => {
       const result = await setBusyOverride(event.ref, choice === "follow" ? null : choice);
@@ -85,7 +88,7 @@ export function EventDetails({
         <dd>{why}</dd>
       </dl>
 
-      <fieldset className={styles.override} disabled={pending}>
+      <fieldset className={styles.override} disabled={pending || !online} title={online ? undefined : OFFLINE_REASON}>
         <legend>Busy Override</legend>
         <div className="segmented" role="group" aria-label="Busy Override">
           {CHOICES.map((c) => (

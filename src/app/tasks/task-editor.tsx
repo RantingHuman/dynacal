@@ -13,6 +13,7 @@ import {
   type TaskInput,
   validateTask,
 } from "@/core/tasks";
+import { OFFLINE_REASON, useOnline } from "../states/use-online";
 import { useSlow } from "../states/use-slow";
 import { createTask, deleteTask, updateTask } from "./actions";
 import { nextSevenDays, weekdayName } from "./day-words";
@@ -52,6 +53,9 @@ export function TaskEditor({
   const [errors, setErrors] = useState<TaskErrors>({});
   const [pending, startTransition] = useTransition();
   const slow = useSlow(pending);
+  // Offline, the Task can be read but not saved or deleted.
+  const online = useOnline();
+  const offlineTitle = online ? undefined : OFFLINE_REASON;
   const section = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -65,6 +69,7 @@ export function TaskEditor({
   /** Saving shows the change in the list at once and closes the page; a refusal rolls it back with a toast. */
   function save(event: React.FormEvent) {
     event.preventDefault();
+    if (!online) return;
     const invalid = validateTask(input);
     if (invalid) return setErrors(invalid);
     onClose();
@@ -82,7 +87,7 @@ export function TaskEditor({
   }
 
   function remove() {
-    if (!task) return;
+    if (!task || !online) return;
     startTransition(async () => {
       await deleteTask(task.id);
       onClose();
@@ -197,13 +202,13 @@ export function TaskEditor({
         </dl>
 
         <div className={styles.buttons}>
-          <button className="button" type="submit" disabled={pending}>
+          <button className="button" type="submit" disabled={pending || !online} title={offlineTitle}>
             {task ? "Save" : "Add Task"}
           </button>
           <button type="button" className={styles.plain} onClick={onClose}>
             Cancel
           </button>
-          {task && <DeleteButton disabled={pending} slow={slow} onDelete={remove} />}
+          {task && <DeleteButton disabled={pending} offline={!online} slow={slow} onDelete={remove} />}
         </div>
       </form>
     </section>
@@ -320,12 +325,29 @@ function PriorityField({ value, onChange }: { value: Priority; onChange: (priori
   );
 }
 
-/** Delete asks once, in place, rather than with a browser dialog. */
-function DeleteButton({ disabled, slow, onDelete }: { disabled: boolean; slow: boolean; onDelete: () => void }) {
+/** Delete asks once, in place, rather than with a browser dialog. Offline it can't be pressed. */
+function DeleteButton({
+  disabled,
+  offline,
+  slow,
+  onDelete,
+}: {
+  disabled: boolean;
+  offline: boolean;
+  slow: boolean;
+  onDelete: () => void;
+}) {
   const [asking, setAsking] = useState(false);
+  const title = offline ? OFFLINE_REASON : undefined;
   if (!asking) {
     return (
-      <button type="button" className={`${styles.plain} ${styles.danger}`} onClick={() => setAsking(true)}>
+      <button
+        type="button"
+        className={`${styles.plain} ${styles.danger}`}
+        disabled={offline}
+        title={title}
+        onClick={() => setAsking(true)}
+      >
         Delete
       </button>
     );
@@ -333,7 +355,15 @@ function DeleteButton({ disabled, slow, onDelete }: { disabled: boolean; slow: b
   return (
     <span className={`${styles.confirm} ${styles.danger}`} role="group" aria-label="Confirm delete">
       Delete it?
-      <button type="button" className={styles.plain} data-danger disabled={disabled} onClick={onDelete} autoFocus>
+      <button
+        type="button"
+        className={styles.plain}
+        data-danger
+        disabled={disabled || offline}
+        title={title}
+        onClick={onDelete}
+        autoFocus
+      >
         {slow ? "…" : "Delete"}
       </button>
       <button type="button" className={styles.plain} onClick={() => setAsking(false)}>

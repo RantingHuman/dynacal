@@ -5,6 +5,7 @@ import { spanLabel } from "@/core/day-labels";
 import { blockMinutes, canBePartlyDone, type ReviewOutcome } from "@/core/completion";
 import { formatDuration } from "@/core/tasks";
 import { Squiggle } from "../states/squiggle";
+import { OFFLINE_REASON, useOnline } from "../states/use-online";
 import { reviewBlock } from "./actions";
 import styles from "./review-box.module.css";
 
@@ -108,8 +109,13 @@ function ReviewQuote({ block, timeZone }: { block: UnreviewedBlockProps; timeZon
   const [worked, setWorked] = useState(block.suggestedWorkedMinutes);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  // Offline, the Block can be read but not answered.
+  const online = useOnline();
+  const disabled = pending || !online;
+  const title = online ? undefined : OFFLINE_REASON;
 
   function submit(outcome: ReviewOutcome) {
+    if (!online) return;
     setError(null);
     startTransition(async () => {
       const result = await reviewBlock(block.id, outcome);
@@ -127,21 +133,28 @@ function ReviewQuote({ block, timeZone }: { block: UnreviewedBlockProps; timeZon
           {spanLabel(span, timeZone)} ({formatDuration(length)}) ·
         </span>
         <span className={styles.actions}>
-          <button type="button" className="link" disabled={pending} onClick={() => submit({ review: "done" })}>
+          <button type="button" className="link" disabled={disabled} title={title} onClick={() => submit({ review: "done" })}>
             Done
           </button>
           {canBePartlyDone(span) && (
             <button
               type="button"
               className="link"
-              disabled={pending}
+              disabled={disabled}
+              title={title}
               aria-expanded={partOpen}
               onClick={() => setPartOpen(!partOpen)}
             >
               Partly
             </button>
           )}
-          <button type="button" className="link" disabled={pending} onClick={() => submit({ review: "not-done" })}>
+          <button
+            type="button"
+            className="link"
+            disabled={disabled}
+            title={title}
+            onClick={() => submit({ review: "not-done" })}
+          >
             Not done
           </button>
         </span>
@@ -165,7 +178,7 @@ function ReviewQuote({ block, timeZone }: { block: UnreviewedBlockProps; timeZon
               onChange={(e) => setWorked(e.target.valueAsNumber)}
             />
           </label>
-          <button type="submit" className="button" disabled={pending}>
+          <button type="submit" className="button" disabled={disabled} title={title}>
             Save
           </button>
         </form>

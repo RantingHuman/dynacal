@@ -6,7 +6,7 @@ import { dateParts, dayLabel, spanLabel, weekdayName } from "@/core/day-labels";
 import { formatMinutes } from "@/core/settings";
 import { formatDuration } from "@/core/tasks";
 import { addDays, toZoned } from "@/core/time-zone";
-import { useOnline } from "../../states/use-online";
+import { OFFLINE_REASON, useOnline } from "../../states/use-online";
 import { CompleteTaskButton } from "../../tasks/complete-task-button";
 import { useTaskEditor } from "../../tasks/task-editor-slot";
 import type { CalendarBlock, CalendarConflict, CalendarEvent } from "../../schedule/calendar";
@@ -118,7 +118,13 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
     <>
       <div className={calendarStyles.heading}>
         <h2 className={calendarStyles.kicker}>The week ahead</h2>
-        <button type="button" className="link" onClick={() => newEvent.open()}>
+        <button
+          type="button"
+          className="link"
+          onClick={() => newEvent.open()}
+          disabled={!online}
+          title={online ? undefined : OFFLINE_REASON}
+        >
           + Event
         </button>
       </div>
