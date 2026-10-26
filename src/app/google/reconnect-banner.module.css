@@ -1,17 +1,17 @@
 .banner {
   margin: 1rem 1rem 0;
   padding: 0.75rem 1rem;
-  border: 1px solid var(--error-fg);
-  border-radius: 0.4rem;
-  color: var(--error-fg);
-  background: var(--error-bg);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-square);
+  color: var(--accent);
+  background: var(--card);
   display: grid;
   gap: 0.5rem;
 }
 
 .banner h2 {
   margin: 0;
-  font-size: 1rem;
+  font-size: 1.2rem;
 }
 
 .banner p {

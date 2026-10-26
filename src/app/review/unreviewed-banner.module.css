@@ -2,14 +2,14 @@
   margin: 1rem 1rem 0;
   padding: 0.75rem 1rem;
   border: 1px solid var(--accent);
-  border-radius: 0.4rem;
+  border-radius: var(--radius-square);
   display: grid;
   gap: 0.5rem;
 }
 
 .banner h2 {
   margin: 0;
-  font-size: 1rem;
+  font-size: 1.2rem;
 }
 
 .banner p {
@@ -31,7 +31,7 @@
   align-items: center;
   justify-content: space-between;
   padding-top: 0.5rem;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--rule);
 }
 
 .title {
@@ -63,10 +63,10 @@
   width: 5rem;
   font: inherit;
   padding: 0.3rem 0.4rem;
-  border: 1px solid var(--border);
-  border-radius: 0.3rem;
-  background: var(--bg);
-  color: var(--fg);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-square);
+  background: var(--card);
+  color: var(--ink);
 }
 
 .error {
