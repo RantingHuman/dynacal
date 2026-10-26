@@ -12,6 +12,7 @@ export interface Runtime {
   config: Config;
   commands: Commands;
   google: Google;
+  now: () => Date;
 }
 
 const globalForRuntime = globalThis as unknown as { dynacalRuntime?: Runtime };
@@ -41,6 +42,7 @@ export function getRuntime(): Runtime {
         calendar,
       }),
       google,
+      now: () => systemClock.now(),
     };
   }
   return globalForRuntime.dynacalRuntime;
