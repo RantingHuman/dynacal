@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] Every colour token exists for light and dark with the spec's values; no screen still uses the old blue or stock colours
 - [x] Both Instrument faces are served by dynacal itself; content uses the serif and controls the sans; nothing is smaller than 12px except the hour labels
@@ -13,3 +13,7 @@
 - [x] With reduce motion on, nothing moves anywhere in the app; changes still show
 - [x] Today's layouts are otherwise unchanged and every existing test passes
 - [ ] Checked by hand on every screen in light and dark
+
+## Comments
+
+- 2026-10-26: Built and merged on `phase-3/integration`; typecheck, tests and build pass. The unticked "checked by hand" item is still open: no one has looked at this in a browser yet, because the agents could not sign in through Google.

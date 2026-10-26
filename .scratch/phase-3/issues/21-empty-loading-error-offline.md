@@ -13,7 +13,7 @@ See spec stories 97–106 and "States", and map ticket "What do the empty, loadi
 
 **Blocked by:** 13
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] Each empty state shows its line and action
 - [x] The no-time-zone and stale-Events views look as specified, while Tasks keep working
@@ -22,3 +22,7 @@ See spec stories 97–106 and "States", and map ticket "What do the empty, loadi
 - [x] A thrown error anywhere shows the error page with "Try again" and "Back to the week", and the error in a muted line
 - [x] Offline, the installed app shows the cached week with the offline line, and nothing that changes data can be attempted
 - [ ] Checked by hand, including offline on an installed PWA
+
+## Comments
+
+- 2026-10-26: Built and merged on `phase-3/integration`; typecheck, tests and build pass. The unticked "checked by hand" item is still open: no one has looked at this in a browser yet, because the agents could not sign in through Google.

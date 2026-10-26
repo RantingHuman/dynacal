@@ -11,7 +11,7 @@ See spec stories 83–96 and "Phone layout", and map ticket "How does the home s
 
 **Blocked by:** 15, 16, 17
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] Below 640px the tabs and week list show; from 640px up the desktop layout shows
 - [x] Schedule is the default tab and holds the headline, review box, Conflict strip and week list; Tasks holds the add line and list
@@ -19,3 +19,7 @@ See spec stories 83–96 and "Phone layout", and map ticket "How does the home s
 - [x] Checkboxes on week list lines and "Mark the Task done" complete the whole Task
 - [x] Events open their label with the Busy Override; the Menu holds the four items
 - [ ] Checked by hand on a real phone (installed PWA) and at phone width in a desktop browser
+
+## Comments
+
+- 2026-10-26: Built and merged on `phase-3/integration`; typecheck, tests and build pass. The unticked "checked by hand" item is still open: no one has looked at this in a browser yet, because the agents could not sign in through Google.

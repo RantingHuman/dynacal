@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] The Schedule view returns a display key for every Block
 - [x] A Recalculation that leaves a Task's Blocks in the same order keeps their display keys; keys follow position when the number or order of a Task's Blocks changes

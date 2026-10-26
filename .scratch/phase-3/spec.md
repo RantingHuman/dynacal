@@ -1,6 +1,6 @@
 # Spec: dynacal phase 3: a calmer, more joyful dynacal
 
-Status: ready-for-agent
+Status: resolved
 
 ## Problem Statement
 

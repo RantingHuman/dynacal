@@ -4,7 +4,7 @@
 
 **Blocked by:** 13
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] The parser handles every form in the spec in any order, applies the defaults, leaves the rest as the title, and copes with a title containing "by" or "from" without a day
 - [x] The preview chips show picked-out fields solidly and defaults dashed; the empty line shows the hint
@@ -13,3 +13,7 @@
 - [x] An existing Task's page shows its remaining time and flag; Delete asks "Delete it?" in place
 - [x] Task validation and errors are unchanged
 - [ ] Direct tests cover the parser; the column and editor are checked by hand
+
+## Comments
+
+- 2026-10-26: Built and merged on `phase-3/integration`; typecheck, tests and build pass. The unticked "checked by hand" item is still open: no one has looked at this in a browser yet, because the agents could not sign in through Google.

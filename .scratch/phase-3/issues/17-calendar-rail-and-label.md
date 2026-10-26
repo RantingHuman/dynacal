@@ -4,7 +4,7 @@
 
 **Blocked by:** 13
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] Every control listed in the controls ticket is reachable where the spec puts it, and nothing is lost
 - [x] The Conflict strip, the paged review box and the floating label replace today's inline sections and banners
@@ -13,3 +13,7 @@
 - [x] The Block label has "Mark the Task done" and the hint; the Event label keeps the Busy Override and the dynacal Event form
 - [x] Dragging, resizing, clicking empty time for a New Event, pinning and Conflicts behave exactly as before
 - [ ] Checked by hand in a dev server, including at 640–960px where the toolbar wraps
+
+## Comments
+
+- 2026-10-26: Built and merged on `phase-3/integration`; typecheck, tests and build pass. The unticked "checked by hand" item is still open: no one has looked at this in a browser yet, because the agents could not sign in through Google.

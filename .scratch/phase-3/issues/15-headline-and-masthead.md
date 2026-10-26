@@ -4,7 +4,7 @@
 
 **Blocked by:** 13
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] The week summary query ranks the eleven states as specified and returns the secondary states (at most two), counts, named Task, free stretch (2 hours or more) and rollover
 - [x] The wording function gives two headline variants per state chosen by the date, fixed standfirsts and secondary sentences, numbers one to nine as words, and correct plurals
@@ -14,3 +14,7 @@
 - [x] The time-zone notice and the reconnect banner no longer appear; their actions are reachable from the headline
 - [x] Settings, Sign out and the reminders toggle sit in the masthead
 - [ ] Command-layer tests cover the summary; direct tests cover the wording; the page is checked by hand
+
+## Comments
+
+- 2026-10-26: Built and merged on `phase-3/integration`; typecheck, tests and build pass. The unticked "checked by hand" item is still open: no one has looked at this in a browser yet, because the agents could not sign in through Google.

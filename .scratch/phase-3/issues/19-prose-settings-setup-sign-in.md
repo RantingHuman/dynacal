@@ -11,7 +11,7 @@ See spec stories 68–82 and "Settings, setup and sign-in in prose", and map tic
 
 **Blocked by:** 13
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] Sign-in shows the card and each error message
 - [x] Setup completes in order: connect Google, confirm Busy Calendars (primary suggested, nothing busy until confirmed), save the detected time zone and Working Hours, then "Go to your Schedule"
@@ -20,3 +20,7 @@ See spec stories 68–82 and "Settings, setup and sign-in in prose", and map tic
 - [x] Settings saves as you go and never sends an invalid value; held values show their message and "Undo" restores the last saved value
 - [x] The Google connection's states (not connected, broken, unreachable) show with their buttons
 - [ ] Direct tests cover the run grouping and the saving logic; the screens are checked by hand at desktop and phone widths
+
+## Comments
+
+- 2026-10-26: Built and merged on `phase-3/integration`; typecheck, tests and build pass. The unticked "checked by hand" item is still open: no one has looked at this in a browser yet, because the agents could not sign in through Google.
