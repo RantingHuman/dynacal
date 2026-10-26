@@ -23,9 +23,13 @@ function Squiggle() {
  * mounted as the page refreshes); when the week's state changes it cross-fades to its new wording, and if the
  * week got better its squiggle draws in again. The squiggle is the page's one looping motion.
  */
-export function Headline({ headline: { headline }, state }: { headline: HeadlineWords; state: WeekState }) {
+export function Headline({ headline: { headline }, state }: { headline: HeadlineWords; state?: WeekState }) {
+  // Without a state (e.g. on the error screen) the headline never changes, so there's nothing to compare.
   const [last, setLast] = useState({ state, draws: 0 });
-  if (state !== last.state) setLast({ state, draws: last.draws + (weekGotBetter(last.state, state) ? 1 : 0) });
+  if (state !== last.state) {
+    const better = state !== undefined && last.state !== undefined && weekGotBetter(last.state, state);
+    setLast({ state, draws: last.draws + (better ? 1 : 0) });
+  }
 
   return (
     <ViewTransition default="none" update="headline">

@@ -6,7 +6,9 @@ import { movedBlocks } from "@/core/motion";
 import { formatMinutes, type WorkingHours } from "@/core/settings";
 import { DAY_MINUTES, GRID_MINUTES, MINUTE_MS } from "@/core/time";
 import { addDays, fromZoned, toZoned, weekdayOf } from "@/core/time-zone";
+import { completeTask } from "../tasks/actions";
 import { useCompletion } from "../tasks/completion";
+import { useTaskEditor } from "../tasks/task-editor-slot";
 import { moveBlock, recalculate } from "./actions";
 import { BlockEditor, moveError } from "./block-editor";
 import calendarStyles from "./calendar.module.css";
@@ -20,6 +22,7 @@ import freeStyles from "./free-events.module.css";
 import { NEW_EVENT_MS, useNewEvent } from "./new-event";
 import styles from "./pinning.module.css";
 import { Toast } from "./toast";
+import { OFFLINE_REASON, useOnline } from "../states/use-online";
 
 /** A Block as sent to the browser: instants as ISO strings. */
 export interface CalendarBlock {
@@ -157,9 +160,18 @@ function rangeLabel(days: string[]): string {
  * same command as the Task list's checkbox. It's a control of its own, so it never starts a drag or opens the
  * Block's details.
  */
-function BlockCheck({ block, onError }: { block: CalendarBlock; onError: (message: string) => void }) {
-  const { ticked, complete } = useCompletion();
-  const done = ticked.has(block.taskId);
+function BlockCheck({
+  block,
+  done,
+  onError,
+}: {
+  block: CalendarBlock;
+  /** Its Task is complete in the Task list (at once when ticked, before the server has it). */
+  done: boolean;
+  onError: (message: string) => void;
+}) {
+  const { ticked, tick } = useCompletion();
+  const act = useTaskEditor().column?.act ?? null;
   const stop = (e: React.SyntheticEvent) => e.stopPropagation();
   return (
     <button
@@ -168,15 +180,25 @@ function BlockCheck({ block, onError }: { block: CalendarBlock; onError: (messag
       aria-label={done ? `“${block.taskTitle}” is done` : `Mark “${block.taskTitle}” done`}
       title={done ? undefined : "Mark the Task done"}
       disabled={done}
-      data-ticked={done || undefined}
+      data-ticked={(done && ticked.has(block.taskId)) || undefined}
+      data-done={done || undefined}
       onPointerDown={stop}
       onKeyDown={stop}
       onClick={(e) => {
         e.stopPropagation();
-        // The same completion as the Task list's tick: its row sweeps and slides, and this Task's Blocks dim.
-        void complete(block.taskId).then((result) => {
-          if (!result.ok) onError("This Task no longer exists.");
-        });
+        // The same completion as the Task list's tick, through its list: the row sweeps and slides, this Task's
+        // Blocks dim, and a refusal rolls back with the list's toast.
+        tick(block.taskId);
+        if (act) {
+          act({ kind: "complete", id: block.taskId }, async () => {
+            const result = await completeTask(block.taskId);
+            return result.ok ? null : `“${block.taskTitle}” no longer exists.`;
+          });
+        } else {
+          void completeTask(block.taskId).then((result) => {
+            if (!result.ok) onError("This Task no longer exists.");
+          });
+        }
       }}
     >
       <svg viewBox="0 0 16 16" aria-hidden>
@@ -231,7 +253,9 @@ export function Calendar({
   const [glideFrom, setGlideFrom] = useState<CalendarBlock[] | null>(null);
   /** Which way the grid last changed, so it slides (or fades) in; null until it first does. */
   const [shift, setShift] = useState<{ n: number; way: "back" | "forward" | "view" } | null>(null);
-  const { ticked } = useCompletion();
+  // Tasks complete in the Task list, at once when ticked: all of a completed Task's Blocks dim together.
+  const taskColumn = useTaskEditor().column;
+  const completedTasks = new Set(taskColumn?.tasks.filter((t) => t.completedAt !== null).map((t) => t.id));
   const drag = useRef<Drag | null>(null);
   /**
    * Set when a drag ends, and cleared only once the click that follows it has been handled, so the end of a
@@ -243,6 +267,8 @@ export function Calendar({
   const columns = useRef(new Map<string, HTMLDivElement>());
   const now = new Date(horizon.start).getTime();
   const newEvent = useNewEvent();
+  /** Offline, the calendar is for looking only: nothing that changes data can be attempted. */
+  const online = useOnline();
 
   // The New Event form takes the place of any open Block editor or Event details.
   useEffect(() => {
@@ -279,7 +305,7 @@ export function Calendar({
   );
 
   function beginDrag(e: React.PointerEvent<HTMLDivElement>, block: CalendarBlock, day: string) {
-    if (e.pointerType === "touch" || e.button !== 0 || moving) return;
+    if (e.pointerType === "touch" || e.button !== 0 || moving || !online) return;
     const start = new Date(block.start).getTime();
     const end = new Date(block.end).getTime();
     if (end <= now) return;
@@ -380,6 +406,7 @@ export function Calendar({
   dragHandlers.current = { continueDrag, endDrag, cancelDrag };
 
   function openEditor(block: CalendarBlock) {
+    if (!online) return showError(OFFLINE_REASON);
     if (justDragged.current) return;
     if (new Date(block.end).getTime() <= now) return;
     setToast(null);
@@ -389,6 +416,7 @@ export function Calendar({
   }
 
   function openEventDetails(event: CalendarEvent) {
+    if (!online) return showError(OFFLINE_REASON);
     setEditingId(null);
     newEvent.close();
     setOpenEventId(event.id);
@@ -399,7 +427,7 @@ export function Calendar({
    * of a drag isn't a click, and clicking time that has passed does nothing.
    */
   function createAt(e: React.MouseEvent<HTMLDivElement>, day: string) {
-    if (drag.current || justDragged.current) return;
+    if (drag.current || justDragged.current || !online) return;
     const y = e.clientY - e.currentTarget.getBoundingClientRect().top;
     const clicked = first + (y / HOUR_PX) * 60;
     if (fromZoned({ date: day, minutes: Math.floor(clicked) }, timeZone).getTime() < now) return;
@@ -421,6 +449,7 @@ export function Calendar({
       conflictingEvents.has(event.id) && styles.eventConflict,
       new Date(event.end).getTime() <= now && styles.past,
       openEventId === event.id && detailStyles.selected,
+      connectionBroken && calendarStyles.stale,
     ].filter(Boolean);
     return {
       className: classes.join(" "),
@@ -443,7 +472,7 @@ export function Calendar({
 
   /** e.g. ", Free, Busy Override" for an Event's label. */
   function eventNotes(event: CalendarEvent): string {
-    return `${event.dynacalEvent ? ", dynacal Event" : ""}${event.countsAsBusy ? "" : ", Free"}${event.busyOverride !== null ? ", Busy Override" : ""}${conflictingEvents.has(event.id) ? ", Conflict" : ""}`;
+    return `${event.dynacalEvent ? ", dynacal Event" : ""}${event.countsAsBusy ? "" : ", Free"}${event.busyOverride !== null ? ", Busy Override" : ""}${conflictingEvents.has(event.id) ? ", Conflict" : ""}${connectionBroken ? ", as dynacal last saw it" : ""}`;
   }
 
   function eventMarks(event: CalendarEvent) {
@@ -566,7 +595,13 @@ export function Calendar({
             ))}
           </span>
           <span className={calendarStyles.recalculate}>
-            <button type="button" className={`link ${calendarStyles.recalculateButton}`} disabled={pending} onClick={runRecalculate}>
+            <button
+              type="button"
+              className={`link ${calendarStyles.recalculateButton}`}
+              disabled={pending || !online}
+              title={online ? undefined : OFFLINE_REASON}
+              onClick={runRecalculate}
+            >
               {pending ? "Recalculating…" : "Recalculate"}
               {pending && (
                 <svg className={calendarStyles.ripple} viewBox="0 0 60 6" preserveAspectRatio="none" aria-hidden>
@@ -576,7 +611,13 @@ export function Calendar({
             </button>
             {connectionBroken && <span className={calendarStyles.note}>Uses the last Events dynacal saw</span>}
           </span>
-          <button type="button" className="link" onClick={() => newEvent.open()}>
+          <button
+            type="button"
+            className="link"
+            onClick={() => newEvent.open()}
+            disabled={!online}
+            title={online ? undefined : OFFLINE_REASON}
+          >
             + Event
           </button>
         </div>
@@ -745,7 +786,7 @@ export function Calendar({
                   preview?.id === block.id && preview.mode === "move" && styles.lifted,
                   landed && styles[landed],
                   glide !== undefined && styles.glide,
-                  ticked.has(block.taskId) && styles.done,
+                  completedTasks.has(block.taskId) && styles.done,
                 ].filter(Boolean);
                 // Only a Block's first part carries its name: a name must be unique on the page.
                 const first = toZoned(new Date(block.start), timeZone).date === day;
@@ -789,7 +830,7 @@ export function Calendar({
                       <span className="block-time">
                         {formatMinutes(top)}–{formatMinutes(bottom)}
                       </span>
-                      {!ended && <BlockCheck block={block} onError={showError} />}
+                      {!ended && online && <BlockCheck block={block} done={completedTasks.has(block.taskId)} onError={showError} />}
                       {!ended && <span className={`${styles.handle} ${styles.handleBottom}`} data-handle="end" />}
                     </div>
                   </ViewTransition>

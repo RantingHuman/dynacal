@@ -3,6 +3,7 @@
 import { startTransition, useEffect, useState, useTransition, ViewTransition } from "react";
 import { blockMinutes, canBePartlyDone, type ReviewOutcome } from "@/core/completion";
 import { formatDuration } from "@/core/tasks";
+import { DrawnSquiggle } from "../states/drawn-squiggle";
 import { reviewBlock } from "./actions";
 import styles from "./review-box.module.css";
 
@@ -54,9 +55,7 @@ export function ReviewBox({ blocks, timeZone }: { blocks: UnreviewedBlockProps[]
       >
         <p className={styles.caughtUp} role="status">
           All caught up.
-          <svg className={styles.squiggle} viewBox="0 0 120 8" preserveAspectRatio="none" aria-hidden>
-            <path pathLength={1} d="M2 4 Q 8 0, 14 4 T 26 4 T 38 4 T 50 4 T 62 4 T 74 4 T 86 4 T 98 4 T 110 4 T 118 4" />
-          </svg>
+          <DrawnSquiggle className={styles.squiggle} />
         </p>
       </section>
     );

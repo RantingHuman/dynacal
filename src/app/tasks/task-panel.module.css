@@ -142,3 +142,16 @@
     opacity: 0;
   }
 }
+
+/* "All done." over the finished Tasks, with the squiggle drawn in once beneath it. */
+.allDone {
+  position: relative;
+  display: inline-block;
+}
+
+.allDoneSquiggle {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -8px;
+}

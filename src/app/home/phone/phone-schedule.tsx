@@ -1,0 +1,261 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { agendaDays, type AgendaEntry } from "@/core/agenda";
+import { formatMinutes } from "@/core/settings";
+import { formatDuration } from "@/core/tasks";
+import { addDays, toZoned } from "@/core/time-zone";
+import { useOnline } from "../../states/use-online";
+import { CompleteTaskButton } from "../../tasks/complete-task-button";
+import { useTaskEditor } from "../../tasks/task-editor-slot";
+import type { CalendarBlock, CalendarConflict, CalendarEvent } from "../../schedule/calendar";
+import calendarStyles from "../../schedule/calendar.module.css";
+import { dayLabel } from "../../schedule/day-label";
+import { DynacalEventForm } from "../../schedule/dynacal-event-form";
+import { EventDetails } from "../../schedule/event-details";
+import { FloatingLabel, LabelNote, LabelTime, LabelTitle } from "../../schedule/floating-label";
+import { useNewEvent } from "../../schedule/new-event";
+import pinningStyles from "../../schedule/pinning.module.css";
+import { BlockSheet } from "./block-sheet";
+import styles from "./phone.module.css";
+
+/** The Schedule as the calendar gets it; see `Calendar`. */
+export interface PhoneScheduleData {
+  timeZone: string;
+  horizon: { start: string; end: string };
+  blocks: CalendarBlock[];
+  events: CalendarEvent[];
+  conflicts: CalendarConflict[];
+  /** A Block to open on arrival, e.g. the one a tapped reminder is for. */
+  openBlockId?: string;
+}
+
+/** The agenda shows a week: today and the six days after it. */
+const AGENDA_DAYS = 7;
+
+type Item = { kind: "block"; block: CalendarBlock } | { kind: "event"; event: CalendarEvent };
+
+/** What's open over the agenda: a Block (its sheet, or its label once it has ended) or an Event's label. */
+type Open = { kind: "block" | "event"; id: string } | null;
+
+const WEEKDAYS_LONG: Record<string, string> = {
+  Mon: "Monday",
+  Tue: "Tuesday",
+  Wed: "Wednesday",
+  Thu: "Thursday",
+  Fri: "Friday",
+  Sat: "Saturday",
+  Sun: "Sunday",
+};
+
+/** A day's heading: the date as a large numeral, then the weekday, with a squiggle under today. */
+function DayHeading({ date, today }: { date: string; today: boolean }) {
+  const [weekday, day] = dayLabel(date).split(" ");
+  return (
+    <h3 className={styles.dayHeading} data-today={today}>
+      <span className={styles.dayNumber}>{day}</span> {WEEKDAYS_LONG[weekday]}
+      {today && (
+        <svg className={styles.daySquiggle} viewBox="0 0 30 6" preserveAspectRatio="none" aria-hidden>
+          <path d="M0 3 Q 2.5 0, 5 3 T 10 3 T 15 3 T 20 3 T 25 3 T 30 3" />
+        </svg>
+      )}
+    </h3>
+  );
+}
+
+/** Seven days with "Nothing planned", dimmed: the week before there's a Schedule (no time zone yet). */
+export function EmptyAgenda({ today }: { today: string }) {
+  return (
+    <div className={styles.agenda} data-empty>
+      {Array.from({ length: AGENDA_DAYS }, (_, i) => addDays(today, i)).map((date) => (
+        <section key={date} className={styles.day}>
+          <DayHeading date={date} today={date === today} />
+          <p className={styles.nothing}>Nothing planned</p>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The Schedule tab's week: "The week ahead" with "+ Event", the Conflict strip, then each day as a heading and
+ * its Blocks and Events as lines with a time and length. Tapping a Block that hasn't ended opens the Block sheet;
+ * tapping an Event, or a Block that has ended, opens its label.
+ */
+export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, openBlockId }: PhoneScheduleData) {
+  const now = new Date(horizon.start).getTime();
+  const today = toZoned(new Date(horizon.start), timeZone).date;
+  const lastDay = toZoned(new Date(horizon.end), timeZone).date;
+  const [open, setOpen] = useState<Open>(openBlockId ? { kind: "block", id: openBlockId } : null);
+  const close = useCallback(() => setOpen(null), []);
+  const newEvent = useNewEvent();
+  const online = useOnline();
+  // Ticking a Block's Task goes through the Tasks tab's list, so it shows there at once and rolls back if refused.
+  const act = useTaskEditor().column?.act ?? null;
+
+  // The New Event form takes the place of whatever was open.
+  useEffect(() => {
+    if (newEvent.draft !== null) setOpen(null);
+  }, [newEvent.draft]);
+
+  function show(next: Open) {
+    newEvent.close();
+    setOpen(next);
+  }
+
+  const conflictingBlocks = new Set(conflicts.map((c) => c.blockId));
+  const conflictingEvents = new Set(conflicts.map((c) => c.eventId));
+  const blocksById = new Map(blocks.map((b) => [b.id, b]));
+  const eventsById = new Map(events.map((e) => [e.id, e]));
+  const ended = (item: { end: string }) => new Date(item.end).getTime() <= now;
+  const openBlock = open?.kind === "block" ? (blocksById.get(open.id) ?? null) : null;
+  const openEvent = open?.kind === "event" ? (eventsById.get(open.id) ?? null) : null;
+
+  const days = Array.from({ length: AGENDA_DAYS }, (_, i) => addDays(today, i)).filter((d) => d <= lastDay);
+  const entries: AgendaEntry<Item>[] = [
+    ...blocks.map((block) => ({
+      item: { kind: "block" as const, block },
+      start: new Date(block.start),
+      end: new Date(block.end),
+      allDay: false,
+    })),
+    ...events.map((event) => ({
+      item: { kind: "event" as const, event },
+      start: new Date(event.start),
+      end: new Date(event.end),
+      allDay: event.allDay,
+    })),
+  ];
+
+  /** e.g. "Mon 5 Jan, 13:30–14:30". */
+  function spanLabel(item: { start: string; end: string }): string {
+    const start = toZoned(new Date(item.start), timeZone);
+    const end = toZoned(new Date(item.end), timeZone);
+    return `${dayLabel(start.date)}, ${formatMinutes(start.minutes)}–${formatMinutes(end.minutes)}`;
+  }
+
+  return (
+    <>
+      <div className={calendarStyles.heading}>
+        <h2 className={calendarStyles.kicker}>The week ahead</h2>
+        <button type="button" className="link" onClick={() => newEvent.open()}>
+          + Event
+        </button>
+      </div>
+
+      {conflicts.length > 0 && (
+        <div className={pinningStyles.conflicts} role="region" aria-label="Conflicts">
+          <ul>
+            {conflicts.map((c, i) => {
+              const block = blocksById.get(c.blockId);
+              const event = eventsById.get(c.eventId);
+              if (!block || !event) return null;
+              return (
+                <li key={`${c.blockId}/${c.eventId}`}>
+                  {i === 0 && <strong>{conflicts.length === 1 ? "1 Conflict." : `${conflicts.length} Conflicts.`} </strong>}
+                  <em>{block.taskTitle}</em> ({spanLabel(block)}) overlaps <em>{event.title}</em>.{" "}
+                  <button type="button" className="link" onClick={() => show({ kind: "block", id: block.id })}>
+                    Resolve
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      <div className={styles.agenda}>
+        {agendaDays(days, entries, timeZone).map(({ date, lines }) => (
+          <section key={date} className={styles.day} aria-label={dayLabel(date)}>
+            <DayHeading date={date} today={date === today} />
+            {lines.length === 0 && <p className={styles.nothing}>Nothing planned</p>}
+            {lines.map(({ item, allDay, minutes, length }) => {
+              const isBlock = item.kind === "block";
+              const { id, end } = isBlock ? item.block : item.event;
+              const title = isBlock ? item.block.taskTitle : item.event.title;
+              const past = ended({ end });
+              const conflict = isBlock ? conflictingBlocks.has(id) : conflictingEvents.has(id);
+              const pinned = isBlock && item.block.pinned;
+              const free = !isBlock && !item.event.countsAsBusy;
+              const notes = [pinned && "Pinned Block", free && "Free", conflict && "Conflict"].filter(Boolean);
+              return (
+                <div key={`${isBlock ? item.block.displayKey : id}-${date}`} className={styles.row}>
+                  {isBlock && !past ? (
+                    <CompleteTaskButton
+                      id={item.block.taskId}
+                      title={title}
+                      completed={false}
+                      disabled={!online || act === null}
+                      act={act ?? (() => {})}
+                    />
+                  ) : (
+                    <span aria-hidden />
+                  )}
+                  <button
+                    type="button"
+                    className={styles.line}
+                    data-kind={item.kind}
+                    data-past={past}
+                    data-conflict={conflict}
+                    data-free={free}
+                    aria-label={`${title}, ${allDay ? "all day" : `${formatMinutes(minutes)}, ${formatDuration(length)}`}${notes.map((n) => `, ${n}`).join("")}`}
+                    onClick={() => show({ kind: item.kind, id })}
+                  >
+                    <span className={styles.lineTime}>{allDay ? "all day" : formatMinutes(minutes)}</span>
+                    <span className={styles.lineTitle}>
+                      {pinned && (
+                        <span className={pinningStyles.pinMark} aria-hidden>
+                          ◆{" "}
+                        </span>
+                      )}
+                      {title}
+                    </span>
+                    <span className={styles.lineLength}>{allDay ? "" : formatDuration(length)}</span>
+                  </button>
+                </div>
+              );
+            })}
+          </section>
+        ))}
+      </div>
+
+      <div className={styles.overlays}>
+        {openBlock && !ended(openBlock) && (
+          <BlockSheet
+            key={openBlock.id}
+            block={openBlock}
+            timeZone={timeZone}
+            conflicts={conflicts
+              .filter((c) => c.blockId === openBlock.id)
+              .map((c) => eventsById.get(c.eventId))
+              .filter((e) => e !== undefined)}
+            onClose={close}
+          />
+        )}
+
+        {openBlock && ended(openBlock) && (
+          <FloatingLabel kind="Block" labelledBy="ended-block-heading" onClose={close}>
+            <LabelTitle id="ended-block-heading">{openBlock.taskTitle}</LabelTitle>
+            <LabelTime>{spanLabel(openBlock)}</LabelTime>
+            <LabelNote>This Block has ended, so it can’t be moved.</LabelNote>
+          </FloatingLabel>
+        )}
+
+        {openEvent && <EventDetails key={openEvent.id} event={openEvent} timeZone={timeZone} onClose={close} />}
+
+        {newEvent.draft && (
+          <FloatingLabel kind="New Event" labelledBy="new-event-heading" onClose={newEvent.close}>
+            <LabelTitle id="new-event-heading">New Event</LabelTitle>
+            <DynacalEventForm
+              key={`${newEvent.draft.start}-${newEvent.draft.end}`}
+              event={null}
+              draft={newEvent.draft}
+              timeZone={timeZone}
+              onDone={newEvent.close}
+            />
+          </FloatingLabel>
+        )}
+      </div>
+    </>
+  );
+}

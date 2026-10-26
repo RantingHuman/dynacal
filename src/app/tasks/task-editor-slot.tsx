@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { TaskListItem } from "@/core/commands";
 import type { TaskFlag } from "@/core/scheduler";
+import type { TaskChange } from "@/core/task-list";
 import type { TaskInput } from "@/core/tasks";
 import { CompletionProvider } from "./completion";
 import { TaskEditor } from "./task-editor";
@@ -14,12 +15,19 @@ export interface OpenTask {
   initial: TaskInput;
 }
 
+/**
+ * Makes a change to the Task list: shows it straight away, then sends it with `perform`. If the server refuses,
+ * the list rolls back and a toast gives the reason `perform` returns (null when it was saved).
+ */
+export type ActOnTasks = (change: TaskChange, perform: () => Promise<string | null>) => void;
+
 /** What the Tasks column knows and the editor needs, kept current by the Tasks column. */
 export interface TaskColumnData {
   tasks: TaskListItem[];
   flags: Record<string, TaskFlag | null>;
   timeZone: string | null;
   today: string;
+  act: ActOnTasks;
 }
 
 /** The Task last saved from the editor, so its row can sweep a highlighter and say "Saved"; `n` counts saves. */
@@ -100,6 +108,7 @@ export function TaskEditorSlot({ children }: { children: ReactNode }) {
           flag={task ? (column.flags[task.id] ?? null) : null}
           timeZone={column.timeZone}
           today={column.today}
+          act={column.act}
           onClose={close}
           onSaved={markSaved}
         />

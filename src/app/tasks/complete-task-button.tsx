@@ -1,7 +1,9 @@
 "use client";
 
+import { completeTask } from "./actions";
 import { useCompletion } from "./completion";
 import styles from "./completion.module.css";
+import type { ActOnTasks } from "./task-editor-slot";
 
 function Tick() {
   return (
@@ -12,12 +14,26 @@ function Tick() {
 }
 
 /**
- * A round tick button that marks a Task complete; once complete, it shows a filled tick. Ticking it here draws
- * the tick in while the box presses.
+ * A round tick button that marks a Task complete; once complete, it shows a filled tick. The Task shows as
+ * complete at once, and comes back if the server refuses. Ticked here, the tick draws in while the box presses,
+ * and the list holds its order until the ticks settle (see `CompletionProvider`). `disabled` while offline, or
+ * while the Task is still being added.
  */
-export function CompleteTaskButton({ id, title, completed }: { id: string; title: string; completed: boolean }) {
-  const { ticked, complete } = useCompletion();
-  if (completed || ticked.has(id)) {
+export function CompleteTaskButton({
+  id,
+  title,
+  completed,
+  disabled = false,
+  act,
+}: {
+  id: string;
+  title: string;
+  completed: boolean;
+  disabled?: boolean;
+  act: ActOnTasks;
+}) {
+  const { ticked, tick } = useCompletion();
+  if (completed) {
     return (
       <span
         className={`${styles.toggle} ${styles.done}`}
@@ -35,7 +51,14 @@ export function CompleteTaskButton({ id, title, completed }: { id: string; title
       className={styles.toggle}
       aria-label={`Mark “${title}” complete`}
       title="Mark complete"
-      onClick={() => void complete(id)}
+      disabled={disabled}
+      onClick={() => {
+        tick(id);
+        act({ kind: "complete", id }, async () => {
+          const result = await completeTask(id);
+          return result.ok ? null : `“${title}” no longer exists.`;
+        });
+      }}
     >
       <Tick />
     </button>

@@ -4,7 +4,7 @@ import { Headline } from "./headline";
 import styles from "./home.module.css";
 
 /** The lead: the headline (see `Headline`) and the standfirst with its links. */
-export function Lead({ headline, state }: { headline: HeadlineWords; state: WeekState }) {
+export function Lead({ headline, state }: { headline: HeadlineWords; state?: WeekState }) {
   const { standfirst } = headline;
   return (
     <section className={styles.lead} aria-label="Your week">

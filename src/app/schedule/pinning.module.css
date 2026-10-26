@@ -232,12 +232,15 @@
   color: var(--accent);
 }
 
-/* Ticked: the box springs back from its press while the tick draws in, as in the Task list. */
-.check[data-ticked] {
+/* Done: a filled tick. Ticked here, the box springs back from its press while the tick draws in, as in the Task list. */
+.check[data-done] {
   border-color: var(--accent);
   background: var(--accent);
   color: var(--on-accent);
   cursor: default;
+}
+
+.check[data-ticked] {
   animation: press var(--base) var(--bounce);
 }
 
