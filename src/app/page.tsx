@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getRuntime } from "@/server/runtime";
 import { currentSession } from "@/server/session";
+import { ForgetReminderLink } from "./reminders/forget-reminder-link";
 import { RemindersToggle } from "./reminders/reminders-toggle";
 import { ReviewBox } from "./review/review-box";
 import reviewStyles from "./review/review-box.module.css";
@@ -122,6 +123,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
 
   return (
     <NewEventProvider enabled={schedule !== null}>
+      {reminded !== undefined && <ForgetReminderLink />}
       <TaskEditorProvider>
         <WidthSwitch
           phone={
