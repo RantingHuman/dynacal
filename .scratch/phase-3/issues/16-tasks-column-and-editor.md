@@ -6,10 +6,10 @@
 
 **Status:** ready-for-agent
 
-- [ ] The parser handles every form in the spec in any order, applies the defaults, leaves the rest as the title, and copes with a title containing "by" or "from" without a day
-- [ ] The preview chips show picked-out fields solidly and defaults dashed; the empty line shows the hint
-- [ ] "+ Task" focuses the line; Enter adds a valid Task through the existing command; "Full form" opens the editor pre-filled
-- [ ] The full-page editor shows duration chips plus "other", deadline and Earliest Start chips plus a date picker and optional time, Priority pills, the Don't split switch, notes and Declined Times with Clear, and "← Back to the week"
-- [ ] An existing Task's page shows its remaining time and flag; Delete asks "Delete it?" in place
-- [ ] Task validation and errors are unchanged
+- [x] The parser handles every form in the spec in any order, applies the defaults, leaves the rest as the title, and copes with a title containing "by" or "from" without a day
+- [x] The preview chips show picked-out fields solidly and defaults dashed; the empty line shows the hint
+- [x] "+ Task" focuses the line; Enter adds a valid Task through the existing command; "Full form" opens the editor pre-filled
+- [x] The full-page editor shows duration chips plus "other", deadline and Earliest Start chips plus a date picker and optional time, Priority pills, the Don't split switch, notes and Declined Times with Clear, and "← Back to the week"
+- [x] An existing Task's page shows its remaining time and flag; Delete asks "Delete it?" in place
+- [x] Task validation and errors are unchanged
 - [ ] Direct tests cover the parser; the column and editor are checked by hand
