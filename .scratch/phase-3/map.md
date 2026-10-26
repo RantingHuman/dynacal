@@ -25,11 +25,11 @@ A phase 3 spec at `.scratch/phase-3/spec.md`, in the same style as the MVP and p
 - [What does the headline say in each state of the week?](issues/04-headline-states.md): the most urgent of 11 ranked states wins the headline. No time zone and a broken connection take it over and replace their banners. The standfirst names a Task only when exactly one is affected and mentions up to two other states. Fixed templates rotate daily, and the headline rolls over to next week once Working Hours run out.
 - [Where does each existing home-screen control live?](issues/05-home-controls.md): layout "rail". Calendar controls (Day/Week, ‹ Today ›, Recalculate, + Event) sit on the calendar's heading line, + Task on the Tasks heading, the Conflict strip above the grid, Unreviewed Blocks paged in the quote box, failed moves as a message, Reminders, Settings and Sign out in the masthead, Declined Times in the Task's details.
 - [How do creating and editing a Task look?](issues/06-task-editor.md): add a Task with one line that picks out duration, deadline, Earliest Start, Priority and Don't split as you type ("Board memo 2h by fri !high"), and press Enter. Editing opens a full page in place of the calendar with every field shown: chips for duration and days, pills for Priority, a switch for Don't split.
+- [Which interactions get motion, and what does each do?](issues/07-interactions.md): delight goes to five moments (completing a Task, dropping a Block, adding a Task, the last review, Recalculate). Rule: "what you touch bounces; what the app moves glides". One global reduce-motion rule. Only the headline squiggle keeps looping. A table gives every other interaction its movement, curve and duration.
 
 ## Not yet specified
 
 - **Empty, loading and error states** beyond the headline: what the Task list and calendar themselves show with no Tasks, no time zone (no calendar at all) or a broken connection, and what loading looks like. The headline's words for these are settled in [What does the headline say in each state of the week?](issues/04-headline-states.md); where notices sit is settled in [Where does each existing home-screen control live?](issues/05-home-controls.md).
-- **How the redesign is staged into implementation tickets**: tokens first, then screen by screen, or one screen at a time end to end. It depends on how much the interaction ticket changes the calendar's code.
 - **Whether the "joy" extends to reminders and the installed app**: the web push notification text, the app icon and the theme colour in the manifest.
 
 ## Out of scope
