@@ -8,7 +8,7 @@ import { DAY_MINUTES, GRID_MINUTES, MINUTE_MS } from "@/core/time";
 import { addDays, fromZoned, toZoned, weekdayOf } from "@/core/time-zone";
 import { useCompleteTask } from "../tasks/complete-task-button";
 import { useCompletion } from "../tasks/completion";
-import { useTaskEditor } from "../tasks/task-editor-slot";
+import { useTaskColumn } from "../tasks/task-editor-slot";
 import { moveBlock } from "./actions";
 import { moveError } from "./block-actions";
 import { BlockEditor } from "./block-editor";
@@ -226,7 +226,7 @@ export function Calendar({
   /** Which way the grid last changed, so it slides (or fades) in; null until it first does. */
   const [shift, setShift] = useState<{ n: number; way: "back" | "forward" | "view" } | null>(null);
   // Tasks complete in the Task list, at once when ticked: all of a completed Task's Blocks dim together.
-  const taskColumn = useTaskEditor().column;
+  const taskColumn = useTaskColumn();
   const completedTasks = new Set(taskColumn?.tasks.filter((t) => t.completedAt !== null).map((t) => t.id));
   const drag = useRef<Drag | null>(null);
   /**

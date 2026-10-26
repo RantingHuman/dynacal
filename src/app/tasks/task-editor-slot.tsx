@@ -42,7 +42,6 @@ interface TaskEditorContext {
   close: () => void;
   saved: SavedTask | null;
   markSaved: (taskId: string) => void;
-  column: TaskColumnData | null;
   setColumn: (column: TaskColumnData) => void;
 }
 
@@ -52,9 +51,15 @@ const Context = createContext<TaskEditorContext>({
   close: () => {},
   saved: null,
   markSaved: () => {},
-  column: null,
   setColumn: () => {},
 });
+
+/**
+ * The Tasks column's data lives in its own context so that publishing it doesn't re-render the Tasks column
+ * itself: its optimistic list is a new array on every render while a change is pending, so a column that read
+ * what it wrote would update forever.
+ */
+const ColumnContext = createContext<TaskColumnData | null>(null);
 
 /**
  * Lets the Tasks column open the full-page Task editor in place of the calendar column. Wrap both columns, and
@@ -69,12 +74,14 @@ export function TaskEditorProvider({ children }: { children: ReactNode }) {
   const [saved, setSaved] = useState<SavedTask | null>(null);
   const markSaved = useCallback((taskId: string) => setSaved((prev) => ({ taskId, n: (prev?.n ?? 0) + 1 })), []);
   const value = useMemo(
-    () => ({ open, openTask, close, saved, markSaved, column, setColumn }),
-    [open, openTask, close, saved, markSaved, column],
+    () => ({ open, openTask, close, saved, markSaved, setColumn }),
+    [open, openTask, close, saved, markSaved],
   );
   return (
     <Context.Provider value={value}>
-      <CompletionProvider>{children}</CompletionProvider>
+      <ColumnContext.Provider value={column}>
+        <CompletionProvider>{children}</CompletionProvider>
+      </ColumnContext.Provider>
     </Context.Provider>
   );
 }
@@ -83,12 +90,18 @@ export function useTaskEditor(): TaskEditorContext {
   return useContext(Context);
 }
 
+/** The Tasks column's current Tasks and actions, once the Tasks column has published them. */
+export function useTaskColumn(): TaskColumnData | null {
+  return useContext(ColumnContext);
+}
+
 /**
  * Shows the Task editor in place of the calendar column's content while a Task is open. The calendar stays
  * mounted, hidden, so it keeps its state.
  */
 export function TaskEditorSlot({ children }: { children: ReactNode }) {
-  const { open, close, markSaved, column } = useTaskEditor();
+  const { open, close, markSaved } = useTaskEditor();
+  const column = useTaskColumn();
   const task = open?.taskId ? (column?.tasks.find((t) => t.id === open.taskId) ?? null) : null;
   const gone = open?.taskId != null && column !== null && task === null;
 

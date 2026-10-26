@@ -4,7 +4,7 @@ import { useCallback } from "react";
 import { completeTask } from "./actions";
 import { useCompletion } from "./completion";
 import styles from "./completion.module.css";
-import { useTaskEditor, type ActOnTasks } from "./task-editor-slot";
+import { useTaskColumn, type ActOnTasks } from "./task-editor-slot";
 
 /** Completes a Task through the Task list's `act`: it shows as complete at once, and a refusal rolls it back. */
 function completeThrough(act: ActOnTasks, id: string, title: string) {
@@ -22,7 +22,7 @@ function completeThrough(act: ActOnTasks, id: string, title: string) {
  */
 export function useCompleteTask(): (task: { id: string; title: string }, onError: (message: string) => void) => void {
   const { tick } = useCompletion();
-  const act = useTaskEditor().column?.act ?? null;
+  const act = useTaskColumn()?.act ?? null;
   return useCallback(
     ({ id, title }, onError) => {
       tick(id);

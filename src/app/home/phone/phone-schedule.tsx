@@ -8,7 +8,7 @@ import { formatDuration } from "@/core/tasks";
 import { addDays, toZoned } from "@/core/time-zone";
 import { OFFLINE_REASON, useOnline } from "../../states/use-online";
 import { CompleteTaskButton } from "../../tasks/complete-task-button";
-import { useTaskEditor } from "../../tasks/task-editor-slot";
+import { useTaskColumn } from "../../tasks/task-editor-slot";
 import type { CalendarBlock, CalendarConflict, CalendarEvent } from "../../schedule/calendar";
 import { ConflictStrip } from "../../schedule/conflict-strip";
 import { DynacalEventForm } from "../../schedule/dynacal-event-form";
@@ -78,7 +78,7 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
   const newEvent = useNewEvent();
   const online = useOnline();
   // Ticking a Block's Task goes through the Tasks tab's list, so it shows there at once and rolls back if refused.
-  const act = useTaskEditor().column?.act ?? null;
+  const act = useTaskColumn()?.act ?? null;
 
   // The New Event form takes the place of whatever was open.
   useEffect(() => {
