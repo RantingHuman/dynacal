@@ -2,8 +2,8 @@
 
 .panel {
   padding: 0.75rem 1rem;
-  border: 1px solid var(--border);
-  border-radius: 0.4rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-square);
   display: grid;
   gap: 0.6rem;
 }
@@ -21,7 +21,7 @@
 
 .header h2 {
   margin: 0;
-  font-size: 1rem;
+  font-size: 1.2rem;
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
@@ -37,7 +37,7 @@
 }
 
 .facts dt {
-  color: var(--muted);
+  color: var(--soft);
 }
 
 .facts dd {
@@ -64,10 +64,11 @@
 }
 
 .overrideTag {
-  font-size: 0.75rem;
+  font-family: var(--font-sans);
+  font-size: var(--text-kicker);
   font-weight: 600;
   padding: 0.05rem 0.4rem;
-  border-radius: 0.3rem;
+  border-radius: var(--radius-pill);
   border: 1px solid var(--accent);
   color: var(--accent);
 }
@@ -77,10 +78,9 @@
   cursor: pointer;
 }
 
-.clickable:focus-visible,
 .selected {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline: var(--focus-width) solid var(--accent);
+  outline-offset: var(--focus-gap);
 }
 
 /* A Block overlapping an Event leaves the Event's left part visible and selectable. */

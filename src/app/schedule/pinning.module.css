@@ -5,22 +5,17 @@
   touch-action: auto;
 }
 
-.movable:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
-
 .dragging {
   cursor: grabbing;
   opacity: 0.85;
-  box-shadow: 0 4px 12px rgb(0 0 0 / 0.25);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--ink) 25%, transparent);
   z-index: 3;
 }
 
 /* A Pinned Block: a solid accent fill and a thick left rule, so it reads as placed by hand. */
 .pinned {
   border-left-width: 6px;
-  background: color-mix(in srgb, var(--accent) 38%, var(--bg));
+  background: color-mix(in srgb, var(--accent) 38%, var(--card));
   box-shadow: inset 0 0 0 1px var(--accent);
 }
 
@@ -28,21 +23,21 @@
   font-weight: 600;
 }
 
-/* A Conflict: a red outline on both the Pinned Block and the Event it overlaps. */
+/* A Conflict: an accent outline on both the Pinned Block and the Event it overlaps. */
 .conflict {
-  outline: 2px solid var(--error-fg);
+  outline: 2px solid var(--accent);
   outline-offset: -1px;
-  border-left-color: var(--error-fg);
+  border-left-color: var(--accent);
   /* Leaves the overlapped Event visible beside it. */
   left: 45%;
 }
 
 .conflictMark {
-  color: var(--error-fg);
+  color: var(--accent);
 }
 
 .eventConflict {
-  border: 2px solid var(--error-fg);
+  border: 2px solid var(--accent);
 }
 
 .handle {
@@ -68,15 +63,15 @@
 
 .conflicts {
   padding: 0.75rem 1rem;
-  border: 1px solid var(--error-fg);
-  border-radius: 0.4rem;
-  background: var(--error-bg);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-square);
+  background: var(--card);
 }
 
 .conflicts h2 {
   margin: 0 0 0.4rem;
-  font-size: 1rem;
-  color: var(--error-fg);
+  font-size: 1.2rem;
+  color: var(--accent);
 }
 
 .conflicts ul {
@@ -97,14 +92,14 @@
 .editor {
   padding: 0.75rem 1rem;
   border: 1px solid var(--accent);
-  border-radius: 0.4rem;
+  border-radius: var(--radius-square);
   display: grid;
   gap: 0.5rem;
 }
 
 .editor h2 {
   margin: 0;
-  font-size: 1rem;
+  font-size: 1.2rem;
   display: flex;
   gap: 0.5rem;
   align-items: center;
@@ -115,16 +110,17 @@
 }
 
 .pinnedTag {
-  font-size: 0.75rem;
+  font-family: var(--font-sans);
+  font-size: var(--text-kicker);
   font-weight: 600;
   padding: 0.05rem 0.4rem;
-  border-radius: 0.3rem;
+  border-radius: var(--radius-pill);
   background: var(--accent);
-  color: white;
+  color: var(--on-accent);
 }
 
 .conflictNote {
-  color: var(--error-fg);
+  color: var(--accent);
 }
 
 .editorForm {
@@ -143,10 +139,10 @@
 .editorForm input {
   font: inherit;
   padding: 0.35rem 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: 0.3rem;
-  background: var(--bg);
-  color: var(--fg);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-square);
+  background: var(--card);
+  color: var(--ink);
 }
 
 .editorActions {

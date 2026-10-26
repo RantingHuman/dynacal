@@ -1,10 +1,9 @@
 /* Events that don't count as busy: still shown, but greyed out and labelled "Free", since Blocks may go over them. */
 
 .free {
-  background: var(--bg);
+  background: var(--card);
   border-style: dashed;
-  color: var(--muted);
-  opacity: 0.75;
+  color: var(--soft);
 }
 
 .freeMark {

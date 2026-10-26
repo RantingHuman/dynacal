@@ -6,10 +6,10 @@
 
 **Status:** ready-for-agent
 
-- [ ] Every colour token exists for light and dark with the spec's values; no screen still uses the old blue or stock colours
-- [ ] Both Instrument faces are served by dynacal itself; content uses the serif and controls the sans; nothing is smaller than 12px except the hour labels
-- [ ] Focus shows a 2px accent ring with a 2px gap on keyboard focus only
-- [ ] Hover sweeps and press bounces use the `expo` and `bounce` tokens
-- [ ] With reduce motion on, nothing moves anywhere in the app; changes still show
-- [ ] Today's layouts are otherwise unchanged and every existing test passes
+- [x] Every colour token exists for light and dark with the spec's values; no screen still uses the old blue or stock colours
+- [x] Both Instrument faces are served by dynacal itself; content uses the serif and controls the sans; nothing is smaller than 12px except the hour labels
+- [x] Focus shows a 2px accent ring with a 2px gap on keyboard focus only
+- [x] Hover sweeps and press bounces use the `expo` and `bounce` tokens
+- [x] With reduce motion on, nothing moves anywhere in the app; changes still show
+- [x] Today's layouts are otherwise unchanged and every existing test passes
 - [ ] Checked by hand on every screen in light and dark
