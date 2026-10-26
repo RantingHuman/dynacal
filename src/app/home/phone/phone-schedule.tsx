@@ -11,6 +11,7 @@ import { CompleteTaskButton } from "../../tasks/complete-task-button";
 import { useTaskEditor } from "../../tasks/task-editor-slot";
 import type { CalendarBlock, CalendarConflict, CalendarEvent } from "../../schedule/calendar";
 import calendarStyles from "../../schedule/calendar.module.css";
+import { ConflictStrip } from "../../schedule/conflict-strip";
 import { DynacalEventForm } from "../../schedule/dynacal-event-form";
 import { EventDetails } from "../../schedule/event-details";
 import { FloatingLabel, LabelNote, LabelTime, LabelTitle } from "../../schedule/floating-label";
@@ -122,26 +123,14 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
         </button>
       </div>
 
-      {conflicts.length > 0 && (
-        <div className={pinningStyles.conflicts} role="region" aria-label="Conflicts">
-          <ul>
-            {conflicts.map((c, i) => {
-              const block = blocksById.get(c.blockId);
-              const event = eventsById.get(c.eventId);
-              if (!block || !event) return null;
-              return (
-                <li key={`${c.blockId}/${c.eventId}`}>
-                  {i === 0 && <strong>{conflicts.length === 1 ? "1 Conflict." : `${conflicts.length} Conflicts.`} </strong>}
-                  <em>{block.taskTitle}</em> ({spanLabel(block, timeZone)}) overlaps <em>{event.title}</em>.{" "}
-                  <button type="button" className="link" onClick={() => show({ kind: "block", id: block.id })}>
-                    Resolve
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
+      <ConflictStrip
+        conflicts={conflicts}
+        blocks={blocks}
+        events={events}
+        timeZone={timeZone}
+        showEventTimes={false}
+        onResolve={(block) => show({ kind: "block", id: block.id })}
+      />
 
       <div className={styles.weekList}>
         {weekListDays(days, entries, timeZone).map(({ date, lines }) => (

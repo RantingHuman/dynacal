@@ -2,7 +2,7 @@
 
 import { addTransitionType, useCallback, useEffect, useRef, useState, useTransition, ViewTransition } from "react";
 import type { BusyOverride, EventRef } from "@/core/busy-override";
-import { dayLabel, rangeLabel, spanLabel } from "@/core/day-labels";
+import { dayLabel, rangeLabel } from "@/core/day-labels";
 import { movedBlocks } from "@/core/motion";
 import { formatMinutes, type WorkingHours } from "@/core/settings";
 import { DAY_MINUTES, GRID_MINUTES, MINUTE_MS } from "@/core/time";
@@ -13,6 +13,7 @@ import { useTaskEditor } from "../tasks/task-editor-slot";
 import { moveBlock, recalculate } from "./actions";
 import { BlockEditor, moveError } from "./block-editor";
 import calendarStyles from "./calendar.module.css";
+import { ConflictStrip } from "./conflict-strip";
 import { DynacalEventForm, type DynacalEventDetails } from "./dynacal-event-form";
 import dynacalStyles from "./dynacal-events.module.css";
 import { EventDetails } from "./event-details";
@@ -286,7 +287,6 @@ export function Calendar({
   const editing = blocks.find((b) => b.id === editingId) ?? null;
   const eventsById = new Map(events.map((e) => [e.id, e]));
   const openEvent = openEventId === null ? null : (eventsById.get(openEventId) ?? null);
-  const blocksById = new Map(blocks.map((b) => [b.id, b]));
   const shown = blocks.map((b) =>
     preview?.id === b.id ? { ...b, start: new Date(preview.start).toISOString(), end: new Date(preview.end).toISOString() } : b,
   );
@@ -608,27 +608,7 @@ export function Calendar({
         </div>
       </div>
 
-      {conflicts.length > 0 && (
-        <div className={styles.conflicts} role="region" aria-label="Conflicts">
-          <ul>
-            {conflicts.map((c, i) => {
-              const block = blocksById.get(c.blockId);
-              const event = eventsById.get(c.eventId);
-              if (!block || !event) return null;
-              return (
-                <li key={`${c.blockId}/${c.eventId}`}>
-                  {i === 0 && <strong>{conflicts.length === 1 ? "1 Conflict." : `${conflicts.length} Conflicts.`} </strong>}
-                  <em>{block.taskTitle}</em> ({spanLabel(block, timeZone)}) overlaps <em>{event.title}</em> (
-                  {spanLabel(event, timeZone)}).{" "}
-                  <button type="button" className="link" onClick={() => openEditor(block)}>
-                    Resolve
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
+      <ConflictStrip conflicts={conflicts} blocks={blocks} events={events} timeZone={timeZone} onResolve={openEditor} />
 
       {editing && (
         <BlockEditor

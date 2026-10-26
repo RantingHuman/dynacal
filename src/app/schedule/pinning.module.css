@@ -269,31 +269,6 @@
   padding-right: 16px;
 }
 
-/* The Conflict strip under the calendar's heading line. It fades and grows to its height as it appears. */
-.conflicts {
-  interpolate-size: allow-keywords;
-  overflow: hidden;
-  animation: grow var(--base) var(--expo);
-  margin: 0;
-  padding: var(--space-2) var(--space-3);
-  border-left: 3px solid var(--accent);
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-  font-size: 13.5px;
-}
-
-.conflicts ul {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: var(--space-1);
-}
-
-.conflicts em {
-  font-family: var(--font-serif);
-  font-size: var(--text-item);
-}
-
 .markDone {
   justify-self: start;
   font-size: var(--text-body);
@@ -326,12 +301,4 @@
   display: flex;
   gap: var(--space-3);
   align-items: center;
-}
-
-@keyframes grow {
-  from {
-    height: 0;
-    padding-block: 0;
-    opacity: 0;
-  }
 }
