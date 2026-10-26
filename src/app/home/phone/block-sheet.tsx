@@ -7,8 +7,7 @@ import { formatMinutes } from "@/core/settings";
 import { toZoned } from "@/core/time-zone";
 import { BlockConflictNote, minutesOf, useBlockActions } from "../../schedule/block-actions";
 import type { CalendarBlock, CalendarEvent } from "../../schedule/calendar";
-import { LabelNote, LabelTime, LabelTitle } from "../../schedule/floating-label";
-import { useEscape } from "../../states/use-escape";
+import { LabelFrame, LabelNote, LabelTime, LabelTitle, useLabelClose } from "../../schedule/floating-label";
 import styles from "./phone.module.css";
 
 /** The Move chips: a few minutes either way, or the next day. */
@@ -24,7 +23,7 @@ const CHIPS: { label: string; move: BlockMove }[] = [
  * A Block that hasn't ended, on a phone, where Blocks don't drag: a sheet above the tab bar to move it by a
  * chip or to an exact day and start, mark its Task done, or unpin it. Moves go through the move command, so a
  * moved Block is pinned, and a refused move leaves it where it was and says why. The sheet stays open after a
- * move, so the Block can be nudged again. Escape closes it.
+ * move, so the Block can be nudged again. It opens and closes like the floating label, and Escape closes it.
  */
 export function BlockSheet({
   block,
@@ -41,9 +40,9 @@ export function BlockSheet({
   const start = toZoned(new Date(block.start), timeZone);
   /** "Pick a time…": the day and start being picked, or null while it's closed. */
   const [exact, setExact] = useState<{ date: string; time: string } | null>(null);
-  const actions = useBlockActions(block, onClose);
-
-  useEscape(onClose);
+  // It opens and closes like the floating label.
+  const close = useLabelClose(onClose);
+  const actions = useBlockActions(block, close);
 
   function move(how: BlockMove) {
     const to = movedBlockTime({ start: new Date(block.start), end: new Date(block.end) }, how, timeZone);
@@ -56,7 +55,7 @@ export function BlockSheet({
   }
 
   return (
-    <aside className={styles.sheet} aria-labelledby="block-sheet-heading">
+    <LabelFrame className={styles.sheet} labelledBy="block-sheet-heading">
       <span className={styles.kind}>{block.pinned ? "Pinned Block" : "Block"}</span>
       <LabelTitle id="block-sheet-heading">{block.taskTitle}</LabelTitle>
       <LabelTime>{spanLabel(block, timeZone)}</LabelTime>
@@ -140,10 +139,10 @@ export function BlockSheet({
             Unpin
           </button>
         )}
-        <button type="button" className="button secondary" onClick={onClose}>
+        <button type="button" className="button secondary" onClick={close}>
           Close
         </button>
       </div>
-    </aside>
+    </LabelFrame>
   );
 }

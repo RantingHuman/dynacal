@@ -24,18 +24,48 @@ export function FloatingLabel({
   onClose: () => void;
   children: React.ReactNode;
 }) {
-  const close = useCallback(() => startTransition(onClose), [onClose]);
-  useEscape(close);
+  const close = useLabelClose(onClose);
 
   return (
+    <LabelFrame className={styles.label} labelledBy={labelledBy}>
+      <div className={styles.top}>
+        <span className={styles.kind}>{kind}</span>
+        <button type="button" className={`link ${styles.close}`} onClick={close}>
+          Close
+        </button>
+      </div>
+      {children}
+    </LabelFrame>
+  );
+}
+
+/**
+ * Closes a label, or anything that opens like one, in a Transition so its exit shows; Escape closes it too. Use
+ * what it returns for every way of closing.
+ */
+export function useLabelClose(onClose: () => void): () => void {
+  const close = useCallback(() => startTransition(onClose), [onClose]);
+  useEscape(close);
+  return close;
+}
+
+/**
+ * A card that opens and closes like the floating label (the label itself, and the Block sheet on a phone): it
+ * rises and fades in, and fades out when it's closed in a Transition (see `useLabelClose`). `className` places
+ * and draws it.
+ */
+export function LabelFrame({
+  className,
+  labelledBy,
+  children,
+}: {
+  className: string;
+  labelledBy: string;
+  children: React.ReactNode;
+}) {
+  return (
     <ViewTransition default="none" exit="label-close">
-      <aside className={styles.label} aria-labelledby={labelledBy}>
-        <div className={styles.top}>
-          <span className={styles.kind}>{kind}</span>
-          <button type="button" className={`link ${styles.close}`} onClick={close}>
-            Close
-          </button>
-        </div>
+      <aside className={`${styles.opening} ${className}`} aria-labelledby={labelledBy}>
         {children}
       </aside>
     </ViewTransition>
