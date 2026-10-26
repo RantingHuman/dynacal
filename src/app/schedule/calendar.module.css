@@ -101,3 +101,18 @@
   font-size: var(--text-kicker);
   font-weight: 400;
 }
+
+/* Before a time zone is saved: an empty week, dimmed. */
+.emptyWeek {
+  padding-top: var(--space-3);
+  opacity: 0.45;
+}
+
+/*
+ * While Google is broken or unreachable, Events are the last ones dynacal saw, so they may be stale: dimmer, with
+ * a dashed edge. Blocks look normal, since dynacal owns them.
+ */
+:global(.event).stale {
+  opacity: 0.6;
+  border-style: dashed;
+}

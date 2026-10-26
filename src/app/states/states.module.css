@@ -1,0 +1,95 @@
+/* Empty, loading, error and offline states. */
+
+/* The accent squiggle, drawn in from the left: once, or in a loop while loading. */
+.drawn {
+  display: block;
+  width: 100%;
+  height: 12px;
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  overflow: visible;
+}
+
+.drawn path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw var(--slow) var(--expo) forwards;
+}
+
+.drawn[data-loop="true"] path {
+  animation: draw-loop 1.8s var(--expo) infinite;
+}
+
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Draws in, holds, then rubs out to the right. */
+@keyframes draw-loop {
+  60% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: -1;
+  }
+}
+
+/* The loading screen: only shown once loading has taken 300ms, so a fast load never flashes. */
+.loading {
+  opacity: 0;
+  animation: appear var(--fast) linear 300ms forwards;
+}
+
+@keyframes appear {
+  to {
+    opacity: 1;
+  }
+}
+
+/* The empty headline line the squiggle draws itself along. */
+.loadingLine {
+  width: min(420px, 60%);
+  padding: calc(var(--text-headline) * 0.95) 0 0;
+}
+
+/* The error page's buttons and the error itself. */
+.errorActions {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-5);
+  margin: var(--space-5) 0 0;
+}
+
+.errorMessage {
+  max-width: 620px;
+  margin: var(--space-5) 0 0;
+  color: var(--soft);
+  font-size: var(--text-meta);
+  overflow-wrap: anywhere;
+}
+
+/* "Offline. Showing your week as it was at 09:12." under the masthead. */
+.offline {
+  margin: var(--space-2) 0 0;
+  color: var(--soft);
+  font: italic 17px / 1.4 var(--font-serif);
+}
+
+.offline em {
+  color: var(--ink);
+}
+
+/* One line of muted italic serif: an empty state. */
+.empty {
+  margin: var(--space-4) 0 0;
+  color: var(--soft);
+  font: italic 18px / 1.4 var(--font-serif);
+}
+
+.empty em {
+  color: var(--ink);
+}
