@@ -122,13 +122,6 @@
   opacity: 0.45;
 }
 
-/* A Pinned Block: a small accent diamond before its title, so it reads as placed by hand. */
-.pinMark {
-  color: var(--accent);
-  font-size: 9px;
-  vertical-align: 2px;
-}
-
 /* A Conflict: the Pinned Block and the Event it overlaps are hatched in the accent. */
 .conflict,
 .eventConflict {

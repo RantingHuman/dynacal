@@ -10,13 +10,13 @@ import { OFFLINE_REASON, useOnline } from "../../states/use-online";
 import { CompleteTaskButton } from "../../tasks/complete-task-button";
 import { useTaskEditor } from "../../tasks/task-editor-slot";
 import type { CalendarBlock, CalendarConflict, CalendarEvent } from "../../schedule/calendar";
-import calendarStyles from "../../schedule/calendar.module.css";
 import { ConflictStrip } from "../../schedule/conflict-strip";
 import { DynacalEventForm } from "../../schedule/dynacal-event-form";
 import { EventDetails } from "../../schedule/event-details";
 import { FloatingLabel, LabelNote, LabelTime, LabelTitle } from "../../schedule/floating-label";
 import { useNewEvent } from "../../schedule/new-event";
-import pinningStyles from "../../schedule/pinning.module.css";
+import { PinMark } from "../../schedule/pin-mark";
+import { WeekHeading } from "../../schedule/week-heading";
 import { Squiggle } from "../../states/squiggle";
 import { BlockSheet } from "./block-sheet";
 import styles from "./phone.module.css";
@@ -116,8 +116,7 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
 
   return (
     <>
-      <div className={calendarStyles.heading}>
-        <h2 className={calendarStyles.kicker}>The week ahead</h2>
+      <WeekHeading>
         <button
           type="button"
           className="link"
@@ -127,7 +126,7 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
         >
           + Event
         </button>
-      </div>
+      </WeekHeading>
 
       <ConflictStrip
         conflicts={conflicts}
@@ -177,11 +176,7 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
                   >
                     <span className={styles.lineTime}>{allDay ? "all day" : formatMinutes(minutes)}</span>
                     <span className={styles.lineTitle}>
-                      {pinned && (
-                        <span className={pinningStyles.pinMark} aria-hidden>
-                          ◆{" "}
-                        </span>
-                      )}
+                      {pinned && <PinMark />}
                       {title}
                     </span>
                     <span className={styles.lineLength}>{allDay ? "" : formatDuration(length)}</span>

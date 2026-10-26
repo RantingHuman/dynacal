@@ -1,5 +1,6 @@
 import { addDays } from "@/core/time-zone";
 import calendarStyles from "./calendar.module.css";
+import { WeekHeading } from "./week-heading";
 import { dayLabel } from "@/core/day-labels";
 
 /** The height of the empty grid: the default 08:00–18:00 at the calendar's 48px an hour. */
@@ -13,9 +14,7 @@ export function EmptyWeek({ today }: { today: string }) {
   const days = Array.from({ length: 7 }, (_, i) => addDays(today, i));
   return (
     <div className="calendar">
-      <div className={calendarStyles.heading}>
-        <h2 className={calendarStyles.kicker}>The week ahead</h2>
-      </div>
+      <WeekHeading />
       <div
         className={`calendar-grid ${calendarStyles.emptyWeek}`}
         style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))` }}

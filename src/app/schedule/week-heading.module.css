@@ -1,0 +1,20 @@
+/* "The week ahead" in spaced capitals over an ink rule, with the controls on the same line; they wrap below it. */
+
+.heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  padding-bottom: 6px;
+  border-bottom: var(--hairline) solid var(--ink);
+}
+
+.kicker {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-kicker);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}

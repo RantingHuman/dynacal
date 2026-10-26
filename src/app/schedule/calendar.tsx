@@ -23,7 +23,9 @@ import freeStyles from "./free-events.module.css";
 import { NEW_EVENT_MS, useNewEvent } from "./new-event";
 import styles from "./pinning.module.css";
 import { RecalculateButton, useRecalculate } from "./recalculate";
+import { PinMark } from "./pin-mark";
 import { Toast } from "./toast";
+import { WeekHeading } from "./week-heading";
 import { OFFLINE_REASON, useOnline } from "../states/use-online";
 
 /** A Block as sent to the browser: instants as ISO strings. */
@@ -513,10 +515,7 @@ export function Calendar({
 
   return (
     <div className="calendar">
-      <div className={calendarStyles.heading}>
-        <h2 id="week-heading" className={calendarStyles.kicker}>
-          The week ahead
-        </h2>
+      <WeekHeading>
         <div className={calendarStyles.toolbar}>
           <span className={calendarStyles.nav}>
             <button
@@ -560,7 +559,7 @@ export function Calendar({
             + Event
           </button>
         </div>
-      </div>
+      </WeekHeading>
 
       <ConflictStrip conflicts={conflicts} blocks={blocks} events={events} timeZone={timeZone} onResolve={openEditor} />
 
@@ -739,11 +738,7 @@ export function Calendar({
                     >
                       {!ended && !started && <span className={`${styles.handle} ${styles.handleTop}`} data-handle="start" />}
                       <span className="block-title">
-                        {block.pinned && (
-                          <span className={styles.pinMark} aria-hidden>
-                            ◆{" "}
-                          </span>
-                        )}
+                        {block.pinned && <PinMark />}
                         {block.taskTitle}
                       </span>
                       <span className="block-time">
