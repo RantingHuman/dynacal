@@ -1,0 +1,303 @@
+/* The full-page Task editor, in place of the calendar column. */
+
+.editor {
+  animation: open var(--slow) var(--expo) both;
+}
+
+@keyframes open {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+.kicker {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: var(--hairline) solid var(--ink);
+  font: 600 var(--text-kicker) / 1.4 var(--font-sans);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.kicker :global(.link) {
+  letter-spacing: 0;
+  text-transform: none;
+  font-size: var(--text-meta);
+  font-weight: 400;
+}
+
+.title {
+  width: 100%;
+  margin: var(--space-2) 0 var(--space-1);
+  padding: 0;
+  border: 0;
+  border-bottom: var(--hairline) solid transparent;
+  background: transparent;
+  color: inherit;
+  font: 400 clamp(34px, 4.5vw, 56px) / 1.05 var(--font-serif);
+  letter-spacing: -0.02em;
+}
+
+.title:focus-visible {
+  outline: none;
+  border-bottom-color: var(--accent);
+}
+
+.dek {
+  margin: 0 0 var(--space-4);
+  color: var(--soft);
+}
+
+.dek em {
+  color: var(--accent);
+  font-style: normal;
+}
+
+/* Labels and controls as two columns; on narrow widths the labels stack above their controls. */
+.fields {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr);
+  gap: var(--space-4) var(--space-5);
+  margin: 0 0 var(--space-5);
+  padding-top: var(--space-4);
+  border-top: var(--hairline) solid var(--rule);
+}
+
+.fields dt {
+  padding-top: var(--space-1);
+  color: var(--soft);
+  font-size: var(--text-kicker);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.fields dd {
+  margin: 0;
+}
+
+.fields :global(.field-error) {
+  margin: var(--space-1) 0 0;
+}
+
+@media (max-width: 640px) {
+  .fields {
+    grid-template-columns: 1fr;
+    gap: var(--space-1);
+  }
+
+  .fields dd {
+    margin-bottom: var(--space-3);
+  }
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 3px 11px;
+  border: var(--hairline) solid var(--rule);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--base) var(--expo),
+    border-color var(--base) var(--expo),
+    color var(--base) var(--expo),
+    transform var(--base) var(--bounce);
+}
+
+.chip:hover {
+  border-color: var(--ink);
+}
+
+.chip:active {
+  transform: scale(0.9);
+  transition-duration: var(--press);
+}
+
+.chip[aria-pressed="true"],
+.chip[aria-checked="true"],
+.chip[data-pressed="true"] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.chip[data-priority="high"][aria-checked="true"],
+.chip[data-priority="critical"][aria-checked="true"] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.chip input {
+  width: 64px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.chip input:focus-visible {
+  outline: none;
+}
+
+.chip:focus-within {
+  outline: var(--focus-width) solid var(--accent);
+  outline-offset: var(--focus-gap);
+}
+
+.chip input[type="date"] {
+  width: 118px;
+}
+
+.chip[data-pressed="true"] input {
+  color-scheme: dark;
+}
+
+.when {
+  display: grid;
+  gap: 6px;
+}
+
+.time {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.time input {
+  padding: 1px var(--space-1);
+  border: 0;
+  border-bottom: var(--hairline) solid var(--rule);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+
+.track {
+  position: relative;
+  width: 34px;
+  height: 20px;
+  border: var(--hairline) solid var(--ink);
+  border-radius: var(--radius-pill);
+  transition: background-color var(--base) var(--expo);
+}
+
+.knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-circle);
+  background: var(--ink);
+  transition: transform var(--slow) var(--bounce);
+}
+
+.switch[aria-checked="true"] .track {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.switch[aria-checked="true"] .knob {
+  background: var(--on-accent);
+  transform: translateX(14px);
+}
+
+.notes {
+  width: 100%;
+  padding: 6px var(--space-2);
+  border: var(--hairline) solid var(--rule);
+  border-radius: var(--radius-square);
+  background: transparent;
+  color: inherit;
+  font: 16px / 1.4 var(--font-serif);
+  resize: vertical;
+}
+
+.notes:focus-visible {
+  outline: none;
+  border-color: var(--ink);
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* Secondary buttons: outlined pills. */
+.plain {
+  padding: 0.6rem 1rem;
+  border: var(--hairline) solid var(--rule);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+  transition:
+    border-color var(--base) var(--expo),
+    transform var(--base) var(--bounce);
+}
+
+.plain:hover:not(:disabled) {
+  border-color: var(--ink);
+}
+
+.plain:active:not(:disabled) {
+  transform: scale(0.92);
+  transition-duration: var(--press);
+}
+
+.plain[data-danger],
+.danger.plain {
+  color: var(--accent);
+}
+
+.plain[data-danger] {
+  border-color: var(--accent);
+}
+
+.danger {
+  margin-left: auto;
+}
+
+.confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-meta);
+}

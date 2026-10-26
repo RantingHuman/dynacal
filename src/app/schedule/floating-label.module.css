@@ -1,0 +1,71 @@
+/* The floating label: a card in the bottom right corner with a double ink edge, above the calendar. */
+
+.label {
+  position: fixed;
+  z-index: 30;
+  right: var(--space-6);
+  bottom: var(--space-6);
+  display: grid;
+  gap: var(--space-2);
+  width: min(380px, calc(100vw - 2 * var(--space-4)));
+  max-height: calc(100vh - 2 * var(--space-6));
+  overflow-y: auto;
+  padding: var(--space-5) var(--space-5) var(--space-4);
+  border: var(--hairline) solid var(--ink);
+  outline: var(--hairline) solid var(--ink);
+  outline-offset: 4px;
+  background: var(--card);
+  box-shadow: 0 24px 50px color-mix(in srgb, var(--ink) 14%, transparent);
+}
+
+@media (max-width: 640px) {
+  .label {
+    right: var(--space-4);
+    bottom: var(--space-4);
+  }
+}
+
+.label p {
+  margin: 0;
+}
+
+.top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.kind {
+  color: var(--soft);
+  font-size: var(--text-kicker);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.close {
+  font-size: var(--text-meta);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-label-title);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+
+.time {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 19px;
+}
+
+.note {
+  color: var(--soft);
+  font-size: var(--text-meta);
+}
+
+.alert {
+  color: var(--accent);
+}

@@ -27,9 +27,6 @@ export function DeclinedTimes({
   if (declinedTimes.length === 0) return null;
   return (
     <div className={styles.declined}>
-      <span className={styles.label} title="You deleted these Blocks in Google, so this Task stays out of these times">
-        Declined Times
-      </span>
       <ul>
         {declinedTimes.map((d) => (
           <DeclinedTimeRow key={d.id} declined={d} taskTitle={taskTitle} timeZone={timeZone} />

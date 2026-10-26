@@ -1,31 +1,8 @@
-.item {
-  display: flex;
-  gap: 0.5rem;
-  align-items: flex-start;
-}
-
-.body {
-  flex: 1;
-  min-width: 0;
-}
-
-.body > :global(.task-row) {
-  width: 100%;
-}
-
-.completed :global(.task-row) {
-  opacity: 0.6;
-}
-
-.completed :global(.task-title) {
-  text-decoration: line-through;
-}
-
 .toggle {
   flex: none;
-  width: 1.6rem;
-  height: 1.6rem;
-  margin-top: 0.55rem;
+  width: 1.4rem;
+  height: 1.4rem;
+  margin-top: 1px;
   display: grid;
   place-items: center;
   border: 1.5px solid var(--ink);

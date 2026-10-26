@@ -6,10 +6,10 @@
 
 **Status:** ready-for-agent
 
-- [ ] Every control listed in the controls ticket is reachable where the spec puts it, and nothing is lost
-- [ ] The Conflict strip, the paged review box and the floating label replace today's inline sections and banners
-- [ ] Resize handles show on hover; a refused move snaps back with its reason in a toast
-- [ ] Blocks that haven't ended have a checkbox that completes their whole Task through the existing command; ended Blocks don't
-- [ ] The Block label has "Mark the Task done" and the hint; the Event label keeps the Busy Override and the dynacal Event form
-- [ ] Dragging, resizing, clicking empty time for a New Event, pinning and Conflicts behave exactly as before
+- [x] Every control listed in the controls ticket is reachable where the spec puts it, and nothing is lost
+- [x] The Conflict strip, the paged review box and the floating label replace today's inline sections and banners
+- [x] Resize handles show on hover; a refused move snaps back with its reason in a toast
+- [x] Blocks that haven't ended have a checkbox that completes their whole Task through the existing command; ended Blocks don't
+- [x] The Block label has "Mark the Task done" and the hint; the Event label keeps the Busy Override and the dynacal Event form
+- [x] Dragging, resizing, clicking empty time for a New Event, pinning and Conflicts behave exactly as before
 - [ ] Checked by hand in a dev server, including at 640–960px where the toolbar wraps

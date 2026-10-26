@@ -13,8 +13,8 @@ See spec stories 107–112 and "Reminders and the installed app", and map ticket
 
 **Status:** ready-for-agent
 
-- [ ] Reminders sent through the fake push sender carry the new wording, the Block's length and a link to the Block
-- [ ] Opening that link shows the Block's details (or says nothing if it's gone)
-- [ ] The new icons replace the old ones and survive Android's crops
-- [ ] The manifest and meta colours match the spec; the status bar follows light and dark
+- [x] Reminders sent through the fake push sender carry the new wording, the Block's length and a link to the Block
+- [x] Opening that link shows the Block's details (or says nothing if it's gone)
+- [x] The new icons replace the old ones and survive Android's crops
+- [x] The manifest and meta colours match the spec; the status bar follows light and dark
 - [ ] Command-layer tests cover the reminder text and link; the icon and colours are checked by hand on an installed PWA

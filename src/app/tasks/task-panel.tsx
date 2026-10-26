@@ -1,23 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { TaskListItem } from "@/core/commands";
-import { PRIORITY_LABELS, formatDateOrDateTime, formatDuration, type Task } from "@/core/tasks";
+import { formatDuration, type TaskInput } from "@/core/tasks";
 import type { TaskFlag } from "@/core/scheduler";
-import { NewEventButton } from "../schedule/new-event";
 import { CompleteTaskButton } from "./complete-task-button";
-import completion from "./completion.module.css";
-import { DeclinedTimes } from "./declined-times";
-import { TaskForm } from "./task-form";
+import { deadlineWords, todayIn } from "./day-words";
+import { FLAG_LABELS } from "./flags";
+import { useTaskEditor } from "./task-editor-slot";
+import { TASK_LINE_ID, TaskLineAdd } from "./task-line-add";
+import styles from "./task-panel.module.css";
 
-const FLAG_LABELS: Record<TaskFlag, string> = {
-  "at-risk": "At Risk",
-  overdue: "Overdue",
-  unscheduled: "Unscheduled",
-};
+/** The editable fields of a Task. */
+function inputOf({ title, notes, estimatedMinutes, deadline, earliestStart, priority, dontSplit }: TaskInput): TaskInput {
+  return { title, notes, estimatedMinutes, deadline, earliestStart, priority, dontSplit };
+}
 
-type Editing = { mode: "closed" } | { mode: "new" } | { mode: "edit"; task: Task };
-
+/**
+ * The Tasks column: a contents list of Tasks under a one-line add. Clicking a Task, or "Full form", opens the
+ * full-page editor in place of the calendar column (see `TaskEditorSlot`).
+ */
 export function TaskPanel({
   tasks,
   flags,
@@ -25,73 +27,60 @@ export function TaskPanel({
 }: {
   tasks: TaskListItem[];
   flags: Record<string, TaskFlag | null>;
-  /** The owner's time zone, for showing Declined Times; null until it's saved. */
+  /** The owner's time zone, for dates and Declined Times; null until it's saved. */
   timeZone: string | null;
 }) {
-  const [editing, setEditing] = useState<Editing>({ mode: "closed" });
+  const { open, openTask, setColumn } = useTaskEditor();
+  const [today, setToday] = useState(() => todayIn(timeZone));
+  useEffect(() => setToday(todayIn(timeZone)), [timeZone, tasks]);
+  // The editor, in the calendar column, works from the same Tasks.
+  useEffect(() => setColumn({ tasks, flags, timeZone, today }), [setColumn, tasks, flags, timeZone, today]);
+
+  const openId = open?.taskId ?? null;
+  const openCount = tasks.filter((t) => !t.completedAt).length;
 
   return (
     <section className="task-panel" aria-labelledby="tasks-heading">
-      <div className="panel-header">
-        <h2 id="tasks-heading">Tasks</h2>
-        <span className="panel-actions">
-          {editing.mode === "closed" && (
-            <button className="button" type="button" onClick={() => setEditing({ mode: "new" })}>
-              New Task
-            </button>
-          )}
-          <NewEventButton />
+      <h2 id="tasks-heading" className={styles.heading}>
+        <span>Tasks</span>
+        <span className={styles.count}>{openCount} open</span>
+        <span className={styles.actions}>
+          <button type="button" className="link" onClick={() => document.getElementById(TASK_LINE_ID)?.focus()}>
+            + Task
+          </button>
         </span>
-      </div>
+      </h2>
 
-      {editing.mode !== "closed" && (
-        <TaskForm
-          key={editing.mode === "edit" ? editing.task.id : "new"}
-          task={editing.mode === "edit" ? editing.task : null}
-          onDone={() => setEditing({ mode: "closed" })}
-        />
-      )}
+      <TaskLineAdd today={today} onFullForm={(initial) => openTask({ taskId: null, initial })} />
 
       {tasks.length === 0 ? (
         <p className="muted">No Tasks yet. Add one to get started.</p>
       ) : (
-        <ul className="task-list">
-          {tasks.map((task) => (
-            <li key={task.id} className={`${completion.item}${task.completedAt ? ` ${completion.completed}` : ""}`}>
-              <CompleteTaskButton id={task.id} title={task.title} completed={task.completedAt !== null} />
-              <div className={completion.body}>
+        <ol className={styles.list}>
+          {tasks.map((task) => {
+            const flag = task.completedAt ? null : flags[task.id];
+            const declined = task.completedAt ? 0 : task.declinedTimes.length;
+            return (
+              <li key={task.id} className={styles.item} data-done={task.completedAt !== null}>
+                <CompleteTaskButton id={task.id} title={task.title} completed={task.completedAt !== null} />
                 <button
                   type="button"
-                  className={`task-row${editing.mode === "edit" && editing.task.id === task.id ? " selected" : ""}`}
-                  onClick={() => setEditing({ mode: "edit", task })}
+                  className={styles.open}
+                  aria-current={openId === task.id || undefined}
+                  onClick={() => openTask({ taskId: task.id, initial: inputOf(task) })}
                 >
-                  <span className="task-title-row">
-                    <span className="task-title">{task.title}</span>
-                    {flags[task.id] && (
-                      <span className={`flag flag-${flags[task.id]}`}>{FLAG_LABELS[flags[task.id]!]}</span>
-                    )}
-                  </span>
-                  <span className="task-meta">
-                    <span className={`priority priority-${task.priority}`}>{PRIORITY_LABELS[task.priority]}</span>
-                    {task.completedAt ? (
-                      <span>Complete</span>
-                    ) : (
-                      <span title="Remaining Duration of the estimated duration">
-                        {formatDuration(task.remainingMinutes)} of {formatDuration(task.estimatedMinutes)} remaining
-                      </span>
-                    )}
-                    {task.deadline && <span>Due {formatDateOrDateTime(task.deadline)}</span>}
-                    {task.earliestStart && <span>From {formatDateOrDateTime(task.earliestStart)}</span>}
-                    {task.dontSplit && <span>Don’t split</span>}
+                  <span className="task-title">{task.title}</span>
+                  <span className={styles.meta}>
+                    {task.completedAt ? "Complete" : `${formatDuration(task.remainingMinutes)} left`}
+                    {task.deadline && ` · ${deadlineWords(task.deadline, today)}`}
+                    {flag && <em className={styles.flag}> · {FLAG_LABELS[flag]}</em>}
+                    {declined > 0 && ` · ${declined} Declined ${declined === 1 ? "Time" : "Times"}`}
                   </span>
                 </button>
-                {timeZone && !task.completedAt && (
-                  <DeclinedTimes taskTitle={task.title} declinedTimes={task.declinedTimes} timeZone={timeZone} />
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
+              </li>
+            );
+          })}
+        </ol>
       )}
     </section>
   );
