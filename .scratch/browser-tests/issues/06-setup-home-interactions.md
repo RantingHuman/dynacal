@@ -4,8 +4,8 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Setup paragraphs unlock in order and invalid input prevents progress.
-- [ ] Task-line preview chips reflect input as it is typed.
-- [ ] Standfirst links point to their intended destinations.
+- [x] Setup paragraphs unlock in order and invalid input prevents progress.
+- [x] Task-line preview chips reflect input as it is typed.
+- [x] Standfirst links point to their intended destinations.
