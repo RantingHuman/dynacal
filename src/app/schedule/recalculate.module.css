@@ -1,0 +1,43 @@
+/* Recalculate: the button with its note beside it (the toolbar) or under it (the phone's Menu). */
+.recalculate {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.recalculate[data-stacked] {
+  display: grid;
+  gap: 2px;
+}
+
+/* "Recalculating…" stays readable while it runs; offline it's dimmed like any other disabled link. */
+.button[aria-busy="true"]:disabled {
+  opacity: 1;
+  cursor: progress;
+}
+
+/* While Recalculation runs, a small squiggle ripples under the button. */
+.button {
+  position: relative;
+}
+
+.ripple {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -6px;
+  height: 6px;
+  /* A 1.5px line, in the squiggle's units (12 of them to this one's 6px), sliding a wavelength each --slow. */
+  --squiggle-stroke: 3;
+  --squiggle-loop: var(--slow);
+}
+
+.note {
+  color: var(--soft);
+  font-size: var(--text-kicker);
+  font-weight: 400;
+}
+
+.recalculate[data-stacked] .note {
+  font-size: var(--text-meta);
+}

@@ -65,22 +65,6 @@
   display: contents;
 }
 
-.recalculate {
-  display: grid;
-  gap: 2px;
-}
-
-/* "Recalculating…" stays readable while it runs. */
-.recalculate :global(.link):disabled {
-  opacity: 1;
-  cursor: progress;
-}
-
-.menuNote {
-  color: var(--soft);
-  font-size: var(--text-meta);
-}
-
 /* The lead, shortened to fit. */
 
 .lead h1 {

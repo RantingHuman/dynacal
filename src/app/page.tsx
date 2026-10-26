@@ -128,7 +128,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             <PhoneHome
               masthead={
                 <>
-                  <PhoneMasthead canRecalculate={schedule !== null} connectionBroken={connectionBroken}>
+                  <PhoneMasthead blocks={schedule?.blocks ?? null} connectionBroken={connectionBroken}>
                     {accountControls}
                   </PhoneMasthead>
                   {offlineNotice}

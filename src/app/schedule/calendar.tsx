@@ -1,16 +1,15 @@
 "use client";
 
-import { addTransitionType, useCallback, useEffect, useRef, useState, useTransition, ViewTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition, ViewTransition } from "react";
 import type { BusyOverride, EventRef } from "@/core/busy-override";
 import { dayLabel, rangeLabel } from "@/core/day-labels";
-import { movedBlocks } from "@/core/motion";
 import { formatMinutes, type WorkingHours } from "@/core/settings";
 import { DAY_MINUTES, GRID_MINUTES, MINUTE_MS } from "@/core/time";
 import { addDays, fromZoned, toZoned, weekdayOf } from "@/core/time-zone";
 import { useCompleteTask } from "../tasks/complete-task-button";
 import { useCompletion } from "../tasks/completion";
 import { useTaskEditor } from "../tasks/task-editor-slot";
-import { moveBlock, recalculate } from "./actions";
+import { moveBlock } from "./actions";
 import { moveError } from "./block-actions";
 import { BlockEditor } from "./block-editor";
 import calendarStyles from "./calendar.module.css";
@@ -23,8 +22,8 @@ import { FloatingLabel, LabelTitle } from "./floating-label";
 import freeStyles from "./free-events.module.css";
 import { NEW_EVENT_MS, useNewEvent } from "./new-event";
 import styles from "./pinning.module.css";
+import { RecalculateButton, useRecalculate } from "./recalculate";
 import { Toast } from "./toast";
-import { Squiggle } from "../states/squiggle";
 import { OFFLINE_REASON, useOnline } from "../states/use-online";
 
 /** A Block as sent to the browser: instants as ISO strings. */
@@ -70,9 +69,6 @@ type View = "day" | "week";
 
 const HOUR_PX = 48;
 
-/** How long moved Blocks glide after a Recalculation, and the gap between one starting and the next (--slow, --stagger). */
-const GLIDE_MS = 600;
-const STAGGER_MS = 30;
 /** Long enough for a landing's longest part, the drop's flash (--rise). */
 const LANDING_MS = 900;
 
@@ -216,7 +212,6 @@ export function Calendar({
     const opening = blocks.find((b) => b.id === openBlockId);
     return opening ? toZoned(new Date(opening.start), timeZone).date : today;
   });
-  const [pending, startTransition] = useTransition();
   const [moving, startMoving] = useTransition();
   const [editingId, setEditingId] = useState<string | null>(openBlockId ?? null);
   const [openEventId, setOpenEventId] = useState<string | null>(null);
@@ -226,8 +221,6 @@ export function Calendar({
   const clearToast = useCallback(() => setToast(null), []);
   const showError = useCallback((text: string) => setToast({ text, tone: "error" }), []);
   const [landing, setLanding] = useState<Landing | null>(null);
-  /** The Blocks as they were when Recalculate was pressed, until the moved ones have glided into place. */
-  const [glideFrom, setGlideFrom] = useState<CalendarBlock[] | null>(null);
   /** Which way the grid last changed, so it slides (or fades) in; null until it first does. */
   const [shift, setShift] = useState<{ n: number; way: "back" | "forward" | "view" } | null>(null);
   // Tasks complete in the Task list, at once when ticked: all of a completed Task's Blocks dim together.
@@ -261,15 +254,14 @@ export function Calendar({
     return () => clearTimeout(timer);
   }, [landing]);
 
-  // A Recalculation has finished: say how many Blocks moved, and stop gliding once the last has landed.
-  const finished = !pending && glideFrom !== null;
-  const movedCount = finished ? movedBlocks(glideFrom, blocks).length : 0;
-  useEffect(() => {
-    if (!finished) return;
-    if (movedCount > 0) setToast({ text: `${movedCount} ${movedCount === 1 ? "Block" : "Blocks"} moved`, tone: "info" });
-    const timer = setTimeout(() => setGlideFrom(null), GLIDE_MS + movedCount * STAGGER_MS);
-    return () => clearTimeout(timer);
-  }, [finished, movedCount]);
+  /**
+   * Recalculate: as it finishes, the Blocks it moved glide into place one after another (on another day, through
+   * `<ViewTransition>`), and the toast says how many moved.
+   */
+  const recalculation = useRecalculate(
+    blocks,
+    useCallback((text: string | null) => setToast(text === null ? null : { text, tone: "info" }), []),
+  );
 
   const conflictingBlocks = new Set(conflicts.map((c) => c.blockId));
   const conflictingEvents = new Set(conflicts.map((c) => c.eventId));
@@ -484,20 +476,7 @@ export function Calendar({
     setView(next);
   };
 
-  /**
-   * Recalculate: a squiggle ripples under the button while it runs. As it finishes, the Blocks it moved glide into
-   * place one after another (on another day, through `<ViewTransition>`), and the toast says how many moved.
-   */
-  function runRecalculate() {
-    setGlideFrom(blocks);
-    setToast(null);
-    startTransition(async () => {
-      addTransitionType("recalculate");
-      await recalculate();
-    });
-  }
-  const gliding = glideFrom === null ? [] : movedBlocks(glideFrom, blocks);
-  const glideOrder = new Map(gliding.map((key, i) => [key, i]));
+  const glideOrder = new Map(recalculation.gliding.map((key, i) => [key, i]));
 
   const placedByDay = placeOnDays(shown, days, timeZone);
   const eventsByDay = placeOnDays(
@@ -570,21 +549,7 @@ export function Calendar({
               </button>
             ))}
           </span>
-          <span className={calendarStyles.recalculate}>
-            <button
-              type="button"
-              className={`link ${calendarStyles.recalculateButton}`}
-              disabled={pending || !online}
-              title={online ? undefined : OFFLINE_REASON}
-              onClick={runRecalculate}
-            >
-              {pending ? "Recalculating…" : "Recalculate"}
-              {pending && (
-                <Squiggle waves={5} motion="wiggle" className={calendarStyles.ripple} />
-              )}
-            </button>
-            {connectionBroken && <span className={calendarStyles.note}>Uses the last Events dynacal saw</span>}
-          </span>
+          <RecalculateButton recalculation={recalculation} connectionBroken={connectionBroken} />
           <button
             type="button"
             className="link"
