@@ -56,6 +56,16 @@
   --base: 350ms; /* hovers and sweeps */
   --slow: 600ms; /* entrances */
   --press: 80ms; /* how quickly a pressed control squeezes in */
+  --hover: 250ms; /* a Block lifting, a chip filling */
+  --pick: 300ms; /* a Block picked up */
+  --knob: 400ms; /* a switch's knob */
+  --pop: 500ms; /* toasts and the floating label rising in */
+  --rise: 900ms; /* the headline rising in, a dropped Block's flash */
+  --loop: 6s; /* the headline squiggle's one slow cycle */
+  --linger: 2.2s; /* how long a passing message stays: an information toast, "Saved" */
+  --stagger: 30ms; /* between Blocks gliding after a Recalculation */
+  /* Blocks moved by Recalculation: a spring that overshoots a little and settles, over --slow. */
+  --spring: linear(0, 0.009, 0.035 2.1%, 0.141 4.4%, 0.723 12.9%, 0.938 16.7%, 1.017 19.8%, 1.051 22.7%, 1.06 25.9%, 1.044 31.6%, 1.012 41.5%, 0.998 51.7%, 0.997 61.4%, 1);
 
   color-scheme: light dark;
 }
@@ -812,4 +822,83 @@ input[type="checkbox"]:disabled {
   display: flex;
   gap: 0.5rem;
   align-items: center;
+}
+
+/* A form's message fades in under its field; errors stay quiet, so nothing shakes. */
+.field-error {
+  animation: fade-in var(--base) var(--expo);
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/*
+ * View transitions, run by React's <ViewTransition> in Transitions. Their pseudo-elements belong to the document,
+ * so they live here rather than in a module. Only movement is wrapped in no-preference: with reduce motion on,
+ * the global rule above leaves a quick cross-fade.
+ */
+
+/* Task rows: reordering after ticks settle glides; the headline cross-fades to its new wording. */
+::view-transition-group(.task-row),
+::view-transition-group(.task-enter),
+::view-transition-old(.task-row),
+::view-transition-new(.task-row) {
+  animation-duration: var(--slow);
+  animation-timing-function: var(--expo);
+}
+
+::view-transition-group(.headline),
+::view-transition-old(.headline),
+::view-transition-new(.headline) {
+  animation-duration: var(--base);
+  animation-timing-function: var(--expo);
+}
+
+/* Blocks moving to another day after a Recalculation glide on the spring. */
+::view-transition-group(.block-glide) {
+  animation-duration: var(--slow);
+  animation-timing-function: var(--spring);
+}
+
+/*
+ * During a Recalculation the page itself doesn't cross-fade: Blocks that stay on their day glide on the live page
+ * (a CSS transition), and the old page would ghost under them.
+ */
+:root:active-view-transition-type(recalculate)::view-transition-old(root) {
+  animation: none;
+  opacity: 0;
+}
+
+:root:active-view-transition-type(recalculate)::view-transition-new(root) {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* A new Task's row slides into the list. */
+  ::view-transition-new(.task-enter):only-child {
+    animation: row-in var(--slow) var(--expo) both;
+  }
+
+  /* A deleted Task's row collapses and fades; the rows under it close up. */
+  ::view-transition-old(.task-exit):only-child {
+    transform-origin: top;
+    animation: row-out var(--base) var(--expo) both;
+  }
+}
+
+@keyframes row-in {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+}
+
+@keyframes row-out {
+  to {
+    opacity: 0;
+    transform: scaleY(0);
+  }
 }

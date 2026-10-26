@@ -4,7 +4,9 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import type { TaskListItem } from "@/core/commands";
 import type { TaskFlag } from "@/core/scheduler";
 import type { TaskInput } from "@/core/tasks";
+import { CompletionProvider } from "./completion";
 import { TaskEditor } from "./task-editor";
+import editorStyles from "./task-editor.module.css";
 
 /** What the full-page Task editor has open: an existing Task by id, or a new one, starting from `initial`. */
 export interface OpenTask {
@@ -20,10 +22,18 @@ export interface TaskColumnData {
   today: string;
 }
 
+/** The Task last saved from the editor, so its row can sweep a highlighter and say "Saved"; `n` counts saves. */
+export interface SavedTask {
+  taskId: string;
+  n: number;
+}
+
 interface TaskEditorContext {
   open: OpenTask | null;
   openTask: (open: OpenTask) => void;
   close: () => void;
+  saved: SavedTask | null;
+  markSaved: (taskId: string) => void;
   column: TaskColumnData | null;
   setColumn: (column: TaskColumnData) => void;
 }
@@ -32,21 +42,33 @@ const Context = createContext<TaskEditorContext>({
   open: null,
   openTask: () => {},
   close: () => {},
+  saved: null,
+  markSaved: () => {},
   column: null,
   setColumn: () => {},
 });
 
 /**
  * Lets the Tasks column open the full-page Task editor in place of the calendar column. Wrap both columns, and
- * wrap the calendar column's content in `TaskEditorSlot`.
+ * wrap the calendar column's content in `TaskEditorSlot`. Completing Tasks (see `CompletionProvider`) is shared
+ * across both columns here too.
  */
 export function TaskEditorProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState<OpenTask | null>(null);
   const [column, setColumn] = useState<TaskColumnData | null>(null);
   const openTask = useCallback((next: OpenTask) => setOpen(next), []);
   const close = useCallback(() => setOpen(null), []);
-  const value = useMemo(() => ({ open, openTask, close, column, setColumn }), [open, openTask, close, column]);
-  return <Context.Provider value={value}>{children}</Context.Provider>;
+  const [saved, setSaved] = useState<SavedTask | null>(null);
+  const markSaved = useCallback((taskId: string) => setSaved((prev) => ({ taskId, n: (prev?.n ?? 0) + 1 })), []);
+  const value = useMemo(
+    () => ({ open, openTask, close, saved, markSaved, column, setColumn }),
+    [open, openTask, close, saved, markSaved, column],
+  );
+  return (
+    <Context.Provider value={value}>
+      <CompletionProvider>{children}</CompletionProvider>
+    </Context.Provider>
+  );
 }
 
 export function useTaskEditor(): TaskEditorContext {
@@ -58,7 +80,7 @@ export function useTaskEditor(): TaskEditorContext {
  * mounted, hidden, so it keeps its state.
  */
 export function TaskEditorSlot({ children }: { children: ReactNode }) {
-  const { open, close, column } = useTaskEditor();
+  const { open, close, markSaved, column } = useTaskEditor();
   const task = open?.taskId ? (column?.tasks.find((t) => t.id === open.taskId) ?? null) : null;
   const gone = open?.taskId != null && column !== null && task === null;
 
@@ -79,9 +101,13 @@ export function TaskEditorSlot({ children }: { children: ReactNode }) {
           timeZone={column.timeZone}
           today={column.today}
           onClose={close}
+          onSaved={markSaved}
         />
       )}
-      <div hidden={showing}>{children}</div>
+      {/* Shown again, it fades back in: a hidden element's animation restarts when it's shown. */}
+      <div hidden={showing} className={editorStyles.back}>
+        {children}
+      </div>
     </>
   );
 }

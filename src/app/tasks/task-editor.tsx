@@ -31,6 +31,7 @@ export function TaskEditor({
   timeZone,
   today,
   onClose,
+  onSaved,
 }: {
   /** The Task being edited, or null for a new one. */
   task: TaskListItem | null;
@@ -39,6 +40,8 @@ export function TaskEditor({
   timeZone: string | null;
   today: string;
   onClose: () => void;
+  /** An existing Task was saved: its row sweeps a highlighter and says so. */
+  onSaved: (taskId: string) => void;
 }) {
   const [input, setInput] = useState<TaskInput>(initial);
   const [errors, setErrors] = useState<TaskErrors>({});
@@ -58,7 +61,11 @@ export function TaskEditor({
     event.preventDefault();
     startTransition(async () => {
       const result = task ? await updateTask(task.id, input) : await createTask(input);
-      if (result.ok) return onClose();
+      if (result.ok) {
+        // A new Task's row arrives with its own sweep.
+        if (task) onSaved(task.id);
+        return onClose();
+      }
       if ("notFound" in result) setNotice("This Task was deleted elsewhere.");
       else setErrors(result.errors);
     });
