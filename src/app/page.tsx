@@ -76,6 +76,7 @@ export default async function HomePage() {
                 }}
                 blocks={scheduleView.blocks.map((b) => ({
                   id: b.id,
+                  displayKey: b.displayKey,
                   taskTitle: b.taskTitle,
                   start: b.start.toISOString(),
                   end: b.end.toISOString(),

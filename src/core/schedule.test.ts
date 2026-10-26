@@ -229,3 +229,45 @@ describe("the Schedule", () => {
     });
   });
 });
+
+describe("Block display keys", () => {
+  /** The Schedule's Blocks as [title, displayKey, id] triples. */
+  function keyed(commands: ReturnType<typeof createTestApp>["commands"]) {
+    const view = commands.getSchedule();
+    if (view.status !== "ready") throw new Error(`Schedule not ready: ${view.status}`);
+    return view.blocks.map((b) => [b.taskTitle, b.displayKey, b.id]);
+  }
+
+  it("survive a Recalculation that replaces the Blocks with new ones", () => {
+    const { commands } = appInLondon();
+    const task = createTask(commands, { title: "Report" });
+    const [[, , before]] = keyed(commands);
+
+    commands.recalculate();
+
+    const [[title, displayKey, after]] = keyed(commands);
+    expect(after).not.toBe(before);
+    expect([title, displayKey]).toEqual(["Report", `${task.id}#1`]);
+  });
+
+  it("number each Task's Blocks in time order, following position as the number of Blocks changes", () => {
+    const { commands } = appInLondon();
+    commands.updateSettings({
+      workingHours: { ...commands.getSettings().workingHours, mon: [{ start: 13 * 60, end: 14 * 60 }] },
+    });
+    const report = createTask(commands, { title: "Report", estimatedMinutes: 120, deadline: { date: "2026-01-06", time: null } });
+    const slides = createTask(commands, { title: "Slides" });
+    expect(keyed(commands).map(([title, key]) => [title, key])).toEqual([
+      ["Report", `${report.id}#1`],
+      ["Report", `${report.id}#2`],
+      ["Slides", `${slides.id}#1`],
+    ]);
+
+    commands.updateTask(report.id, { ...oneHour, title: "Report", deadline: { date: "2026-01-06", time: null } });
+
+    expect(keyed(commands).map(([title, key]) => [title, key])).toEqual([
+      ["Report", `${report.id}#1`],
+      ["Slides", `${slides.id}#1`],
+    ]);
+  });
+});

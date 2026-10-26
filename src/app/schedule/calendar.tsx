@@ -19,6 +19,8 @@ import styles from "./pinning.module.css";
 /** A Block as sent to the browser: instants as ISO strings. */
 export interface CalendarBlock {
   id: string;
+  /** Stable across Recalculations, which replace Blocks with new ones; the React key. */
+  displayKey: string;
   taskTitle: string;
   start: string;
   end: string;
@@ -592,7 +594,7 @@ export function Calendar({
                 const label = `${block.taskTitle}, ${formatMinutes(top)}–${formatMinutes(bottom)}${block.pinned ? ", Pinned Block" : ""}${conflict ? ", Conflict" : ""}`;
                 return (
                   <div
-                    key={`${block.id}-${day}`}
+                    key={`${block.displayKey}-${day}`}
                     className={classes.join(" ")}
                     style={{ top: px(top), height: px(bottom) - px(top) }}
                     title={label}
