@@ -4,8 +4,8 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Block Save, Unpin and Mark done are covered.
-- [ ] Busy Override changes and Escape dismissal are covered.
-- [ ] Relevant refusals and offline controls are covered where supported.
+- [x] Block Save, Unpin and Mark done are covered.
+- [x] Busy Override changes and Escape dismissal are covered.
+- [x] Relevant refusals and offline controls are covered where supported.
