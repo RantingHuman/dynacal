@@ -19,6 +19,7 @@ import freeStyles from "./free-events.module.css";
 import { NEW_EVENT_MS, useNewEvent } from "./new-event";
 import styles from "./pinning.module.css";
 import { Toast } from "./toast";
+import { OFFLINE_REASON, useOnline } from "../states/use-online";
 
 /** A Block as sent to the browser: instants as ISO strings. */
 export interface CalendarBlock {
@@ -210,6 +211,8 @@ export function Calendar({
   const columns = useRef(new Map<string, HTMLDivElement>());
   const now = new Date(horizon.start).getTime();
   const newEvent = useNewEvent();
+  /** Offline, the calendar is for looking only: nothing that changes data can be attempted. */
+  const online = useOnline();
 
   // The New Event form takes the place of any open Block editor or Event details.
   useEffect(() => {
@@ -229,7 +232,7 @@ export function Calendar({
   );
 
   function beginDrag(e: React.PointerEvent<HTMLDivElement>, block: CalendarBlock, day: string) {
-    if (e.pointerType === "touch" || e.button !== 0 || moving) return;
+    if (e.pointerType === "touch" || e.button !== 0 || moving || !online) return;
     const start = new Date(block.start).getTime();
     const end = new Date(block.end).getTime();
     if (end <= now) return;
@@ -321,6 +324,7 @@ export function Calendar({
   dragHandlers.current = { continueDrag, endDrag, cancelDrag };
 
   function openEditor(block: CalendarBlock) {
+    if (!online) return setToast(OFFLINE_REASON);
     if (justDragged.current) return;
     if (new Date(block.end).getTime() <= now) return;
     setToast(null);
@@ -330,6 +334,7 @@ export function Calendar({
   }
 
   function openEventDetails(event: CalendarEvent) {
+    if (!online) return setToast(OFFLINE_REASON);
     setEditingId(null);
     newEvent.close();
     setOpenEventId(event.id);
@@ -340,7 +345,7 @@ export function Calendar({
    * of a drag isn't a click, and clicking time that has passed does nothing.
    */
   function createAt(e: React.MouseEvent<HTMLDivElement>, day: string) {
-    if (drag.current || justDragged.current) return;
+    if (drag.current || justDragged.current || !online) return;
     const y = e.clientY - e.currentTarget.getBoundingClientRect().top;
     const clicked = first + (y / HOUR_PX) * 60;
     if (fromZoned({ date: day, minutes: Math.floor(clicked) }, timeZone).getTime() < now) return;
@@ -362,6 +367,7 @@ export function Calendar({
       conflictingEvents.has(event.id) && styles.eventConflict,
       new Date(event.end).getTime() <= now && styles.past,
       openEventId === event.id && detailStyles.selected,
+      connectionBroken && calendarStyles.stale,
     ].filter(Boolean);
     return {
       className: classes.join(" "),
@@ -384,7 +390,7 @@ export function Calendar({
 
   /** e.g. ", Free, Busy Override" for an Event's label. */
   function eventNotes(event: CalendarEvent): string {
-    return `${event.dynacalEvent ? ", dynacal Event" : ""}${event.countsAsBusy ? "" : ", Free"}${event.busyOverride !== null ? ", Busy Override" : ""}${conflictingEvents.has(event.id) ? ", Conflict" : ""}`;
+    return `${event.dynacalEvent ? ", dynacal Event" : ""}${event.countsAsBusy ? "" : ", Free"}${event.busyOverride !== null ? ", Busy Override" : ""}${conflictingEvents.has(event.id) ? ", Conflict" : ""}${connectionBroken ? ", as dynacal last saw it" : ""}`;
   }
 
   function eventMarks(event: CalendarEvent) {
@@ -483,14 +489,21 @@ export function Calendar({
             <button
               type="button"
               className="link"
-              disabled={pending}
+              disabled={pending || !online}
+              title={online ? undefined : OFFLINE_REASON}
               onClick={() => startTransition(async () => void (await recalculate()))}
             >
               {pending ? "Recalculating…" : "Recalculate"}
             </button>
             {connectionBroken && <span className={calendarStyles.note}>Uses the last Events dynacal saw</span>}
           </span>
-          <button type="button" className="link" onClick={() => newEvent.open()}>
+          <button
+            type="button"
+            className="link"
+            onClick={() => newEvent.open()}
+            disabled={!online}
+            title={online ? undefined : OFFLINE_REASON}
+          >
             + Event
           </button>
         </div>
@@ -682,7 +695,7 @@ export function Calendar({
                     <span className="block-time">
                       {formatMinutes(top)}–{formatMinutes(bottom)}
                     </span>
-                    {!ended && <BlockCheck block={block} onError={setToast} />}
+                    {!ended && online && <BlockCheck block={block} onError={setToast} />}
                     {!ended && <span className={`${styles.handle} ${styles.handleBottom}`} data-handle="end" />}
                   </div>
                 );

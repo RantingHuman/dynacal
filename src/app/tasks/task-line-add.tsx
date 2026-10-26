@@ -1,36 +1,51 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { parseTaskLine } from "@/core/task-line";
-import { PRIORITY_LABELS, formatDuration, type TaskErrors, type TaskInput } from "@/core/tasks";
+import { PRIORITY_LABELS, formatDuration, validateTask, type TaskErrors, type TaskInput } from "@/core/tasks";
+import { OFFLINE_REASON } from "../states/use-online";
 import { createTask } from "./actions";
 import { deadlineWords, whenWords } from "./day-words";
+import type { ActOnTasks } from "./task-editor-slot";
 import styles from "./task-line-add.module.css";
 
 export const TASK_LINE_ID = "task-line-add";
 
 /**
  * One line at the top of the Tasks column that adds a Task: "Board memo 2h by fri". A preview shows what was
- * understood, solid for what was picked out and dashed for defaults. Enter adds it; "Full form" opens the editor.
+ * understood, solid for what was picked out and dashed for defaults. Enter adds it straight to the list (it's
+ * taken out again, and the line put back, if the server refuses); "Full form" opens the editor.
  */
-export function TaskLineAdd({ today, onFullForm }: { today: string; onFullForm: (input: TaskInput) => void }) {
+export function TaskLineAdd({
+  today,
+  offline,
+  act,
+  onFullForm,
+}: {
+  today: string;
+  offline: boolean;
+  act: ActOnTasks;
+  onFullForm: (input: TaskInput) => void;
+}) {
   const [text, setText] = useState("");
   const [errors, setErrors] = useState<TaskErrors>({});
-  const [pending, startTransition] = useTransition();
   const { input, found } = parseTaskLine(text, today);
   const picked = (field: (typeof found)[number]) => found.includes(field);
 
   function add(event: React.FormEvent) {
     event.preventDefault();
-    if (!text.trim()) return;
-    startTransition(async () => {
+    if (!text.trim() || offline) return;
+    const invalid = validateTask(input);
+    if (invalid) return setErrors(invalid);
+    const sent = text;
+    setText("");
+    setErrors({});
+    act({ kind: "add", id: `pending-${Date.now()}`, input }, async () => {
       const result = await createTask(input);
-      if (result.ok) {
-        setText("");
-        setErrors({});
-      } else {
-        setErrors(result.errors);
-      }
+      if (result.ok) return null;
+      setText((current) => current || sent);
+      setErrors(result.errors);
+      return `“${input.title.trim()}” wasn't added.`;
     });
   }
 
@@ -48,10 +63,10 @@ export function TaskLineAdd({ today, onFullForm }: { today: string; onFullForm: 
             setText(e.target.value);
             setErrors({});
           }}
-          placeholder="Add a Task: “Board memo 2h by fri”"
+          placeholder={offline ? OFFLINE_REASON : "Add a Task: “Board memo 2h by fri”"}
           aria-label="Add a Task"
           aria-describedby="task-line-preview"
-          readOnly={pending}
+          disabled={offline}
           autoComplete="off"
         />
       </div>

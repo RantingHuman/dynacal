@@ -12,9 +12,11 @@ import { Lead } from "./home/lead";
 import { Masthead } from "./home/masthead";
 import styles from "./home/home.module.css";
 import { Calendar } from "./schedule/calendar";
+import { EmptyWeek } from "./schedule/empty-week";
 import type { DynacalEventDetails } from "./schedule/dynacal-event-form";
 import { NewEventProvider } from "./schedule/new-event";
 import { TaskEditorProvider, TaskEditorSlot } from "./tasks/task-editor-slot";
+import { OfflineNotice } from "./states/offline-notice";
 import { TaskPanel } from "./tasks/task-panel";
 
 /** A dynacal Event as sent to the browser, with instants as ISO strings. */
@@ -56,6 +58,10 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
           </>
         }
       />
+      <OfflineNotice
+        renderedAt={new Date().toISOString()}
+        timeZone={scheduleView.status === "ready" ? scheduleView.timeZone : null}
+      />
       <Lead headline={writeHeadline(week, week.today)} />
       <NewEventProvider enabled={scheduleView.status === "ready"}>
         <TaskEditorProvider>
@@ -83,10 +89,10 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
                 )}
               </div>
             </div>
-            {/* The calendar. Without a time zone there's no Schedule; the headline says why. */}
+            {/* The calendar. Without a time zone there's no Schedule (the headline says why), just an empty week. */}
             <section className={styles.column} aria-label="Schedule">
               <TaskEditorSlot>
-                {scheduleView.status === "ready" && (
+                {scheduleView.status === "ready" ? (
                   <Calendar
                     timeZone={scheduleView.timeZone}
                     horizon={{
@@ -120,6 +126,8 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
                     connectionBroken={connection.status === "broken"}
                     openBlockId={remindedBlock?.id}
                   />
+                ) : (
+                  <EmptyWeek today={week.today} />
                 )}
               </TaskEditorSlot>
             </section>

@@ -10,6 +10,7 @@ import type { CalendarBlock, CalendarEvent } from "./calendar";
 import { dayLabel } from "./day-label";
 import { FloatingLabel, LabelNote, LabelTime, LabelTitle } from "./floating-label";
 import styles from "./pinning.module.css";
+import { useSlow } from "../states/use-slow";
 
 function minutesOf(time: string): number {
   const [h, m] = time.split(":").map(Number);
@@ -46,6 +47,7 @@ export function BlockEditor({
   const [endTime, setEndTime] = useState(formatMinutes(end.minutes));
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const slow = useSlow(pending);
 
   function save(e: React.FormEvent) {
     e.preventDefault();
@@ -110,7 +112,7 @@ export function BlockEditor({
         </label>
         <div className={styles.editorActions}>
           <button type="submit" className="button" disabled={pending}>
-            {block.pinned ? "Save" : "Save and pin"}
+            {slow ? "…" : block.pinned ? "Save" : "Save and pin"}
           </button>
           {block.pinned && (
             <button type="button" className="button secondary" disabled={pending} onClick={unpin}>

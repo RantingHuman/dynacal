@@ -11,11 +11,14 @@ import {
   type Priority,
   type TaskErrors,
   type TaskInput,
+  validateTask,
 } from "@/core/tasks";
+import { useSlow } from "../states/use-slow";
 import { createTask, deleteTask, updateTask } from "./actions";
 import { nextSevenDays, weekdayName } from "./day-words";
 import { DeclinedTimes } from "./declined-times";
 import { FLAG_LABELS } from "./flags";
+import type { ActOnTasks } from "./task-editor-slot";
 import styles from "./task-editor.module.css";
 
 const DURATIONS = [15, 30, 45, 60, 90, 120, 180, 240];
@@ -30,6 +33,7 @@ export function TaskEditor({
   flag,
   timeZone,
   today,
+  act,
   onClose,
 }: {
   /** The Task being edited, or null for a new one. */
@@ -38,12 +42,13 @@ export function TaskEditor({
   flag: TaskFlag | null;
   timeZone: string | null;
   today: string;
+  act: ActOnTasks;
   onClose: () => void;
 }) {
   const [input, setInput] = useState<TaskInput>(initial);
   const [errors, setErrors] = useState<TaskErrors>({});
-  const [notice, setNotice] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const slow = useSlow(pending);
   const section = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -54,13 +59,20 @@ export function TaskEditor({
     setInput((current) => ({ ...current, ...change }));
   }
 
+  /** Saving shows the change in the list at once and closes the page; a refusal rolls it back with a toast. */
   function save(event: React.FormEvent) {
     event.preventDefault();
-    startTransition(async () => {
+    const invalid = validateTask(input);
+    if (invalid) return setErrors(invalid);
+    onClose();
+    const change = task
+      ? ({ kind: "update", id: task.id, input } as const)
+      : ({ kind: "add", id: `pending-${Date.now()}`, input } as const);
+    act(change, async () => {
       const result = task ? await updateTask(task.id, input) : await createTask(input);
-      if (result.ok) return onClose();
-      if ("notFound" in result) setNotice("This Task was deleted elsewhere.");
-      else setErrors(result.errors);
+      if (result.ok) return null;
+      if ("notFound" in result) return "This Task was deleted elsewhere.";
+      return `“${input.title.trim()}” wasn't saved: ${Object.values(result.errors).join(" ")}`;
     });
   }
 
@@ -179,8 +191,6 @@ export function TaskEditor({
           )}
         </dl>
 
-        {notice && <p className="error">{notice}</p>}
-
         <div className={styles.buttons}>
           <button className="button" type="submit" disabled={pending}>
             {task ? "Save" : "Add Task"}
@@ -188,7 +198,7 @@ export function TaskEditor({
           <button type="button" className={styles.plain} onClick={onClose}>
             Cancel
           </button>
-          {task && <DeleteButton disabled={pending} onDelete={remove} />}
+          {task && <DeleteButton disabled={pending} slow={slow} onDelete={remove} />}
         </div>
       </form>
     </section>
@@ -306,7 +316,7 @@ function PriorityField({ value, onChange }: { value: Priority; onChange: (priori
 }
 
 /** Delete asks once, in place, rather than with a browser dialog. */
-function DeleteButton({ disabled, onDelete }: { disabled: boolean; onDelete: () => void }) {
+function DeleteButton({ disabled, slow, onDelete }: { disabled: boolean; slow: boolean; onDelete: () => void }) {
   const [asking, setAsking] = useState(false);
   if (!asking) {
     return (
@@ -319,7 +329,7 @@ function DeleteButton({ disabled, onDelete }: { disabled: boolean; onDelete: () 
     <span className={`${styles.confirm} ${styles.danger}`} role="group" aria-label="Confirm delete">
       Delete it?
       <button type="button" className={styles.plain} data-danger disabled={disabled} onClick={onDelete} autoFocus>
-        Delete
+        {slow ? "…" : "Delete"}
       </button>
       <button type="button" className={styles.plain} onClick={() => setAsking(false)}>
         Keep
