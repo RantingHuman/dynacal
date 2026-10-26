@@ -141,7 +141,8 @@
   border-color: var(--accent);
 }
 
-/* Resize handles: a short accent bar at a Block's top or bottom edge, shown on hover. */
+/* Resize handles: the pointer turns to a resize cursor at a Block's top or bottom edge, and a short accent bar
+   shows only while it's on that edge, so the cue appears exactly where resizing is possible. */
 .handle {
   position: absolute;
   left: 0;
@@ -163,8 +164,7 @@
   transition: opacity var(--base) var(--expo);
 }
 
-.movable:hover .handle::after,
-.dragging .handle::after {
+.movable .handle:hover::after {
   opacity: 1;
 }
 
