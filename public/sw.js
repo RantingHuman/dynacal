@@ -68,7 +68,8 @@ self.addEventListener("fetch", (event) => {
 });
 
 self.addEventListener("push", (event) => {
-  let message = { title: "dynacal", body: "A Block is starting soon.", url: "/" };
+  // Worded like `reminderMessage` in src/core/reminders.ts, without the Task, time or length it would give.
+  let message = { title: "dynacal", body: "A Block starts soon", url: "/" };
   try {
     message = { ...message, ...event.data.json() };
   } catch {
