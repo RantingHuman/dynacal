@@ -49,8 +49,8 @@
 .open {
   flex: 1;
   min-width: 0;
-  display: grid;
-  gap: 2px;
+  /* Block, not grid: the title must stay inline so the highlighter hugs its words, line by line. */
+  display: block;
   padding: 0;
   border: 0;
   background: none;
@@ -61,6 +61,8 @@
 }
 
 .open :global(.task-title) {
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
   background-image: linear-gradient(var(--highlight), var(--highlight));
   background-repeat: no-repeat;
   background-position: 0 100%;
@@ -78,6 +80,8 @@
 }
 
 .meta {
+  display: block;
+  margin-top: 2px;
   color: var(--soft);
   font-size: var(--text-meta);
 }
