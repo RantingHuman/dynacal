@@ -9,7 +9,7 @@ import type { CalendarEvent } from "./calendar";
 import { dayLabel } from "./day-label";
 import { DynacalEventForm } from "./dynacal-event-form";
 import styles from "./event-details.module.css";
-
+import { FloatingLabel, LabelTime, LabelTitle } from "./floating-label";
 
 /** e.g. "Mon 5 Jan, 13:30–14:30", "Mon 5 Jan, all day" or "Mon 5 Jan – Wed 7 Jan, all day". */
 function whenLabel(event: CalendarEvent, timeZone: string): string {
@@ -71,21 +71,13 @@ export function EventDetails({
           : "It’s busy in its calendar";
 
   return (
-    <section className={styles.panel} aria-labelledby="event-details-heading">
-      <div className={styles.header}>
-        <h2 id="event-details-heading">
-          {event.title}
-          {event.busyOverride !== null && <span className={styles.overrideTag}>Busy Override</span>}
-        </h2>
-        <button type="button" className="link" onClick={onClose}>
-          Close
-        </button>
-      </div>
+    <FloatingLabel kind={dynacal ? "dynacal Event" : "Event"} labelledBy="event-details-heading" onClose={onClose}>
+      <LabelTitle id="event-details-heading">{event.title}</LabelTitle>
+      {event.busyOverride !== null && <span className={styles.overrideTag}>Busy Override</span>}
+      <LabelTime>{whenLabel(event, timeZone)}</LabelTime>
       <dl className={styles.facts}>
         <dt>Calendar</dt>
         <dd>{event.calendarName}</dd>
-        <dt>When</dt>
-        <dd>{whenLabel(event, timeZone)}</dd>
         {!dynacal && (
           <>
             <dt>In its calendar</dt>
@@ -125,6 +117,6 @@ export function EventDetails({
           {error}
         </p>
       )}
-    </section>
+    </FloatingLabel>
   );
 }
