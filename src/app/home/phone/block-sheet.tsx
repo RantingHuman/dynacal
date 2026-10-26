@@ -1,13 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { movedBlockTime, type BlockMove } from "@/core/block-moves";
 import { spanLabel } from "@/core/day-labels";
 import { formatMinutes } from "@/core/settings";
 import { toZoned } from "@/core/time-zone";
-import { completeTask } from "../../tasks/actions";
-import { moveBlock, unpinBlock } from "../../schedule/actions";
-import { moveError } from "../../schedule/block-editor";
+import { BlockConflictNote, minutesOf, useBlockActions } from "../../schedule/block-actions";
 import type { CalendarBlock, CalendarEvent } from "../../schedule/calendar";
 import { LabelNote, LabelTime, LabelTitle } from "../../schedule/floating-label";
 import { useEscape } from "../../states/use-escape";
@@ -21,11 +19,6 @@ const CHIPS: { label: string; move: BlockMove }[] = [
   { label: "+30m", move: { by: 30 } },
   { label: "Next day", move: { nextDay: true } },
 ];
-
-function minutesOf(time: string): number {
-  const [h, m] = time.split(":").map(Number);
-  return h * 60 + m;
-}
 
 /**
  * A Block that hasn't ended, on a phone, where Blocks don't drag: a sheet above the tab bar to move it by a
@@ -48,43 +41,18 @@ export function BlockSheet({
   const start = toZoned(new Date(block.start), timeZone);
   /** "Pick a time…": the day and start being picked, or null while it's closed. */
   const [exact, setExact] = useState<{ date: string; time: string } | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const actions = useBlockActions(block, onClose);
 
   useEscape(onClose);
 
   function move(how: BlockMove) {
-    setError(null);
     const to = movedBlockTime({ start: new Date(block.start), end: new Date(block.end) }, how, timeZone);
-    startTransition(async () => {
-      const message = moveError(await moveBlock(block.id, { start: to.start.toISOString(), end: to.end.toISOString() }));
-      setError(message);
-      if (!message) setExact(null);
-    });
+    actions.move(to, () => setExact(null));
   }
 
   function pickTime(e: React.FormEvent) {
     e.preventDefault();
-    if (exact) move({ to: { date: exact.date, minutes: minutesOf(exact.time) } });
-  }
-
-  function unpin() {
-    setError(null);
-    startTransition(async () => {
-      const result = await unpinBlock(block.id);
-      if (result.ok) onClose();
-      else setError("This Block no longer exists.");
-    });
-  }
-
-  /** Completes the Block's whole Task, as its checkbox does. */
-  function markTaskDone() {
-    setError(null);
-    startTransition(async () => {
-      const result = await completeTask(block.taskId);
-      if (result.ok) onClose();
-      else setError("This Task no longer exists.");
-    });
+    if (exact && !actions.disabled) move({ to: { date: exact.date, minutes: minutesOf(exact.time) } });
   }
 
   return (
@@ -92,10 +60,14 @@ export function BlockSheet({
       <span className={styles.kind}>{block.pinned ? "Pinned Block" : "Block"}</span>
       <LabelTitle id="block-sheet-heading">{block.taskTitle}</LabelTitle>
       <LabelTime>{spanLabel(block, timeZone)}</LabelTime>
-      {conflicts.length > 0 && (
-        <LabelNote alert>Conflict: this Pinned Block overlaps {conflicts.map((c) => c.title).join(", ")}.</LabelNote>
-      )}
-      <button type="button" className={`link ${styles.markDone}`} disabled={pending} onClick={markTaskDone}>
+      <BlockConflictNote conflicts={conflicts} />
+      <button
+        type="button"
+        className={`link ${styles.markDone}`}
+        disabled={actions.disabled}
+        title={actions.title}
+        onClick={actions.markTaskDone}
+      >
         ✓ Mark the Task done
       </button>
 
@@ -105,7 +77,14 @@ export function BlockSheet({
         </span>
         <div className={styles.chips}>
           {CHIPS.map((chip) => (
-            <button key={chip.label} type="button" className={styles.chip} disabled={pending} onClick={() => move(chip.move)}>
+            <button
+              key={chip.label}
+              type="button"
+              className={styles.chip}
+              disabled={actions.disabled}
+              title={actions.title}
+              onClick={() => move(chip.move)}
+            >
               {chip.label}
             </button>
           ))}
@@ -113,7 +92,8 @@ export function BlockSheet({
             <button
               type="button"
               className={styles.chip}
-              disabled={pending}
+              disabled={actions.disabled}
+              title={actions.title}
               onClick={() => setExact({ date: start.date, time: formatMinutes(start.minutes) })}
             >
               Pick a time…
@@ -137,16 +117,16 @@ export function BlockSheet({
               value={exact.time}
               onChange={(e) => setExact({ ...exact, time: e.target.value })}
             />
-            <button type="submit" className="button" disabled={pending}>
+            <button type="submit" className="button" disabled={actions.disabled} title={actions.title}>
               Move
             </button>
           </form>
         )}
       </div>
 
-      {error && (
+      {actions.error && (
         <p className="field-error" role="alert">
-          {error}
+          {actions.error}
         </p>
       )}
       <LabelNote>
@@ -156,7 +136,7 @@ export function BlockSheet({
       </LabelNote>
       <div className={styles.sheetButtons}>
         {block.pinned && (
-          <button type="button" className="button" disabled={pending} onClick={unpin}>
+          <button type="button" className="button" disabled={actions.disabled} title={actions.title} onClick={actions.unpin}>
             Unpin
           </button>
         )}

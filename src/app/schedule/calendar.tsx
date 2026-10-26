@@ -7,11 +7,12 @@ import { movedBlocks } from "@/core/motion";
 import { formatMinutes, type WorkingHours } from "@/core/settings";
 import { DAY_MINUTES, GRID_MINUTES, MINUTE_MS } from "@/core/time";
 import { addDays, fromZoned, toZoned, weekdayOf } from "@/core/time-zone";
-import { completeTask } from "../tasks/actions";
+import { useCompleteTask } from "../tasks/complete-task-button";
 import { useCompletion } from "../tasks/completion";
 import { useTaskEditor } from "../tasks/task-editor-slot";
 import { moveBlock, recalculate } from "./actions";
-import { BlockEditor, moveError } from "./block-editor";
+import { moveError } from "./block-actions";
+import { BlockEditor } from "./block-editor";
 import calendarStyles from "./calendar.module.css";
 import { ConflictStrip } from "./conflict-strip";
 import { DynacalEventForm, type DynacalEventDetails } from "./dynacal-event-form";
@@ -158,8 +159,8 @@ function BlockCheck({
   done: boolean;
   onError: (message: string) => void;
 }) {
-  const { ticked, tick } = useCompletion();
-  const act = useTaskEditor().column?.act ?? null;
+  const { ticked } = useCompletion();
+  const complete = useCompleteTask();
   const stop = (e: React.SyntheticEvent) => e.stopPropagation();
   return (
     <button
@@ -174,19 +175,7 @@ function BlockCheck({
       onKeyDown={stop}
       onClick={(e) => {
         e.stopPropagation();
-        // The same completion as the Task list's tick, through its list: the row sweeps and slides, this Task's
-        // Blocks dim, and a refusal rolls back with the list's toast.
-        tick(block.taskId);
-        if (act) {
-          act({ kind: "complete", id: block.taskId }, async () => {
-            const result = await completeTask(block.taskId);
-            return result.ok ? null : `“${block.taskTitle}” no longer exists.`;
-          });
-        } else {
-          void completeTask(block.taskId).then((result) => {
-            if (!result.ok) onError("This Task no longer exists.");
-          });
-        }
+        complete({ id: block.taskId, title: block.taskTitle }, onError);
       }}
     >
       <svg viewBox="0 0 16 16" aria-hidden>

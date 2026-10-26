@@ -1,9 +1,40 @@
 "use client";
 
+import { useCallback } from "react";
 import { completeTask } from "./actions";
 import { useCompletion } from "./completion";
 import styles from "./completion.module.css";
-import type { ActOnTasks } from "./task-editor-slot";
+import { useTaskEditor, type ActOnTasks } from "./task-editor-slot";
+
+/** Completes a Task through the Task list's `act`: it shows as complete at once, and a refusal rolls it back. */
+function completeThrough(act: ActOnTasks, id: string, title: string) {
+  act({ kind: "complete", id }, async () => {
+    const result = await completeTask(id);
+    return result.ok ? null : `“${title}” no longer exists.`;
+  });
+}
+
+/**
+ * Completing a Task from outside the Task list (a Block's check, "Mark the Task done"), the same way as ticking it
+ * there: the tick's motion, then the change through the list, so the row sweeps and slides, the Task's Blocks dim,
+ * and a refusal rolls back with the list's toast. Without the list (it hasn't mounted yet) it calls the command
+ * directly and reports a refusal with `onError`.
+ */
+export function useCompleteTask(): (task: { id: string; title: string }, onError: (message: string) => void) => void {
+  const { tick } = useCompletion();
+  const act = useTaskEditor().column?.act ?? null;
+  return useCallback(
+    ({ id, title }, onError) => {
+      tick(id);
+      if (act) completeThrough(act, id, title);
+      else
+        void completeTask(id).then((result) => {
+          if (!result.ok) onError("This Task no longer exists.");
+        });
+    },
+    [tick, act],
+  );
+}
 
 function Tick() {
   return (
@@ -54,10 +85,7 @@ export function CompleteTaskButton({
       disabled={disabled}
       onClick={() => {
         tick(id);
-        act({ kind: "complete", id }, async () => {
-          const result = await completeTask(id);
-          return result.ok ? null : `“${title}” no longer exists.`;
-        });
+        completeThrough(act, id, title);
       }}
     >
       <Tick />
