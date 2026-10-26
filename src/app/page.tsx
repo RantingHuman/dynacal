@@ -6,6 +6,7 @@ import { RemindersToggle } from "./reminders/reminders-toggle";
 import { UnreviewedBanner } from "./review/unreviewed-banner";
 import type { DynacalEvent } from "@/core/dynacal-events";
 import { toWireTiming } from "@/core/event-timing";
+import { blockForReminderLink } from "@/core/reminders";
 import { Calendar } from "./schedule/calendar";
 import type { DynacalEventDetails } from "./schedule/dynacal-event-form";
 import { NewEventProvider } from "./schedule/new-event";
@@ -16,7 +17,8 @@ function dynacalEventDetails(event: DynacalEvent): DynacalEventDetails {
   return { id: event.id, title: event.title, notes: event.notes, ...toWireTiming(event) };
 }
 
-export default async function HomePage() {
+/** `block` is set when a reminder is tapped: the page opens on that Block. */
+export default async function HomePage({ searchParams }: { searchParams: Promise<{ block?: string }> }) {
   const session = await currentSession();
   if (!session) redirect("/sign-in");
 
@@ -24,6 +26,9 @@ export default async function HomePage() {
   if (!commands.getSetupStatus().complete) redirect("/setup");
   const scheduleView = commands.getSchedule();
   const connection = commands.getGoogleConnection();
+  const { block: reminded } = await searchParams;
+  const remindedBlock =
+    scheduleView.status === "ready" ? blockForReminderLink(reminded ?? null, scheduleView.blocks) : null;
 
   return (
     <div className="app">
@@ -98,6 +103,7 @@ export default async function HomePage() {
                 conflicts={scheduleView.conflicts}
                 workingHours={commands.getSettings().workingHours}
                 connectionBroken={connection.status === "broken"}
+                openBlockId={remindedBlock?.id}
               />
             )}
           </section>
