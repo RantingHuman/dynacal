@@ -149,11 +149,11 @@ export function SettingsProse({
       <h2 className={styles.kicker}>Which Events count as busy</h2>
       <p className={styles.prose}>
         Events Google marks &ldquo;free&rdquo;{" "}
-        <FlipValue label="Count free Events" onFlip={() => update({ countFreeEvents: !draft.countFreeEvents })}>
+        <FlipValue label="Count free Events" on={draft.countFreeEvents} onFlip={() => update({ countFreeEvents: !draft.countFreeEvents })}>
           {draft.countFreeEvents ? "do" : "don't"}
         </FlipValue>{" "}
         block my time. All-day Events{" "}
-        <FlipValue label="Count all-day Events" onFlip={() => update({ countAllDayEvents: !draft.countAllDayEvents })}>
+        <FlipValue label="Count all-day Events" on={draft.countAllDayEvents} onFlip={() => update({ countAllDayEvents: !draft.countAllDayEvents })}>
           {draft.countAllDayEvents ? "do" : "don't"}
         </FlipValue>
         .
