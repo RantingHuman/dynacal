@@ -543,7 +543,7 @@ export function Calendar({
               <span>{rangeLabel(days)}</span>
               {/* Reserves the widest label's room, so the arrows and the controls after it never move. */}
               <span className={calendarStyles.rangeSizer} aria-hidden>
-                30 May – 30 May
+                31 May – 6 Jun
               </span>
             </span>
           </span>

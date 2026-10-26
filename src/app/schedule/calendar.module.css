@@ -69,6 +69,11 @@
   visibility: hidden;
 }
 
+/* The label sits at the cell's right edge, beside Day/Week; any spare room falls between it and the arrows. */
+.range > :first-child {
+  justify-self: end;
+}
+
 /* Day/Week: the dark pill slides between the two (bounce), rather than each button filling. */
 .segmented {
   position: relative;
