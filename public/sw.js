@@ -8,7 +8,7 @@ self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim(
 self.addEventListener("fetch", () => {});
 
 self.addEventListener("push", (event) => {
-  let message = { title: "dynacal", body: "A Block is about to start.", url: "/" };
+  let message = { title: "dynacal", body: "A Block is starting soon.", url: "/" };
   try {
     message = { ...message, ...event.data.json() };
   } catch {

@@ -3,9 +3,11 @@ import { getRuntime } from "@/server/runtime";
 import { currentSession } from "@/server/session";
 import { ReconnectBanner } from "./google/reconnect-banner";
 import { RemindersToggle } from "./reminders/reminders-toggle";
-import { UnreviewedBanner } from "./review/unreviewed-banner";
+import { ReviewBox } from "./review/review-box";
+import reviewStyles from "./review/review-box.module.css";
 import type { DynacalEvent } from "@/core/dynacal-events";
 import { toWireTiming } from "@/core/event-timing";
+import { blockForReminderLink } from "@/core/reminders";
 import { Calendar } from "./schedule/calendar";
 import type { DynacalEventDetails } from "./schedule/dynacal-event-form";
 import { NewEventProvider } from "./schedule/new-event";
@@ -17,7 +19,8 @@ function dynacalEventDetails(event: DynacalEvent): DynacalEventDetails {
   return { id: event.id, title: event.title, notes: event.notes, ...toWireTiming(event) };
 }
 
-export default async function HomePage() {
+/** `block` is set when a reminder is tapped: the page opens on that Block. */
+export default async function HomePage({ searchParams }: { searchParams: Promise<{ block?: string }> }) {
   const session = await currentSession();
   if (!session) redirect("/sign-in");
 
@@ -25,6 +28,9 @@ export default async function HomePage() {
   if (!commands.getSetupStatus().complete) redirect("/setup");
   const scheduleView = commands.getSchedule();
   const connection = commands.getGoogleConnection();
+  const { block: reminded } = await searchParams;
+  const remindedBlock =
+    scheduleView.status === "ready" ? blockForReminderLink(reminded ?? null, scheduleView.blocks) : null;
 
   return (
     <div className="app">
@@ -41,26 +47,28 @@ export default async function HomePage() {
         </nav>
       </header>
       {connection.status === "broken" && <ReconnectBanner email={connection.email} />}
-      {scheduleView.status === "ready" && (
-        <UnreviewedBanner
-          timeZone={scheduleView.timeZone}
-          blocks={commands.listUnreviewedBlocks().map((b) => ({
-            id: b.id,
-            taskTitle: b.taskTitle,
-            start: b.start.toISOString(),
-            end: b.end.toISOString(),
-            suggestedWorkedMinutes: b.suggestedWorkedMinutes,
-          }))}
-        />
-      )}
       <NewEventProvider enabled={scheduleView.status === "ready"}>
         <TaskEditorProvider>
         <div className="app-body">
-          <TaskPanel
-            tasks={commands.listTasks()}
-            flags={scheduleView.status === "ready" ? scheduleView.flags : {}}
-            timeZone={scheduleView.status === "ready" ? scheduleView.timeZone : null}
-          />
+          <div className={reviewStyles.tasksColumn}>
+            <TaskPanel
+              tasks={commands.listTasks()}
+              flags={scheduleView.status === "ready" ? scheduleView.flags : {}}
+              timeZone={scheduleView.status === "ready" ? scheduleView.timeZone : null}
+            />
+            {scheduleView.status === "ready" && (
+              <ReviewBox
+                timeZone={scheduleView.timeZone}
+                blocks={commands.listUnreviewedBlocks().map((b) => ({
+                  id: b.id,
+                  taskTitle: b.taskTitle,
+                  start: b.start.toISOString(),
+                  end: b.end.toISOString(),
+                  suggestedWorkedMinutes: b.suggestedWorkedMinutes,
+                }))}
+              />
+            )}
+          </div>
           <section className="schedule-panel" aria-label="Schedule">
             <TaskEditorSlot>
             {scheduleView.status === "needs-time-zone" ? (
@@ -80,6 +88,7 @@ export default async function HomePage() {
                 blocks={scheduleView.blocks.map((b) => ({
                   id: b.id,
                   displayKey: b.displayKey,
+                  taskId: b.taskId,
                   taskTitle: b.taskTitle,
                   start: b.start.toISOString(),
                   end: b.end.toISOString(),
@@ -101,6 +110,7 @@ export default async function HomePage() {
                 conflicts={scheduleView.conflicts}
                 workingHours={commands.getSettings().workingHours}
                 connectionBroken={connection.status === "broken"}
+                openBlockId={remindedBlock?.id}
               />
             )}
             </TaskEditorSlot>

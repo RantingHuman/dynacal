@@ -1,26 +1,31 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import type { BusyOverride, EventRef } from "@/core/busy-override";
 import { formatMinutes, type WorkingHours } from "@/core/settings";
 import { DAY_MINUTES, GRID_MINUTES, MINUTE_MS } from "@/core/time";
 import { addDays, fromZoned, toZoned, weekdayOf } from "@/core/time-zone";
+import { completeTask } from "../tasks/actions";
 import { moveBlock, recalculate } from "./actions";
 import { BlockEditor, moveError } from "./block-editor";
+import calendarStyles from "./calendar.module.css";
 import { dayLabel } from "./day-label";
 import { DynacalEventForm, type DynacalEventDetails } from "./dynacal-event-form";
 import dynacalStyles from "./dynacal-events.module.css";
 import { EventDetails } from "./event-details";
 import detailStyles from "./event-details.module.css";
+import { FloatingLabel, LabelTitle } from "./floating-label";
 import freeStyles from "./free-events.module.css";
 import { NEW_EVENT_MS, useNewEvent } from "./new-event";
 import styles from "./pinning.module.css";
+import { Toast } from "./toast";
 
 /** A Block as sent to the browser: instants as ISO strings. */
 export interface CalendarBlock {
   id: string;
   /** Stable across Recalculations, which replace Blocks with new ones; the React key. */
   displayKey: string;
+  taskId: string;
   taskTitle: string;
   start: string;
   end: string;
@@ -116,6 +121,45 @@ function spanLabel(item: { start: string; end: string }, timeZone: string): stri
   return `${dayLabel(start.date)}, ${formatMinutes(start.minutes)}–${formatMinutes(end.minutes)}`;
 }
 
+/** e.g. "5 – 11 Jan" for a week, or "Mon 5 Jan" for a day. */
+function rangeLabel(days: string[]): string {
+  if (days.length === 1) return dayLabel(days[0]);
+  const [first, last] = [dayLabel(days[0]).split(" "), dayLabel(days[days.length - 1]).split(" ")];
+  return first[2] === last[2] ? `${first[1]} – ${last[1]} ${last[2]}` : `${first[1]} ${first[2]} – ${last[1]} ${last[2]}`;
+}
+
+/**
+ * The round check in the corner of a Block that hasn't ended. It completes the Block's whole Task, through the
+ * same command as the Task list's checkbox. It's a control of its own, so it never starts a drag or opens the
+ * Block's details.
+ */
+function BlockCheck({ block, onError }: { block: CalendarBlock; onError: (message: string) => void }) {
+  const [pending, startTransition] = useTransition();
+  const stop = (e: React.SyntheticEvent) => e.stopPropagation();
+  return (
+    <button
+      type="button"
+      className={styles.check}
+      aria-label={`Mark “${block.taskTitle}” done`}
+      title="Mark the Task done"
+      disabled={pending}
+      onPointerDown={stop}
+      onKeyDown={stop}
+      onClick={(e) => {
+        e.stopPropagation();
+        startTransition(async () => {
+          const result = await completeTask(block.taskId);
+          if (!result.ok) onError("This Task no longer exists.");
+        });
+      }}
+    >
+      <svg viewBox="0 0 16 16" aria-hidden>
+        <path d="M3.5 8.5l3 3 6-7" />
+      </svg>
+    </button>
+  );
+}
+
 export function Calendar({
   timeZone,
   horizon,
@@ -124,6 +168,7 @@ export function Calendar({
   conflicts,
   workingHours,
   connectionBroken = false,
+  openBlockId,
 }: {
   timeZone: string;
   horizon: { start: string; end: string };
@@ -136,17 +181,24 @@ export function Calendar({
    * planning around the Events dynacal last saw.
    */
   connectionBroken?: boolean;
+  /** A Block to open on arrival, e.g. the one a tapped reminder is for. */
+  openBlockId?: string;
 }) {
   const today = toZoned(new Date(horizon.start), timeZone).date;
   const lastDay = toZoned(new Date(horizon.end), timeZone).date;
   const [view, setView] = useState<View>("week");
-  const [anchor, setAnchor] = useState(today);
+  const [anchor, setAnchor] = useState(() => {
+    const opening = blocks.find((b) => b.id === openBlockId);
+    return opening ? toZoned(new Date(opening.start), timeZone).date : today;
+  });
   const [pending, startTransition] = useTransition();
   const [moving, startMoving] = useTransition();
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(openBlockId ?? null);
   const [openEventId, setOpenEventId] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ id: string; start: number; end: number } | null>(null);
-  const [moveMessage, setMoveMessage] = useState<string | null>(null);
+  /** The message toast, e.g. why a move was refused. */
+  const [toast, setToast] = useState<string | null>(null);
+  const clearToast = useCallback(() => setToast(null), []);
   const drag = useRef<Drag | null>(null);
   /**
    * Set when a drag ends, and cleared only once the click that follows it has been handled, so the end of a
@@ -252,10 +304,11 @@ export function Calendar({
       return;
     }
     const to = { start: new Date(d.to.start).toISOString(), end: new Date(d.to.end).toISOString() };
-    setMoveMessage(null);
+    setToast(null);
     startMoving(async () => {
+      // A refused move snaps back (the preview goes) and says why in the toast.
       const message = moveError(await moveBlock(d.blockId, to));
-      setMoveMessage(message);
+      setToast(message);
       setPreview(null);
     });
   }
@@ -270,7 +323,7 @@ export function Calendar({
   function openEditor(block: CalendarBlock) {
     if (justDragged.current) return;
     if (new Date(block.end).getTime() <= now) return;
-    setMoveMessage(null);
+    setToast(null);
     setOpenEventId(null);
     newEvent.close();
     setEditingId(block.id);
@@ -307,6 +360,7 @@ export function Calendar({
       !event.countsAsBusy && freeStyles.free,
       event.busyOverride !== null && detailStyles.overridden,
       conflictingEvents.has(event.id) && styles.eventConflict,
+      new Date(event.end).getTime() <= now && styles.past,
       openEventId === event.id && detailStyles.selected,
     ].filter(Boolean);
     return {
@@ -389,65 +443,79 @@ export function Calendar({
 
   return (
     <div className="calendar">
-      <div className="calendar-toolbar">
-        <div className="segmented" role="group" aria-label="Calendar view">
-          {(["day", "week"] as const).map((v) => (
-            <button key={v} type="button" aria-pressed={view === v} onClick={() => setView(v)}>
-              {v === "day" ? "Day" : "Week"}
+      <div className={calendarStyles.heading}>
+        <h2 id="week-heading" className={calendarStyles.kicker}>
+          The week ahead
+        </h2>
+        <div className={calendarStyles.toolbar}>
+          <span className={calendarStyles.nav}>
+            <button
+              type="button"
+              className={calendarStyles.arrow}
+              onClick={() => move(-1)}
+              disabled={!canGoBack}
+              aria-label={view === "day" ? "Previous day" : "Previous week"}
+            >
+              ‹
             </button>
-          ))}
-        </div>
-        <div className="calendar-nav">
-          <button type="button" className="icon-button" onClick={() => move(-1)} disabled={!canGoBack} aria-label={view === "day" ? "Previous day" : "Previous week"}>
-            ‹
-          </button>
-          <button type="button" className="link" onClick={() => setAnchor(today)}>
-            Today
-          </button>
-          <button type="button" className="icon-button" onClick={() => move(1)} disabled={!canGoForward} aria-label={view === "day" ? "Next day" : "Next week"}>
-            ›
-          </button>
-          <span className="calendar-range">
-            {view === "day" ? dayLabel(days[0]) : `${dayLabel(days[0])} – ${dayLabel(days[6])}`}
+            <button type="button" className="link" onClick={() => setAnchor(today)} disabled={shownFrom === today}>
+              Today
+            </button>
+            <button
+              type="button"
+              className={calendarStyles.arrow}
+              onClick={() => move(1)}
+              disabled={!canGoForward}
+              aria-label={view === "day" ? "Next day" : "Next week"}
+            >
+              ›
+            </button>
+            <span className={calendarStyles.range}>{rangeLabel(days)}</span>
           </span>
-        </div>
-        <span className="recalculate">
-          {connectionBroken && (
-            <span className="muted recalculate-note">Uses the last Events dynacal saw</span>
-          )}
-          <button
-            type="button"
-            className="button secondary"
-            disabled={pending}
-            onClick={() => startTransition(async () => void (await recalculate()))}
-          >
-            {pending ? "Recalculating…" : "Recalculate"}
+          <span className={`segmented ${calendarStyles.segmented}`} role="group" aria-label="Calendar view">
+            {(["day", "week"] as const).map((v) => (
+              <button key={v} type="button" aria-pressed={view === v} onClick={() => setView(v)}>
+                {v === "day" ? "Day" : "Week"}
+              </button>
+            ))}
+          </span>
+          <span className={calendarStyles.recalculate}>
+            <button
+              type="button"
+              className="link"
+              disabled={pending}
+              onClick={() => startTransition(async () => void (await recalculate()))}
+            >
+              {pending ? "Recalculating…" : "Recalculate"}
+            </button>
+            {connectionBroken && <span className={calendarStyles.note}>Uses the last Events dynacal saw</span>}
+          </span>
+          <button type="button" className="link" onClick={() => newEvent.open()}>
+            + Event
           </button>
-        </span>
+        </div>
       </div>
 
       {conflicts.length > 0 && (
-        <section className={styles.conflicts} aria-labelledby="conflicts-heading">
-          <h2 id="conflicts-heading">{conflicts.length === 1 ? "1 Conflict" : `${conflicts.length} Conflicts`}</h2>
+        <div className={styles.conflicts} role="region" aria-label="Conflicts">
           <ul>
-            {conflicts.map((c) => {
+            {conflicts.map((c, i) => {
               const block = blocksById.get(c.blockId);
               const event = eventsById.get(c.eventId);
               if (!block || !event) return null;
               return (
                 <li key={`${c.blockId}/${c.eventId}`}>
-                  <span>
-                    <strong>{block.taskTitle}</strong> ({spanLabel(block, timeZone)}) overlaps <strong>{event.title}</strong>{" "}
-                    ({spanLabel(event, timeZone)})
-                  </span>
-                  <button type="button" className="link" onClick={() => setEditingId(block.id)}>
+                  {i === 0 && <strong>{conflicts.length === 1 ? "1 Conflict." : `${conflicts.length} Conflicts.`} </strong>}
+                  <em>{block.taskTitle}</em> ({spanLabel(block, timeZone)}) overlaps <em>{event.title}</em> (
+                  {spanLabel(event, timeZone)}).{" "}
+                  <button type="button" className="link" onClick={() => openEditor(block)}>
                     Resolve
                   </button>
                 </li>
               );
             })}
           </ul>
-        </section>
+        </div>
       )}
 
       {editing && (
@@ -464,10 +532,8 @@ export function Calendar({
       )}
 
       {newEvent.draft && (
-        <section className={detailStyles.panel} aria-labelledby="new-event-heading">
-          <div className={detailStyles.header}>
-            <h2 id="new-event-heading">New Event</h2>
-          </div>
+        <FloatingLabel kind="New Event" labelledBy="new-event-heading" onClose={newEvent.close}>
+          <LabelTitle id="new-event-heading">New Event</LabelTitle>
           <DynacalEventForm
             key={`${newEvent.draft.start}-${newEvent.draft.end}`}
             event={null}
@@ -475,7 +541,7 @@ export function Calendar({
             timeZone={timeZone}
             onDone={newEvent.close}
           />
-        </section>
+        </FloatingLabel>
       )}
 
       {openEvent && (
@@ -487,17 +553,8 @@ export function Calendar({
         />
       )}
 
-      {moveMessage && (
-        <p className="field-error" role="alert">
-          {moveMessage}
-        </p>
-      )}
+      <Toast message={toast} onDone={clearToast} />
 
-      <p className={`muted ${styles.hint}`}>
-        Drag a Block to move it, or drag its top or bottom edge to resize it; select a Block to set its time by hand.
-        Moved Blocks are pinned. Select an Event to see its details or set a Busy Override. Select empty time to add
-        an Event there.
-      </p>
 
       <div className="calendar-grid" style={{ gridTemplateColumns: `3.5rem repeat(${days.length}, minmax(0, 1fr))` }}>
         <div />
@@ -586,9 +643,8 @@ export function Calendar({
                 const classes = [
                   "block",
                   overEvent && detailStyles.besideEvent,
-                  block.pinned && styles.pinned,
                   conflict && styles.conflict,
-                  !ended && styles.movable,
+                  ended ? styles.past : `${styles.movable} ${styles.hasCheck}`,
                   preview?.id === block.id && styles.dragging,
                 ].filter(Boolean);
                 const label = `${block.taskTitle}, ${formatMinutes(top)}–${formatMinutes(bottom)}${block.pinned ? ", Pinned Block" : ""}${conflict ? ", Conflict" : ""}`;
@@ -616,13 +672,17 @@ export function Calendar({
                   >
                     {!ended && !started && <span className={`${styles.handle} ${styles.handleTop}`} data-handle="start" />}
                     <span className="block-title">
-                      {conflict && <span className={styles.conflictMark}>Conflict · </span>}
+                      {block.pinned && (
+                        <span className={styles.pinMark} aria-hidden>
+                          ◆{" "}
+                        </span>
+                      )}
                       {block.taskTitle}
                     </span>
                     <span className="block-time">
                       {formatMinutes(top)}–{formatMinutes(bottom)}
-                      {block.pinned && <span className={styles.pinnedMark}> · Pinned</span>}
                     </span>
+                    {!ended && <BlockCheck block={block} onError={setToast} />}
                     {!ended && <span className={`${styles.handle} ${styles.handleBottom}`} data-handle="end" />}
                   </div>
                 );

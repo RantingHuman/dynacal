@@ -1,4 +1,4 @@
-/* Pinned Blocks, Conflicts, dragging and the Block editor. */
+/* Pinned Blocks, Conflicts, dragging, resize handles, the Block's checkbox and the Block editor. */
 
 .movable {
   cursor: grab;
@@ -12,40 +12,62 @@
   z-index: 3;
 }
 
-/* A Pinned Block: a solid accent fill and a thick left rule, so it reads as placed by hand. */
-.pinned {
-  border-left-width: 6px;
-  background: color-mix(in srgb, var(--accent) 38%, var(--card));
-  box-shadow: inset 0 0 0 1px var(--accent);
+/* A Block or Event that has ended: faded, as it's history. */
+.past {
+  opacity: 0.45;
 }
 
-.pinnedMark {
-  font-weight: 600;
+/* A Pinned Block: a small accent diamond before its title, so it reads as placed by hand. */
+.pinMark {
+  color: var(--accent);
+  font-size: 9px;
+  vertical-align: 2px;
 }
 
-/* A Conflict: an accent outline on both the Pinned Block and the Event it overlaps. */
+/* A Conflict: the Pinned Block and the Event it overlaps are hatched in the accent. */
+.conflict,
+.eventConflict {
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent 0 5px,
+    color-mix(in srgb, var(--accent) 22%, transparent) 5px 7px
+  );
+}
+
 .conflict {
-  outline: 2px solid var(--accent);
-  outline-offset: -1px;
-  border-left-color: var(--accent);
   /* Leaves the overlapped Event visible beside it. */
   left: 45%;
 }
 
-.conflictMark {
-  color: var(--accent);
-}
-
 .eventConflict {
-  border: 2px solid var(--accent);
+  border-color: var(--accent);
 }
 
+/* Resize handles: a short accent bar at a Block's top or bottom edge, shown on hover. */
 .handle {
   position: absolute;
   left: 0;
   right: 0;
   height: 6px;
   cursor: ns-resize;
+}
+
+.handle::after {
+  content: "";
+  position: absolute;
+  left: 30%;
+  right: 30%;
+  top: 1px;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  opacity: 0;
+  transition: opacity var(--base) var(--expo);
+}
+
+.movable:hover .handle::after,
+.dragging .handle::after {
+  opacity: 1;
 }
 
 .handleTop {
@@ -56,22 +78,67 @@
   bottom: 0;
 }
 
-.hint {
-  margin: 0;
-  font-size: 0.8rem;
-}
-
-.conflicts {
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--accent);
-  border-radius: var(--radius-square);
+/* The round check in the corner of a Block that hasn't ended: it completes the Block's Task. */
+.check {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  z-index: 1;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1.25px solid var(--ink);
+  border-radius: var(--radius-circle);
   background: var(--card);
+  color: transparent;
+  cursor: pointer;
+  transition:
+    border-color var(--base) var(--expo),
+    color var(--base) var(--expo),
+    transform var(--base) var(--bounce);
 }
 
-.conflicts h2 {
-  margin: 0 0 0.4rem;
-  font-size: 1.2rem;
+.check svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Hovering previews the tick. */
+.check:hover,
+.check:focus-visible {
+  border-color: var(--accent);
   color: var(--accent);
+}
+
+.check:active:not(:disabled) {
+  transform: scale(0.85);
+  transition-duration: var(--press);
+}
+
+.check:disabled {
+  cursor: progress;
+  color: var(--accent);
+}
+
+/* A Block with a check leaves room for it beside its title. */
+.hasCheck :global(.block-title) {
+  padding-right: 16px;
+}
+
+/* The Conflict strip under the calendar's heading line. */
+.conflicts {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  font-size: 13.5px;
 }
 
 .conflicts ul {
@@ -79,65 +146,35 @@
   padding: 0;
   list-style: none;
   display: grid;
-  gap: 0.35rem;
+  gap: var(--space-1);
 }
 
-.conflicts li {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem 0.75rem;
-  align-items: baseline;
+.conflicts em {
+  font-family: var(--font-serif);
+  font-size: var(--text-item);
 }
 
-.editor {
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--accent);
-  border-radius: var(--radius-square);
-  display: grid;
-  gap: 0.5rem;
-}
-
-.editor h2 {
-  margin: 0;
-  font-size: 1.2rem;
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.editor p {
-  margin: 0;
-}
-
-.pinnedTag {
-  font-family: var(--font-sans);
-  font-size: var(--text-kicker);
-  font-weight: 600;
-  padding: 0.05rem 0.4rem;
-  border-radius: var(--radius-pill);
-  background: var(--accent);
-  color: var(--on-accent);
-}
-
-.conflictNote {
-  color: var(--accent);
+.markDone {
+  justify-self: start;
+  font-size: var(--text-body);
 }
 
 .editorForm {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  gap: var(--space-3);
   align-items: end;
 }
 
 .editorForm label {
   display: grid;
-  gap: 0.25rem;
-  font-size: 0.85rem;
+  gap: var(--space-1);
+  font-size: var(--text-meta);
 }
 
 .editorForm input {
   font: inherit;
+  font-size: var(--text-body);
   padding: 0.35rem 0.5rem;
   border: 1px solid var(--rule);
   border-radius: var(--radius-square);
@@ -147,6 +184,6 @@
 
 .editorActions {
   display: flex;
-  gap: 0.75rem;
+  gap: var(--space-3);
   align-items: center;
 }
