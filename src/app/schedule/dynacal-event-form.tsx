@@ -8,6 +8,7 @@ import { HOUR_MINUTES, MINUTE_MS } from "@/core/time";
 import { addDays, fromZoned, toZoned } from "@/core/time-zone";
 import { createDynacalEvent, deleteDynacalEvent, updateDynacalEvent } from "./actions";
 import { NEW_EVENT_MS, type NewEventDraft } from "./new-event";
+import { useSlow } from "../states/use-slow";
 
 /** When an all-day Event switched to a timed one starts, on its first day, until the owner picks a time. */
 const TIMED_DEFAULT_START_MINUTES = 9 * HOUR_MINUTES;
@@ -86,6 +87,7 @@ export function DynacalEventForm({
   const [errors, setErrors] = useState<DynacalEventErrors>({});
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const slow = useSlow(pending);
 
   function update(change: Partial<Fields>) {
     setFields((current) => ({ ...current, ...change }));
@@ -178,7 +180,7 @@ export function DynacalEventForm({
 
       <div className="actions">
         <button className="button" type="submit" disabled={pending}>
-          {event ? "Save" : "Add Event"}
+          {slow ? "…" : event ? "Save" : "Add Event"}
         </button>
         <button type="button" className="link" onClick={onDone}>
           Cancel
