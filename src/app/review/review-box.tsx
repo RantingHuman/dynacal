@@ -171,10 +171,11 @@ function ReviewQuote({ block, timeZone }: { block: UnreviewedBlockProps; timeZon
             Minutes worked
             <input
               type="number"
+              required
               min={15}
               max={length - 15}
               step={15}
-              value={worked}
+              value={Number.isNaN(worked) ? "" : worked}
               onChange={(e) => setWorked(e.target.valueAsNumber)}
             />
           </label>
