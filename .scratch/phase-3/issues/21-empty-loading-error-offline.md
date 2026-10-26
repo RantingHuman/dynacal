@@ -15,10 +15,10 @@ See spec stories 97–106 and "States", and map ticket "What do the empty, loadi
 
 **Status:** ready-for-agent
 
-- [ ] Each empty state shows its line and action
-- [ ] The no-time-zone and stale-Events views look as specified, while Tasks keep working
-- [ ] The loading screen never flashes on a fast load
-- [ ] Optimistic actions roll back with a reason when the server refuses
-- [ ] A thrown error anywhere shows the error page with "Try again" and "Back to the week", and the error in a muted line
-- [ ] Offline, the installed app shows the cached week with the offline line, and nothing that changes data can be attempted
+- [x] Each empty state shows its line and action
+- [x] The no-time-zone and stale-Events views look as specified, while Tasks keep working
+- [x] The loading screen never flashes on a fast load
+- [x] Optimistic actions roll back with a reason when the server refuses
+- [x] A thrown error anywhere shows the error page with "Try again" and "Back to the week", and the error in a muted line
+- [x] Offline, the installed app shows the cached week with the offline line, and nothing that changes data can be attempted
 - [ ] Checked by hand, including offline on an installed PWA
