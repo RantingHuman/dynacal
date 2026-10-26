@@ -10,6 +10,9 @@ import { writeHeadline } from "@/core/headline";
 import { blockForReminderLink } from "@/core/reminders";
 import { Lead } from "./home/lead";
 import { Masthead } from "./home/masthead";
+import { PhoneHome } from "./home/phone/phone-home";
+import { PhoneMasthead } from "./home/phone/phone-masthead";
+import { WidthSwitch } from "./home/phone/width-switch";
 import styles from "./home/home.module.css";
 import { Calendar } from "./schedule/calendar";
 import type { DynacalEventDetails } from "./schedule/dynacal-event-form";
@@ -24,7 +27,8 @@ function dynacalEventDetails(event: DynacalEvent): DynacalEventDetails {
 
 /**
  * The home screen: the masthead, the lead (the headline and standfirst, which also carry the missing time zone
- * and a broken Google connection), then the spread of the Tasks column and the calendar.
+ * and a broken Google connection), then the spread of the Tasks column and the calendar. Below 640px wide it's
+ * the phone layout instead: the same pieces in two tabs, with the week as an agenda (see `PhoneHome`).
  * `block` is set when a reminder is tapped: the page opens on that Block.
  */
 export default async function HomePage({ searchParams }: { searchParams: Promise<{ block?: string }> }) {
@@ -39,93 +43,123 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   const { block: reminded } = await searchParams;
   const remindedBlock =
     scheduleView.status === "ready" ? blockForReminderLink(reminded ?? null, scheduleView.blocks) : null;
+  const connectionBroken = connection.status === "broken";
+
+  // The Schedule as the browser gets it, for the calendar and the phone's agenda. Without a time zone there's none.
+  const schedule =
+    scheduleView.status === "ready"
+      ? {
+          timeZone: scheduleView.timeZone,
+          horizon: { start: scheduleView.horizon.start.toISOString(), end: scheduleView.horizon.end.toISOString() },
+          blocks: scheduleView.blocks.map((b) => ({
+            id: b.id,
+            displayKey: b.displayKey,
+            taskId: b.taskId,
+            taskTitle: b.taskTitle,
+            start: b.start.toISOString(),
+            end: b.end.toISOString(),
+            pinned: b.pinned,
+          })),
+          events: scheduleView.events.map((e) => ({
+            id: e.id,
+            ref: e.ref,
+            title: e.title,
+            calendarName: e.calendarName,
+            allDay: e.allDay,
+            start: e.start.toISOString(),
+            end: e.end.toISOString(),
+            free: e.free,
+            countsAsBusy: e.countsAsBusy,
+            busyOverride: e.busyOverride,
+            dynacalEvent: e.dynacalEvent && dynacalEventDetails(e.dynacalEvent),
+          })),
+          conflicts: scheduleView.conflicts,
+          openBlockId: remindedBlock?.id,
+        }
+      : null;
+
+  // Pieces both layouts show. Once the page is running only one layout is mounted (see `WidthSwitch`).
+  const accountControls = (
+    <>
+      <RemindersToggle vapidPublicKey={getRuntime().config.VAPID_PUBLIC_KEY} />
+      <a href="/settings">Settings</a>
+      <form action="/api/auth/sign-out" method="post">
+        <button className="link" type="submit">
+          Sign out
+        </button>
+      </form>
+    </>
+  );
+  const lead = <Lead headline={writeHeadline(week, week.today)} />;
+  const taskPanel = (
+    <TaskPanel
+      tasks={commands.listTasks()}
+      flags={scheduleView.status === "ready" ? scheduleView.flags : {}}
+      timeZone={scheduleView.status === "ready" ? scheduleView.timeZone : null}
+    />
+  );
+  // The headline's review links land here.
+  const review = (
+    <div id="review">
+      {scheduleView.status === "ready" && (
+        <ReviewBox
+          timeZone={scheduleView.timeZone}
+          blocks={commands.listUnreviewedBlocks().map((b) => ({
+            id: b.id,
+            taskTitle: b.taskTitle,
+            start: b.start.toISOString(),
+            end: b.end.toISOString(),
+            suggestedWorkedMinutes: b.suggestedWorkedMinutes,
+          }))}
+        />
+      )}
+    </div>
+  );
 
   return (
-    <div className={styles.page}>
-      <Masthead
-        weekOf={week.weekOf}
-        controls={
-          <>
-            <RemindersToggle vapidPublicKey={getRuntime().config.VAPID_PUBLIC_KEY} />
-            <a href="/settings">Settings</a>
-            <form action="/api/auth/sign-out" method="post">
-              <button className="link" type="submit">
-                Sign out
-              </button>
-            </form>
-          </>
-        }
-      />
-      <Lead headline={writeHeadline(week, week.today)} />
-      <NewEventProvider enabled={scheduleView.status === "ready"}>
-        <TaskEditorProvider>
-          <div className={styles.spread}>
-            {/* The Tasks column: the Task list, then the Unreviewed Blocks' review. */}
-            <div className={`${styles.column} ${reviewStyles.tasksColumn}`}>
-              <TaskPanel
-                tasks={commands.listTasks()}
-                flags={scheduleView.status === "ready" ? scheduleView.flags : {}}
-                timeZone={scheduleView.status === "ready" ? scheduleView.timeZone : null}
-              />
-              {/* The headline's review links land here. */}
-              <div id="review">
-                {scheduleView.status === "ready" && (
-                  <ReviewBox
-                    timeZone={scheduleView.timeZone}
-                    blocks={commands.listUnreviewedBlocks().map((b) => ({
-                      id: b.id,
-                      taskTitle: b.taskTitle,
-                      start: b.start.toISOString(),
-                      end: b.end.toISOString(),
-                      suggestedWorkedMinutes: b.suggestedWorkedMinutes,
-                    }))}
-                  />
-                )}
+    <NewEventProvider enabled={schedule !== null}>
+      <TaskEditorProvider>
+        <WidthSwitch
+          phone={
+            <PhoneHome
+              masthead={
+                <PhoneMasthead canRecalculate={schedule !== null} connectionBroken={connectionBroken}>
+                  {accountControls}
+                </PhoneMasthead>
+              }
+              lead={lead}
+              review={review}
+              tasks={taskPanel}
+              schedule={schedule}
+              today={week.today}
+            />
+          }
+        >
+          <div className={styles.page}>
+            <Masthead weekOf={week.weekOf} controls={accountControls} />
+            {lead}
+            <div className={styles.spread}>
+              {/* The Tasks column: the Task list, then the Unreviewed Blocks' review. */}
+              <div className={`${styles.column} ${reviewStyles.tasksColumn}`}>
+                {taskPanel}
+                {review}
               </div>
+              {/* The calendar. Without a time zone there's no Schedule; the headline says why. */}
+              <section className={styles.column} aria-label="Schedule">
+                <TaskEditorSlot>
+                  {schedule && (
+                    <Calendar
+                      {...schedule}
+                      workingHours={commands.getSettings().workingHours}
+                      connectionBroken={connectionBroken}
+                    />
+                  )}
+                </TaskEditorSlot>
+              </section>
             </div>
-            {/* The calendar. Without a time zone there's no Schedule; the headline says why. */}
-            <section className={styles.column} aria-label="Schedule">
-              <TaskEditorSlot>
-                {scheduleView.status === "ready" && (
-                  <Calendar
-                    timeZone={scheduleView.timeZone}
-                    horizon={{
-                      start: scheduleView.horizon.start.toISOString(),
-                      end: scheduleView.horizon.end.toISOString(),
-                    }}
-                    blocks={scheduleView.blocks.map((b) => ({
-                      id: b.id,
-                      displayKey: b.displayKey,
-                      taskId: b.taskId,
-                      taskTitle: b.taskTitle,
-                      start: b.start.toISOString(),
-                      end: b.end.toISOString(),
-                      pinned: b.pinned,
-                    }))}
-                    events={scheduleView.events.map((e) => ({
-                      id: e.id,
-                      ref: e.ref,
-                      title: e.title,
-                      calendarName: e.calendarName,
-                      allDay: e.allDay,
-                      start: e.start.toISOString(),
-                      end: e.end.toISOString(),
-                      free: e.free,
-                      countsAsBusy: e.countsAsBusy,
-                      busyOverride: e.busyOverride,
-                      dynacalEvent: e.dynacalEvent && dynacalEventDetails(e.dynacalEvent),
-                    }))}
-                    conflicts={scheduleView.conflicts}
-                    workingHours={commands.getSettings().workingHours}
-                    connectionBroken={connection.status === "broken"}
-                    openBlockId={remindedBlock?.id}
-                  />
-                )}
-              </TaskEditorSlot>
-            </section>
           </div>
-        </TaskEditorProvider>
-      </NewEventProvider>
-    </div>
+        </WidthSwitch>
+      </TaskEditorProvider>
+    </NewEventProvider>
   );
 }
