@@ -53,9 +53,20 @@
 }
 
 .range {
+  display: inline-grid;
   margin-left: var(--space-1);
   color: var(--soft);
   font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The label and an invisible widest-possible label share one cell, so the cell is always the widest one's size. */
+.range > * {
+  grid-area: 1 / 1;
+}
+
+.rangeSizer {
+  visibility: hidden;
 }
 
 /* Day/Week: the dark pill slides between the two (bounce), rather than each button filling. */

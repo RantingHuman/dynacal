@@ -539,7 +539,13 @@ export function Calendar({
             >
               ›
             </button>
-            <span className={calendarStyles.range}>{rangeLabel(days)}</span>
+            <span className={calendarStyles.range}>
+              <span>{rangeLabel(days)}</span>
+              {/* Reserves the widest label's room, so the arrows and the controls after it never move. */}
+              <span className={calendarStyles.rangeSizer} aria-hidden>
+                30 May – 30 May
+              </span>
+            </span>
           </span>
           <span className={`segmented ${calendarStyles.segmented}`} data-view={view} role="group" aria-label="Calendar view">
             {(["day", "week"] as const).map((v) => (
