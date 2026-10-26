@@ -31,8 +31,7 @@ A phase 3 spec at `.scratch/phase-3/spec.md`, in the same style as the MVP and p
 
 ## Not yet specified
 
-- **Empty, loading and error states** beyond the headline: what the Task list and calendar themselves show with no Tasks, no time zone (no calendar at all) or a broken connection, and what loading looks like. The headline's words for these are settled in [What does the headline say in each state of the week?](issues/04-headline-states.md); where notices sit is settled in [Where does each existing home-screen control live?](issues/05-home-controls.md). Also: what an invalid Settings value does now that Settings saves as you go (from [How do Settings, setup and sign-in look?](issues/08-other-screens.md)).
-- **Whether the "joy" extends to reminders and the installed app**: the web push notification text, the app icon and the theme colour in the manifest.
+_Nothing left: the last two patches became [What do the empty, loading and error states show?](issues/11-empty-error-states.md) and [Does the redesign reach reminders and the installed app?](issues/12-reminders-and-app.md)._
 
 ## Out of scope
 
