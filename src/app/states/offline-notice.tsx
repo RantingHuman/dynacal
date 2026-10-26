@@ -7,13 +7,15 @@ import { useOnline } from "./use-online";
 
 /**
  * Offline, the installed app shows the copy of the page the service worker saved, under "Offline. Showing your
- * week as it was at 09:12.", and no form can be sent. `renderedAt` is when the server drew the page, so in a
- * saved copy it's when the copy was made.
+ * week as it was at 09:12.". `renderedAt` is when the server drew the page, so in a saved copy it's when the copy
+ * was made.
  */
 export function OfflineNotice({ renderedAt, timeZone }: { renderedAt: string; timeZone: string | null }) {
   const online = useOnline();
 
-  // Forms (signing out, say) need the server; buttons that call it are disabled where they're drawn.
+  // Every control that changes data is disabled where it's drawn, with the offline reason. This only backs that
+  // up, for plain forms such as Sign out: it stops a native submit, and does nothing for buttons that call the
+  // server directly.
   useEffect(() => {
     if (online) return;
     const refuse = (event: SubmitEvent) => event.preventDefault();

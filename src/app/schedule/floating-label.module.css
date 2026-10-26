@@ -16,7 +16,13 @@
   outline-offset: 4px;
   background: var(--card);
   box-shadow: 0 24px 50px color-mix(in srgb, var(--ink) 14%, transparent);
-  /* Opening: fades in (expo) while rising 24px with a small overshoot (bounce). Closing: see globals. */
+}
+
+/*
+ * Opening, for the label and the phone's Block sheet: fades in (expo) while rising 24px with a small overshoot
+ * (bounce). Closing: see globals.
+ */
+.opening {
   animation:
     label-fade var(--slow) var(--expo) both,
     label-rise var(--pop) var(--bounce) both;

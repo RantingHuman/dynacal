@@ -1,18 +1,19 @@
 "use client";
 
-import { addTransitionType, useCallback, useEffect, useRef, useState, useTransition, ViewTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition, ViewTransition } from "react";
 import type { BusyOverride, EventRef } from "@/core/busy-override";
-import { movedBlocks } from "@/core/motion";
+import { dayLabel, rangeLabel } from "@/core/day-labels";
 import { formatMinutes, type WorkingHours } from "@/core/settings";
 import { DAY_MINUTES, GRID_MINUTES, MINUTE_MS } from "@/core/time";
 import { addDays, fromZoned, toZoned, weekdayOf } from "@/core/time-zone";
-import { completeTask } from "../tasks/actions";
+import { useCompleteTask } from "../tasks/complete-task-button";
 import { useCompletion } from "../tasks/completion";
 import { useTaskEditor } from "../tasks/task-editor-slot";
-import { moveBlock, recalculate } from "./actions";
-import { BlockEditor, moveError } from "./block-editor";
+import { moveBlock } from "./actions";
+import { moveError } from "./block-actions";
+import { BlockEditor } from "./block-editor";
 import calendarStyles from "./calendar.module.css";
-import { dayLabel } from "./day-label";
+import { ConflictStrip } from "./conflict-strip";
 import { DynacalEventForm, type DynacalEventDetails } from "./dynacal-event-form";
 import dynacalStyles from "./dynacal-events.module.css";
 import { EventDetails } from "./event-details";
@@ -21,7 +22,10 @@ import { FloatingLabel, LabelTitle } from "./floating-label";
 import freeStyles from "./free-events.module.css";
 import { NEW_EVENT_MS, useNewEvent } from "./new-event";
 import styles from "./pinning.module.css";
+import { RecalculateButton, useRecalculate } from "./recalculate";
+import { PinMark } from "./pin-mark";
 import { Toast } from "./toast";
+import { WeekHeading } from "./week-heading";
 import { OFFLINE_REASON, useOnline } from "../states/use-online";
 
 /** A Block as sent to the browser: instants as ISO strings. */
@@ -67,9 +71,6 @@ type View = "day" | "week";
 
 const HOUR_PX = 48;
 
-/** How long moved Blocks glide after a Recalculation, and the gap between one starting and the next (--slow, --stagger). */
-const GLIDE_MS = 600;
-const STAGGER_MS = 30;
 /** Long enough for a landing's longest part, the drop's flash (--rise). */
 const LANDING_MS = 900;
 
@@ -141,20 +142,6 @@ function placeOnDays<T extends { start: string; end: string }>(items: T[], days:
   return byDay;
 }
 
-/** e.g. "Mon 5 Jan, 13:30–14:30" in the owner's time zone. */
-function spanLabel(item: { start: string; end: string }, timeZone: string): string {
-  const start = toZoned(new Date(item.start), timeZone);
-  const end = toZoned(new Date(item.end), timeZone);
-  return `${dayLabel(start.date)}, ${formatMinutes(start.minutes)}–${formatMinutes(end.minutes)}`;
-}
-
-/** e.g. "5 – 11 Jan" for a week, or "Mon 5 Jan" for a day. */
-function rangeLabel(days: string[]): string {
-  if (days.length === 1) return dayLabel(days[0]);
-  const [first, last] = [dayLabel(days[0]).split(" "), dayLabel(days[days.length - 1]).split(" ")];
-  return first[2] === last[2] ? `${first[1]} – ${last[1]} ${last[2]}` : `${first[1]} ${first[2]} – ${last[1]} ${last[2]}`;
-}
-
 /**
  * The round check in the corner of a Block that hasn't ended. It completes the Block's whole Task, through the
  * same command as the Task list's checkbox. It's a control of its own, so it never starts a drag or opens the
@@ -170,8 +157,8 @@ function BlockCheck({
   done: boolean;
   onError: (message: string) => void;
 }) {
-  const { ticked, tick } = useCompletion();
-  const act = useTaskEditor().column?.act ?? null;
+  const { ticked } = useCompletion();
+  const complete = useCompleteTask();
   const stop = (e: React.SyntheticEvent) => e.stopPropagation();
   return (
     <button
@@ -186,19 +173,7 @@ function BlockCheck({
       onKeyDown={stop}
       onClick={(e) => {
         e.stopPropagation();
-        // The same completion as the Task list's tick, through its list: the row sweeps and slides, this Task's
-        // Blocks dim, and a refusal rolls back with the list's toast.
-        tick(block.taskId);
-        if (act) {
-          act({ kind: "complete", id: block.taskId }, async () => {
-            const result = await completeTask(block.taskId);
-            return result.ok ? null : `“${block.taskTitle}” no longer exists.`;
-          });
-        } else {
-          void completeTask(block.taskId).then((result) => {
-            if (!result.ok) onError("This Task no longer exists.");
-          });
-        }
+        complete({ id: block.taskId, title: block.taskTitle }, onError);
       }}
     >
       <svg viewBox="0 0 16 16" aria-hidden>
@@ -239,7 +214,6 @@ export function Calendar({
     const opening = blocks.find((b) => b.id === openBlockId);
     return opening ? toZoned(new Date(opening.start), timeZone).date : today;
   });
-  const [pending, startTransition] = useTransition();
   const [moving, startMoving] = useTransition();
   const [editingId, setEditingId] = useState<string | null>(openBlockId ?? null);
   const [openEventId, setOpenEventId] = useState<string | null>(null);
@@ -249,8 +223,6 @@ export function Calendar({
   const clearToast = useCallback(() => setToast(null), []);
   const showError = useCallback((text: string) => setToast({ text, tone: "error" }), []);
   const [landing, setLanding] = useState<Landing | null>(null);
-  /** The Blocks as they were when Recalculate was pressed, until the moved ones have glided into place. */
-  const [glideFrom, setGlideFrom] = useState<CalendarBlock[] | null>(null);
   /** Which way the grid last changed, so it slides (or fades) in; null until it first does. */
   const [shift, setShift] = useState<{ n: number; way: "back" | "forward" | "view" } | null>(null);
   // Tasks complete in the Task list, at once when ticked: all of a completed Task's Blocks dim together.
@@ -284,22 +256,20 @@ export function Calendar({
     return () => clearTimeout(timer);
   }, [landing]);
 
-  // A Recalculation has finished: say how many Blocks moved, and stop gliding once the last has landed.
-  const finished = !pending && glideFrom !== null;
-  const movedCount = finished ? movedBlocks(glideFrom, blocks).length : 0;
-  useEffect(() => {
-    if (!finished) return;
-    if (movedCount > 0) setToast({ text: `${movedCount} ${movedCount === 1 ? "Block" : "Blocks"} moved`, tone: "info" });
-    const timer = setTimeout(() => setGlideFrom(null), GLIDE_MS + movedCount * STAGGER_MS);
-    return () => clearTimeout(timer);
-  }, [finished, movedCount]);
+  /**
+   * Recalculate: as it finishes, the Blocks it moved glide into place one after another (on another day, through
+   * `<ViewTransition>`), and the toast says how many moved.
+   */
+  const recalculation = useRecalculate(
+    blocks,
+    useCallback((text: string | null) => setToast(text === null ? null : { text, tone: "info" }), []),
+  );
 
   const conflictingBlocks = new Set(conflicts.map((c) => c.blockId));
   const conflictingEvents = new Set(conflicts.map((c) => c.eventId));
   const editing = blocks.find((b) => b.id === editingId) ?? null;
   const eventsById = new Map(events.map((e) => [e.id, e]));
   const openEvent = openEventId === null ? null : (eventsById.get(openEventId) ?? null);
-  const blocksById = new Map(blocks.map((b) => [b.id, b]));
   const shown = blocks.map((b) =>
     preview?.id === b.id ? { ...b, start: new Date(preview.start).toISOString(), end: new Date(preview.end).toISOString() } : b,
   );
@@ -508,20 +478,7 @@ export function Calendar({
     setView(next);
   };
 
-  /**
-   * Recalculate: a squiggle ripples under the button while it runs. As it finishes, the Blocks it moved glide into
-   * place one after another (on another day, through `<ViewTransition>`), and the toast says how many moved.
-   */
-  function runRecalculate() {
-    setGlideFrom(blocks);
-    setToast(null);
-    startTransition(async () => {
-      addTransitionType("recalculate");
-      await recalculate();
-    });
-  }
-  const gliding = glideFrom === null ? [] : movedBlocks(glideFrom, blocks);
-  const glideOrder = new Map(gliding.map((key, i) => [key, i]));
+  const glideOrder = new Map(recalculation.gliding.map((key, i) => [key, i]));
 
   const placedByDay = placeOnDays(shown, days, timeZone);
   const eventsByDay = placeOnDays(
@@ -558,10 +515,7 @@ export function Calendar({
 
   return (
     <div className="calendar">
-      <div className={calendarStyles.heading}>
-        <h2 id="week-heading" className={calendarStyles.kicker}>
-          The week ahead
-        </h2>
+      <WeekHeading>
         <div className={calendarStyles.toolbar}>
           <span className={calendarStyles.nav}>
             <button
@@ -594,23 +548,7 @@ export function Calendar({
               </button>
             ))}
           </span>
-          <span className={calendarStyles.recalculate}>
-            <button
-              type="button"
-              className={`link ${calendarStyles.recalculateButton}`}
-              disabled={pending || !online}
-              title={online ? undefined : OFFLINE_REASON}
-              onClick={runRecalculate}
-            >
-              {pending ? "Recalculating…" : "Recalculate"}
-              {pending && (
-                <svg className={calendarStyles.ripple} viewBox="0 0 60 6" preserveAspectRatio="none" aria-hidden>
-                  <path d="M-12 3 Q -9 0, -6 3 T 0 3 T 6 3 T 12 3 T 18 3 T 24 3 T 30 3 T 36 3 T 42 3 T 48 3 T 54 3 T 60 3 T 66 3 T 72 3" />
-                </svg>
-              )}
-            </button>
-            {connectionBroken && <span className={calendarStyles.note}>Uses the last Events dynacal saw</span>}
-          </span>
+          <RecalculateButton recalculation={recalculation} connectionBroken={connectionBroken} />
           <button
             type="button"
             className="link"
@@ -621,29 +559,9 @@ export function Calendar({
             + Event
           </button>
         </div>
-      </div>
+      </WeekHeading>
 
-      {conflicts.length > 0 && (
-        <div className={styles.conflicts} role="region" aria-label="Conflicts">
-          <ul>
-            {conflicts.map((c, i) => {
-              const block = blocksById.get(c.blockId);
-              const event = eventsById.get(c.eventId);
-              if (!block || !event) return null;
-              return (
-                <li key={`${c.blockId}/${c.eventId}`}>
-                  {i === 0 && <strong>{conflicts.length === 1 ? "1 Conflict." : `${conflicts.length} Conflicts.`} </strong>}
-                  <em>{block.taskTitle}</em> ({spanLabel(block, timeZone)}) overlaps <em>{event.title}</em> (
-                  {spanLabel(event, timeZone)}).{" "}
-                  <button type="button" className="link" onClick={() => openEditor(block)}>
-                    Resolve
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
+      <ConflictStrip conflicts={conflicts} blocks={blocks} events={events} timeZone={timeZone} onResolve={openEditor} />
 
       {editing && (
         <BlockEditor
@@ -820,11 +738,7 @@ export function Calendar({
                     >
                       {!ended && !started && <span className={`${styles.handle} ${styles.handleTop}`} data-handle="start" />}
                       <span className="block-title">
-                        {block.pinned && (
-                          <span className={styles.pinMark} aria-hidden>
-                            ◆{" "}
-                          </span>
-                        )}
+                        {block.pinned && <PinMark />}
                         {block.taskTitle}
                       </span>
                       <span className="block-time">

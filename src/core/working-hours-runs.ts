@@ -1,3 +1,4 @@
+import { WEEKDAY_NAMES } from "./day-labels";
 import { WEEKDAYS, formatMinutes, type TimeWindow, type Weekday, type WorkingHours } from "./settings";
 
 /** Adjacent days, Monday to Sunday, that share the same Working Hours windows. */
@@ -33,16 +34,6 @@ export function setRunHours(workingHours: WorkingHours, days: readonly Weekday[]
   return next;
 }
 
-const DAY_NAMES: Record<Weekday, string> = {
-  mon: "Monday",
-  tue: "Tuesday",
-  wed: "Wednesday",
-  thu: "Thursday",
-  fri: "Friday",
-  sat: "Saturday",
-  sun: "Sunday",
-};
-
 /** Joins items as a sentence would: "a", "a and b", "a, b and c". */
 export function andList(items: readonly string[]): string {
   if (items.length <= 1) return items.join("");
@@ -56,7 +47,7 @@ export function runHours(windows: readonly TimeWindow[]): string {
 
 /** Names a run's days as a sentence would: "Friday", "Saturday and Sunday", "Monday to Thursday". */
 export function runDays(days: readonly Weekday[]): string {
-  if (days.length === 1) return DAY_NAMES[days[0]];
-  if (days.length === 2) return `${DAY_NAMES[days[0]]} and ${DAY_NAMES[days[1]]}`;
-  return `${DAY_NAMES[days[0]]} to ${DAY_NAMES[days[days.length - 1]]}`;
+  if (days.length === 1) return WEEKDAY_NAMES[days[0]];
+  if (days.length === 2) return `${WEEKDAY_NAMES[days[0]]} and ${WEEKDAY_NAMES[days[1]]}`;
+  return `${WEEKDAY_NAMES[days[0]]} to ${WEEKDAY_NAMES[days[days.length - 1]]}`;
 }

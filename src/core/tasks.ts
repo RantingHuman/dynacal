@@ -1,3 +1,4 @@
+import { monthName } from "./day-labels";
 import { GRID_MINUTES } from "./time";
 
 export const PRIORITIES = ["low", "medium", "high", "critical"] as const;
@@ -74,12 +75,10 @@ export function formatDuration(minutes: number): string {
   return rest === 0 ? `${hours}h` : `${hours}h ${rest}m`;
 }
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
 /** e.g. "6 Nov 2026" or "6 Nov 2026, 14:00". */
 export function formatDateOrDateTime({ date, time }: DateOrDateTime): string {
   const [year, month, day] = date.split("-").map(Number);
-  const formatted = `${day} ${MONTHS[month - 1]} ${year}`;
+  const formatted = `${day} ${monthName(month, "short")} ${year}`;
   return time === null ? formatted : `${formatted}, ${time}`;
 }
 

@@ -77,36 +77,6 @@
   bottom: -10px;
   width: 100%;
   height: 12px;
-  fill: none;
-  stroke: var(--accent);
-  stroke-width: 2.5;
-  stroke-linecap: round;
-}
-
-/*
- * The squiggle draws in (with the headline on load, and again when the week gets better), then is the page's
- * one piece of constant life: the wave slides one wavelength (24 units) and repeats, slowly.
- */
-.squiggle path {
-  stroke-dasharray: 1;
-  animation:
-    draw var(--rise) var(--expo) both,
-    wiggle var(--loop) linear var(--rise) infinite;
-}
-
-@keyframes draw {
-  from {
-    stroke-dashoffset: 1;
-  }
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
-@keyframes wiggle {
-  to {
-    transform: translateX(24px);
-  }
 }
 
 .standfirst {

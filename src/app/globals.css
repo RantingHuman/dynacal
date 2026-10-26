@@ -125,11 +125,9 @@ body {
 h1,
 h2,
 h3,
-.brand,
 .task-title,
 .block-title,
-.calendar-day-label,
-.calendar-range {
+.calendar-day-label {
   font-family: var(--font-serif);
   font-weight: 400;
 }
@@ -173,7 +171,6 @@ main {
 }
 
 .button:active:not(:disabled),
-.icon-button:active:not(:disabled),
 .segmented button:active,
 .link:active:not(:disabled) {
   transform: scale(0.92);
@@ -189,6 +186,7 @@ main {
 
 .muted {
   color: var(--soft);
+  font-size: 0.85rem;
 }
 
 main.wide {
@@ -216,55 +214,7 @@ a.button {
   box-shadow: none;
 }
 
-.settings {
-  display: grid;
-  gap: 1.5rem;
-}
-
-.settings fieldset {
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-square);
-  padding: 1rem;
-}
-
-.settings label {
-  display: grid;
-  gap: 0.3rem;
-}
-
-.settings input,
-.settings select {
-  font: inherit;
-  padding: 0.35rem 0.5rem;
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-square);
-  background: var(--card);
-  color: var(--ink);
-  max-width: 20rem;
-}
-
-.day {
-  display: grid;
-  grid-template-columns: 7rem 1fr;
-  gap: 0.5rem;
-  padding: 0.5rem 0;
-  border-top: 1px solid var(--rule);
-}
-
-.windows {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 1rem;
-  align-items: center;
-}
-
-.window {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  align-items: center;
-}
-
+/* A text button looks like a link. */
 .link {
   border: 0;
   background: none;
@@ -278,54 +228,17 @@ a.button {
   cursor: default;
 }
 
+/* A form's message fades in under its field; errors stay quiet, so nothing shakes. */
 .field-error {
   color: var(--accent);
   flex-basis: 100%;
+  animation: fade-in var(--base) var(--expo);
 }
 
 .actions {
   display: flex;
   gap: 1rem;
   align-items: center;
-}
-
-@media (max-width: 30rem) {
-  .day {
-    grid-template-columns: 1fr;
-  }
-}
-
-.app {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-
-.app-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.75rem 1rem;
-  border-top: var(--masthead-rule) solid var(--ink);
-  border-bottom: 1px solid var(--ink);
-}
-
-.app-header nav {
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-}
-
-.brand {
-  font-size: 1.4rem;
-  font-style: italic;
-  line-height: 1;
-}
-
-.app-body {
-  flex: 1;
-  display: grid;
-  grid-template-columns: minmax(20rem, 26rem) 1fr;
 }
 
 .task-panel {
@@ -336,67 +249,9 @@ a.button {
   align-content: start;
 }
 
-.schedule-panel {
-  padding: 1rem;
-}
-
-.panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.panel-header h2 {
-  margin: 0;
-  font-size: 1.4rem;
-}
-
-.task-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 0.5rem;
-}
-
-.task-row {
-  width: 100%;
-  display: grid;
-  gap: 0.25rem;
-  text-align: left;
-  padding: 0.6rem 0.75rem;
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-square);
-  background: none;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
-
-.task-row.selected {
-  border-color: var(--accent);
-}
-
 .task-title {
   font-size: var(--text-task);
   line-height: 1.2;
-}
-
-.task-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem 0.75rem;
-  font-size: var(--text-meta);
-  color: var(--soft);
-}
-
-.priority {
-  font-weight: 600;
-}
-
-.priority-critical,
-.priority-high {
-  color: var(--accent);
 }
 
 .task-form {
@@ -501,90 +356,20 @@ input[type="checkbox"]:disabled {
   gap: 0.75rem;
 }
 
-.date-time-inputs {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.muted {
-  font-size: 0.85rem;
-}
-
 .danger {
   margin-left: auto;
 }
 
 @media (max-width: 48rem) {
-  .app-body {
-    grid-template-columns: 1fr;
-  }
-
   .task-panel {
     border-right: 0;
     border-bottom: 1px solid var(--rule);
   }
 }
 
-.task-title-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.5rem;
-  align-items: baseline;
-}
-
-/* Flags are chips. At Risk and Overdue are warnings in the accent; Unscheduled is a fact about room, in soft. */
-.flag {
-  flex: none;
-  font-size: var(--text-kicker);
-  font-weight: 600;
-  padding: 0.1rem 0.45rem;
-  border-radius: var(--radius-pill);
-  border: 1px solid currentColor;
-}
-
-.flag-overdue,
-.flag-at-risk {
-  color: var(--accent);
-}
-
-.flag-unscheduled {
-  color: var(--soft);
-}
-
-.notice {
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-square);
-}
-
-.notice p {
-  margin: 0;
-}
-
 .calendar {
   display: grid;
   gap: 0.75rem;
-}
-
-.calendar-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.calendar-nav {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-  margin-right: auto;
-}
-
-.calendar-range {
-  font-size: 1.2rem;
 }
 
 .segmented {
@@ -614,27 +399,6 @@ input[type="checkbox"]:disabled {
   color: var(--paper);
 }
 
-.icon-button {
-  font: inherit;
-  font-size: 1.2rem;
-  line-height: 1;
-  width: 2rem;
-  height: 2rem;
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-circle);
-  background: none;
-  color: var(--ink);
-  cursor: pointer;
-  transition:
-    box-shadow var(--base) var(--expo),
-    transform var(--base) var(--bounce);
-}
-
-.icon-button:hover:not(:disabled) {
-  box-shadow: inset 0 -2.4em 0 var(--highlight);
-}
-
-.icon-button:disabled,
 .button:disabled {
   opacity: 0.4;
   cursor: default;
@@ -779,54 +543,11 @@ input[type="checkbox"]:disabled {
   min-width: 0;
 }
 
-/* First-run setup and the Google Calendar section of Settings. */
-.setup-steps {
-  padding-left: 1.25rem;
-}
-
-.setup-steps > li {
-  margin-bottom: 2rem;
-}
-
-.setup-steps > li.done > h2::after {
-  content: " ✓";
-  color: var(--accent);
-}
-
-.busy-calendars {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.checkbox,
-.settings label.checkbox {
+/* A checkbox beside its label. */
+.checkbox {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-}
-
-.recalculate {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.recalculate-note {
-  font-size: 0.8125rem;
-}
-
-.panel-actions {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-/* A form's message fades in under its field; errors stay quiet, so nothing shakes. */
-.field-error {
-  animation: fade-in var(--base) var(--expo);
 }
 
 @keyframes fade-in {

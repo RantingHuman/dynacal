@@ -2,14 +2,14 @@
 
 import { useState, type ReactNode } from "react";
 import { TaskEditorSlot } from "../../tasks/task-editor-slot";
-import { EmptyAgenda, PhoneSchedule, type PhoneScheduleData } from "./phone-schedule";
+import { EmptyWeekList, PhoneSchedule, type PhoneScheduleData } from "./phone-schedule";
 import styles from "./phone.module.css";
 
 type Tab = "schedule" | "tasks";
 
 /**
  * The home screen below 640px wide: the masthead, then two tabs at the bottom. Schedule (the default) holds the
- * lead, the review box and the week as an agenda; Tasks holds the one-line add and the Task list. Both tabs stay
+ * lead, the review box and the week list; Tasks holds the one-line add and the Task list. Both tabs stay
  * mounted, so switching keeps what's typed. The Task editor covers the whole screen, tabs included.
  */
 export function PhoneHome({
@@ -24,9 +24,9 @@ export function PhoneHome({
   lead: ReactNode;
   review: ReactNode;
   tasks: ReactNode;
-  /** Null until the time zone is saved; the agenda is then seven empty days. */
+  /** Null until the time zone is saved; the week list is then seven empty days. */
   schedule: PhoneScheduleData | null;
-  /** YYYY-MM-DD, for the empty agenda. */
+  /** YYYY-MM-DD, for the empty week list. */
   today: string;
 }) {
   const [tab, setTab] = useState<Tab>("schedule");
@@ -55,7 +55,7 @@ export function PhoneHome({
         <div role="tabpanel" id="phone-panel-schedule" aria-labelledby="phone-tab-schedule" hidden={tab !== "schedule"}>
           <div className={styles.lead}>{lead}</div>
           <div className={styles.review}>{review}</div>
-          {schedule ? <PhoneSchedule {...schedule} /> : <EmptyAgenda today={today} />}
+          {schedule ? <PhoneSchedule {...schedule} /> : <EmptyWeekList today={today} />}
         </div>
         <div role="tabpanel" id="phone-panel-tasks" aria-labelledby="phone-tab-tasks" hidden={tab !== "tasks"}>
           {tasks}

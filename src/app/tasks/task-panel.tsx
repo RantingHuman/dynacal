@@ -7,7 +7,7 @@ import { applyTaskChange, type TaskChange } from "@/core/task-list";
 import { formatDuration, type TaskInput } from "@/core/tasks";
 import type { TaskFlag } from "@/core/scheduler";
 import { Toast } from "../schedule/toast";
-import { DrawnSquiggle } from "../states/drawn-squiggle";
+import { Squiggle } from "../states/squiggle";
 import statesStyles from "../states/states.module.css";
 import { OFFLINE_REASON, useOnline } from "../states/use-online";
 import { CompleteTaskButton } from "./complete-task-button";
@@ -137,7 +137,7 @@ export function TaskPanel({
         <p className={statesStyles.empty}>
           <span className={styles.allDone}>
             <em>All done.</em>
-            <DrawnSquiggle className={styles.allDoneSquiggle} />
+            <Squiggle motion="draw" className={styles.allDoneSquiggle} />
           </span>
         </p>
       )}

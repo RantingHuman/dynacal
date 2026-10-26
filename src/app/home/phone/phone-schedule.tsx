@@ -1,21 +1,23 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { agendaDays, type AgendaEntry } from "@/core/agenda";
+import { weekListDays, type WeekListEntry } from "@/core/week-list";
+import { dateParts, dayLabel, spanLabel, weekdayName } from "@/core/day-labels";
 import { formatMinutes } from "@/core/settings";
 import { formatDuration } from "@/core/tasks";
 import { addDays, toZoned } from "@/core/time-zone";
-import { useOnline } from "../../states/use-online";
+import { OFFLINE_REASON, useOnline } from "../../states/use-online";
 import { CompleteTaskButton } from "../../tasks/complete-task-button";
 import { useTaskEditor } from "../../tasks/task-editor-slot";
 import type { CalendarBlock, CalendarConflict, CalendarEvent } from "../../schedule/calendar";
-import calendarStyles from "../../schedule/calendar.module.css";
-import { dayLabel } from "../../schedule/day-label";
+import { ConflictStrip } from "../../schedule/conflict-strip";
 import { DynacalEventForm } from "../../schedule/dynacal-event-form";
 import { EventDetails } from "../../schedule/event-details";
 import { FloatingLabel, LabelNote, LabelTime, LabelTitle } from "../../schedule/floating-label";
 import { useNewEvent } from "../../schedule/new-event";
-import pinningStyles from "../../schedule/pinning.module.css";
+import { PinMark } from "../../schedule/pin-mark";
+import { WeekHeading } from "../../schedule/week-heading";
+import { Squiggle } from "../../states/squiggle";
 import { BlockSheet } from "./block-sheet";
 import styles from "./phone.module.css";
 
@@ -30,44 +32,29 @@ export interface PhoneScheduleData {
   openBlockId?: string;
 }
 
-/** The agenda shows a week: today and the six days after it. */
-const AGENDA_DAYS = 7;
+/** The week list shows today and the six days after it. */
+const WEEK_LIST_DAYS = 7;
 
 type Item = { kind: "block"; block: CalendarBlock } | { kind: "event"; event: CalendarEvent };
 
-/** What's open over the agenda: a Block (its sheet, or its label once it has ended) or an Event's label. */
+/** What's open over the week list: a Block (its sheet, or its label once it has ended) or an Event's label. */
 type Open = { kind: "block" | "event"; id: string } | null;
-
-const WEEKDAYS_LONG: Record<string, string> = {
-  Mon: "Monday",
-  Tue: "Tuesday",
-  Wed: "Wednesday",
-  Thu: "Thursday",
-  Fri: "Friday",
-  Sat: "Saturday",
-  Sun: "Sunday",
-};
 
 /** A day's heading: the date as a large numeral, then the weekday, with a squiggle under today. */
 function DayHeading({ date, today }: { date: string; today: boolean }) {
-  const [weekday, day] = dayLabel(date).split(" ");
   return (
     <h3 className={styles.dayHeading} data-today={today}>
-      <span className={styles.dayNumber}>{day}</span> {WEEKDAYS_LONG[weekday]}
-      {today && (
-        <svg className={styles.daySquiggle} viewBox="0 0 30 6" preserveAspectRatio="none" aria-hidden>
-          <path d="M0 3 Q 2.5 0, 5 3 T 10 3 T 15 3 T 20 3 T 25 3 T 30 3" />
-        </svg>
-      )}
+      <span className={styles.dayNumber}>{dateParts(date).day}</span> {weekdayName(date)}
+      {today && <Squiggle waves={3} className={styles.daySquiggle} />}
     </h3>
   );
 }
 
 /** Seven days with "Nothing planned", dimmed: the week before there's a Schedule (no time zone yet). */
-export function EmptyAgenda({ today }: { today: string }) {
+export function EmptyWeekList({ today }: { today: string }) {
   return (
-    <div className={styles.agenda} data-empty>
-      {Array.from({ length: AGENDA_DAYS }, (_, i) => addDays(today, i)).map((date) => (
+    <div className={styles.weekList} data-empty>
+      {Array.from({ length: WEEK_LIST_DAYS }, (_, i) => addDays(today, i)).map((date) => (
         <section key={date} className={styles.day}>
           <DayHeading date={date} today={date === today} />
           <p className={styles.nothing}>Nothing planned</p>
@@ -111,8 +98,8 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
   const openBlock = open?.kind === "block" ? (blocksById.get(open.id) ?? null) : null;
   const openEvent = open?.kind === "event" ? (eventsById.get(open.id) ?? null) : null;
 
-  const days = Array.from({ length: AGENDA_DAYS }, (_, i) => addDays(today, i)).filter((d) => d <= lastDay);
-  const entries: AgendaEntry<Item>[] = [
+  const days = Array.from({ length: WEEK_LIST_DAYS }, (_, i) => addDays(today, i)).filter((d) => d <= lastDay);
+  const entries: WeekListEntry<Item>[] = [
     ...blocks.map((block) => ({
       item: { kind: "block" as const, block },
       start: new Date(block.start),
@@ -127,45 +114,31 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
     })),
   ];
 
-  /** e.g. "Mon 5 Jan, 13:30–14:30". */
-  function spanLabel(item: { start: string; end: string }): string {
-    const start = toZoned(new Date(item.start), timeZone);
-    const end = toZoned(new Date(item.end), timeZone);
-    return `${dayLabel(start.date)}, ${formatMinutes(start.minutes)}–${formatMinutes(end.minutes)}`;
-  }
-
   return (
     <>
-      <div className={calendarStyles.heading}>
-        <h2 className={calendarStyles.kicker}>The week ahead</h2>
-        <button type="button" className="link" onClick={() => newEvent.open()}>
+      <WeekHeading>
+        <button
+          type="button"
+          className="link"
+          onClick={() => newEvent.open()}
+          disabled={!online}
+          title={online ? undefined : OFFLINE_REASON}
+        >
           + Event
         </button>
-      </div>
+      </WeekHeading>
 
-      {conflicts.length > 0 && (
-        <div className={pinningStyles.conflicts} role="region" aria-label="Conflicts">
-          <ul>
-            {conflicts.map((c, i) => {
-              const block = blocksById.get(c.blockId);
-              const event = eventsById.get(c.eventId);
-              if (!block || !event) return null;
-              return (
-                <li key={`${c.blockId}/${c.eventId}`}>
-                  {i === 0 && <strong>{conflicts.length === 1 ? "1 Conflict." : `${conflicts.length} Conflicts.`} </strong>}
-                  <em>{block.taskTitle}</em> ({spanLabel(block)}) overlaps <em>{event.title}</em>.{" "}
-                  <button type="button" className="link" onClick={() => show({ kind: "block", id: block.id })}>
-                    Resolve
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
+      <ConflictStrip
+        conflicts={conflicts}
+        blocks={blocks}
+        events={events}
+        timeZone={timeZone}
+        showEventTimes={false}
+        onResolve={(block) => show({ kind: "block", id: block.id })}
+      />
 
-      <div className={styles.agenda}>
-        {agendaDays(days, entries, timeZone).map(({ date, lines }) => (
+      <div className={styles.weekList}>
+        {weekListDays(days, entries, timeZone).map(({ date, lines }) => (
           <section key={date} className={styles.day} aria-label={dayLabel(date)}>
             <DayHeading date={date} today={date === today} />
             {lines.length === 0 && <p className={styles.nothing}>Nothing planned</p>}
@@ -203,11 +176,7 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
                   >
                     <span className={styles.lineTime}>{allDay ? "all day" : formatMinutes(minutes)}</span>
                     <span className={styles.lineTitle}>
-                      {pinned && (
-                        <span className={pinningStyles.pinMark} aria-hidden>
-                          ◆{" "}
-                        </span>
-                      )}
+                      {pinned && <PinMark />}
                       {title}
                     </span>
                     <span className={styles.lineLength}>{allDay ? "" : formatDuration(length)}</span>
@@ -236,7 +205,7 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
         {openBlock && ended(openBlock) && (
           <FloatingLabel kind="Block" labelledBy="ended-block-heading" onClose={close}>
             <LabelTitle id="ended-block-heading">{openBlock.taskTitle}</LabelTitle>
-            <LabelTime>{spanLabel(openBlock)}</LabelTime>
+            <LabelTime>{spanLabel(openBlock, timeZone)}</LabelTime>
             <LabelNote>This Block has ended, so it can’t be moved.</LabelNote>
           </FloatingLabel>
         )}

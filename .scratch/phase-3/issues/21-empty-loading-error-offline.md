@@ -2,7 +2,7 @@
 
 **What to build:**
 - **Empty states:** one muted italic line plus the action that fills them: no Tasks ever; all done; a day with nothing on the phone.
-- **No time zone:** an empty, dimmed week grid (or seven empty agenda days on a phone).
+- **No time zone:** an empty, dimmed week grid (or seven empty week list days on a phone).
 - **Google broken or unreachable:** the last Events dynacal saw, drawn dimmer and dashed.
 - **Loading:** a route-level loading screen (the masthead and a drawing squiggle) shown only after 300ms.
 - **Actions:** save, add, complete and move update at once and roll back with a toast if refused; a button shows "…" after a second.

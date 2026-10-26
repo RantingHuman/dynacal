@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { GoogleButton } from "@/app/settings/google-button";
 import { currentSession } from "@/server/session";
+import { Squiggle } from "../states/squiggle";
 import styles from "./sign-in.module.css";
 
 const ERRORS: Record<string, string> = {
@@ -16,15 +17,7 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
   return (
     <main className={styles.card}>
       <h1 className={styles.title}>dynacal</h1>
-      <svg className={styles.squiggle} viewBox="0 0 120 10" aria-hidden="true">
-        <path
-          d="M2 5 Q 9.5 0 17 5 T 32 5 T 47 5 T 62 5 T 77 5 T 92 5 T 107 5 T 118 5"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-        />
-      </svg>
+      <Squiggle waves={4} className={styles.squiggle} />
       <p className={styles.line}>A planner for one, kept on your own server.</p>
       {error && (
         <p className={styles.error} role="alert">

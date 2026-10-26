@@ -1,9 +1,11 @@
 "use client";
 
 import { startTransition, useEffect, useState, useTransition, ViewTransition } from "react";
+import { spanLabel } from "@/core/day-labels";
 import { blockMinutes, canBePartlyDone, type ReviewOutcome } from "@/core/completion";
 import { formatDuration } from "@/core/tasks";
-import { DrawnSquiggle } from "../states/drawn-squiggle";
+import { Squiggle } from "../states/squiggle";
+import { OFFLINE_REASON, useOnline } from "../states/use-online";
 import { reviewBlock } from "./actions";
 import styles from "./review-box.module.css";
 
@@ -55,7 +57,7 @@ export function ReviewBox({ blocks, timeZone }: { blocks: UnreviewedBlockProps[]
       >
         <p className={styles.caughtUp} role="status">
           All caught up.
-          <DrawnSquiggle className={styles.squiggle} />
+          <Squiggle motion="draw" className={styles.squiggle} />
         </p>
       </section>
     );
@@ -99,12 +101,6 @@ export function ReviewBox({ blocks, timeZone }: { blocks: UnreviewedBlockProps[]
   );
 }
 
-function formatSpan(start: Date, end: Date, timeZone: string): string {
-  const day = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone });
-  const time = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", timeZone });
-  return `${day.format(start)}, ${time.format(start)}–${time.format(end)}`;
-}
-
 /** One Unreviewed Block: did its work happen? Until the owner says, it counts as worked. */
 function ReviewQuote({ block, timeZone }: { block: UnreviewedBlockProps; timeZone: string }) {
   const span = { start: new Date(block.start), end: new Date(block.end) };
@@ -113,8 +109,13 @@ function ReviewQuote({ block, timeZone }: { block: UnreviewedBlockProps; timeZon
   const [worked, setWorked] = useState(block.suggestedWorkedMinutes);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  // Offline, the Block can be read but not answered.
+  const online = useOnline();
+  const disabled = pending || !online;
+  const title = online ? undefined : OFFLINE_REASON;
 
   function submit(outcome: ReviewOutcome) {
+    if (!online) return;
     setError(null);
     startTransition(async () => {
       const result = await reviewBlock(block.id, outcome);
@@ -129,24 +130,31 @@ function ReviewQuote({ block, timeZone }: { block: UnreviewedBlockProps; timeZon
       <p className={styles.quote}>Did the work on {block.taskTitle} happen?</p>
       <div className={styles.footer}>
         <span>
-          {formatSpan(span.start, span.end, timeZone)} ({formatDuration(length)}) ·
+          {spanLabel(span, timeZone)} ({formatDuration(length)}) ·
         </span>
         <span className={styles.actions}>
-          <button type="button" className="link" disabled={pending} onClick={() => submit({ review: "done" })}>
+          <button type="button" className="link" disabled={disabled} title={title} onClick={() => submit({ review: "done" })}>
             Done
           </button>
           {canBePartlyDone(span) && (
             <button
               type="button"
               className="link"
-              disabled={pending}
+              disabled={disabled}
+              title={title}
               aria-expanded={partOpen}
               onClick={() => setPartOpen(!partOpen)}
             >
               Partly
             </button>
           )}
-          <button type="button" className="link" disabled={pending} onClick={() => submit({ review: "not-done" })}>
+          <button
+            type="button"
+            className="link"
+            disabled={disabled}
+            title={title}
+            onClick={() => submit({ review: "not-done" })}
+          >
             Not done
           </button>
         </span>
@@ -170,7 +178,7 @@ function ReviewQuote({ block, timeZone }: { block: UnreviewedBlockProps; timeZon
               onChange={(e) => setWorked(e.target.valueAsNumber)}
             />
           </label>
-          <button type="submit" className="button" disabled={pending}>
+          <button type="submit" className="button" disabled={disabled} title={title}>
             Save
           </button>
         </form>
