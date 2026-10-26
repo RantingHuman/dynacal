@@ -97,7 +97,7 @@ import { forgetDynacalEventWrite, readDynacalEventWrites, recordDynacalEventWrit
 import { validatePushSubscription, type PushSender, type PushSubscriptionInput, type SubscribeToPushResult } from "./push";
 import { isHttps } from "./urls";
 import { validateBlockTime, type MoveBlockResult, type UnpinBlockResult } from "./pinning";
-import { dueReminders, reminderKey, reminderMessage } from "./reminders";
+import { REMINDER_GRACE_MS, dueReminders, reminderKey, reminderMessage } from "./reminders";
 import { blockEventsInGoogle, editWindow, readGoogleEdit, type BlockEventInGoogle } from "./google-edits";
 import { channelExpiry, planChannels } from "./push-channels";
 import { remainingByTask, schedulerTasks } from "./scheduler-input";
@@ -1433,13 +1433,14 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       const { timeZone, reminderLeadMinutes } = getSettings();
       if (timeZone === null) return;
       const now = clock.now();
-      // Only Blocks that haven't started can be reminded, so older records are no longer needed.
-      db.delete(remindersSent).where(lt(remindersSent.blockStart, now)).run();
+      // Only Blocks that haven't started (give or take the grace) can be reminded, so older records are no longer needed.
+      const earliest = new Date(now.getTime() - REMINDER_GRACE_MS);
+      db.delete(remindersSent).where(lt(remindersSent.blockStart, earliest)).run();
       const candidates = db
-        .select({ taskId: blocks.taskId, start: blocks.start, taskTitle: tasks.title })
+        .select({ taskId: blocks.taskId, start: blocks.start, end: blocks.end, taskTitle: tasks.title })
         .from(blocks)
         .innerJoin(tasks, eq(blocks.taskId, tasks.id))
-        .where(gte(blocks.start, now))
+        .where(gte(blocks.start, earliest))
         .all();
       const alreadySent = new Set(
         db
