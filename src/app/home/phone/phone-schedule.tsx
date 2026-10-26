@@ -5,7 +5,9 @@ import { agendaDays, type AgendaEntry } from "@/core/agenda";
 import { formatMinutes } from "@/core/settings";
 import { formatDuration } from "@/core/tasks";
 import { addDays, toZoned } from "@/core/time-zone";
+import { useOnline } from "../../states/use-online";
 import { CompleteTaskButton } from "../../tasks/complete-task-button";
+import { useTaskEditor } from "../../tasks/task-editor-slot";
 import type { CalendarBlock, CalendarConflict, CalendarEvent } from "../../schedule/calendar";
 import calendarStyles from "../../schedule/calendar.module.css";
 import { dayLabel } from "../../schedule/day-label";
@@ -87,6 +89,9 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
   const [open, setOpen] = useState<Open>(openBlockId ? { kind: "block", id: openBlockId } : null);
   const close = useCallback(() => setOpen(null), []);
   const newEvent = useNewEvent();
+  const online = useOnline();
+  // Ticking a Block's Task goes through the Tasks tab's list, so it shows there at once and rolls back if refused.
+  const act = useTaskEditor().column?.act ?? null;
 
   // The New Event form takes the place of whatever was open.
   useEffect(() => {
@@ -176,7 +181,13 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
               return (
                 <div key={`${isBlock ? item.block.displayKey : id}-${date}`} className={styles.row}>
                   {isBlock && !past ? (
-                    <CompleteTaskButton id={item.block.taskId} title={title} completed={false} />
+                    <CompleteTaskButton
+                      id={item.block.taskId}
+                      title={title}
+                      completed={false}
+                      disabled={!online || act === null}
+                      act={act ?? (() => {})}
+                    />
                   ) : (
                     <span aria-hidden />
                   )}
