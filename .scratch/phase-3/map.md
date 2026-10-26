@@ -6,6 +6,8 @@ Label: wayfinder:map
 
 A phase 3 spec at `.scratch/phase-3/spec.md`, in the same style as the MVP and phase 2 specs and ready to break into tickets. It settles the visual style, a less crowded layout for every screen, and which interactions get motion and feedback and what each one does.
 
+**Reached.** The spec is [`spec.md`](spec.md), and its implementation tickets are `issues/13`–`22` (status `ready-for-agent`).
+
 ## Notes
 
 - **Domain:** visual and interaction design only. No new scheduling behaviour. Use the vocabulary in `GLOSSARY.md` (Task, Block, Event, Busy Calendar, Working Hours and so on) in every ticket and in the spec.
