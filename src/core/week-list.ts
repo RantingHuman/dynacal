@@ -2,12 +2,12 @@ import { DAY_MINUTES } from "./time";
 import { toZoned } from "./time-zone";
 
 /**
- * The week as an agenda, for the home screen on a phone: each day a heading, then its items as lines with a
+ * The week list, the home screen's week on a phone: each day a heading, then its items as lines with a
  * time and a length.
  */
 
-/** Something to put on the agenda (a Block or an Event), with its span. */
-export interface AgendaEntry<T> {
+/** Something to put on the week list (a Block or an Event), with its span. */
+export interface WeekListEntry<T> {
   item: T;
   start: Date;
   end: Date;
@@ -15,7 +15,7 @@ export interface AgendaEntry<T> {
 }
 
 /** One line on a day: the item, and the part of it on that day. */
-export interface AgendaLine<T> {
+export interface WeekListLine<T> {
   item: T;
   allDay: boolean;
   /** When the line starts, in minutes after local midnight (0 for an item carried over from the day before). */
@@ -24,20 +24,20 @@ export interface AgendaLine<T> {
   length: number;
 }
 
-export interface AgendaDay<T> {
+export interface WeekListDay<T> {
   /** YYYY-MM-DD */
   date: string;
   /** All-day items first, then the rest by start time. Empty on a day with nothing planned. */
-  lines: AgendaLine<T>[];
+  lines: WeekListLine<T>[];
 }
 
 /**
  * Groups items under the given local days (YYYY-MM-DD, in order). An item spanning midnight appears on each day
  * it touches, cut to that day; an all-day item ends at the midnight after its last day.
  */
-export function agendaDays<T>(days: string[], entries: AgendaEntry<T>[], timeZone: string): AgendaDay<T>[] {
+export function weekListDays<T>(days: string[], entries: WeekListEntry<T>[], timeZone: string): WeekListDay<T>[] {
   return days.map((date) => {
-    const lines: AgendaLine<T>[] = [];
+    const lines: WeekListLine<T>[] = [];
     for (const { item, start, end, allDay } of entries) {
       const from = toZoned(start, timeZone);
       const to = toZoned(end, timeZone);

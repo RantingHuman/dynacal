@@ -1,21 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { agendaDays, type AgendaEntry } from "./agenda";
+import { weekListDays, type WeekListEntry } from "./week-list";
 
 const TZ = "Europe/London";
 
-/** An entry on the agenda, from wall-clock times in London in January (UTC+0). */
-function entry(id: string, start: string, end: string, allDay = false): AgendaEntry<string> {
+/** An entry on the week list, from wall-clock times in London in January (UTC+0). */
+function entry(id: string, start: string, end: string, allDay = false): WeekListEntry<string> {
   return { item: id, start: new Date(`${start}Z`), end: new Date(`${end}Z`), allDay };
 }
 
 /** Each day as "date: id time length, …" for easy reading. */
-function summary(days: ReturnType<typeof agendaDays<string>>) {
+function summary(days: ReturnType<typeof weekListDays<string>>) {
   return days.map((d) => `${d.date}: ${d.lines.map((l) => (l.allDay ? `${l.item} all day` : `${l.item} ${l.minutes} ${l.length}`)).join(", ")}`);
 }
 
-describe("agendaDays", () => {
+describe("weekListDays", () => {
   it("lists each day's items in time order, and keeps days with nothing on them", () => {
-    const days = agendaDays(
+    const days = weekListDays(
       ["2026-01-05", "2026-01-06", "2026-01-07"],
       [
         entry("write", "2026-01-05T13:00", "2026-01-05T15:00"),
@@ -28,7 +28,7 @@ describe("agendaDays", () => {
   });
 
   it("puts all-day items first, on every day they cover but not the day after they end", () => {
-    const days = agendaDays(
+    const days = weekListDays(
       ["2026-01-05", "2026-01-06", "2026-01-07"],
       [
         entry("early", "2026-01-05T07:00", "2026-01-05T08:00"),
@@ -40,13 +40,13 @@ describe("agendaDays", () => {
   });
 
   it("cuts an item that crosses midnight into its part on each day", () => {
-    const days = agendaDays(["2026-01-05", "2026-01-06"], [entry("late", "2026-01-05T23:00", "2026-01-06T00:30")], TZ);
+    const days = weekListDays(["2026-01-05", "2026-01-06"], [entry("late", "2026-01-05T23:00", "2026-01-06T00:30")], TZ);
     expect(summary(days)).toEqual(["2026-01-05: late 1380 60", "2026-01-06: late 0 30"]);
   });
 
   it("reads times on the owner's wall clock", () => {
     // 09:00 in New York in January is 14:00 UTC.
-    const days = agendaDays(["2026-01-05"], [entry("call", "2026-01-05T14:00", "2026-01-05T15:00")], "America/New_York");
+    const days = weekListDays(["2026-01-05"], [entry("call", "2026-01-05T14:00", "2026-01-05T15:00")], "America/New_York");
     expect(summary(days)).toEqual(["2026-01-05: call 540 60"]);
   });
 });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { agendaDays, type AgendaEntry } from "@/core/agenda";
+import { weekListDays, type WeekListEntry } from "@/core/week-list";
 import { formatMinutes } from "@/core/settings";
 import { formatDuration } from "@/core/tasks";
 import { addDays, toZoned } from "@/core/time-zone";
@@ -30,12 +30,12 @@ export interface PhoneScheduleData {
   openBlockId?: string;
 }
 
-/** The agenda shows a week: today and the six days after it. */
-const AGENDA_DAYS = 7;
+/** The week list shows today and the six days after it. */
+const WEEK_LIST_DAYS = 7;
 
 type Item = { kind: "block"; block: CalendarBlock } | { kind: "event"; event: CalendarEvent };
 
-/** What's open over the agenda: a Block (its sheet, or its label once it has ended) or an Event's label. */
+/** What's open over the week list: a Block (its sheet, or its label once it has ended) or an Event's label. */
 type Open = { kind: "block" | "event"; id: string } | null;
 
 const WEEKDAYS_LONG: Record<string, string> = {
@@ -64,10 +64,10 @@ function DayHeading({ date, today }: { date: string; today: boolean }) {
 }
 
 /** Seven days with "Nothing planned", dimmed: the week before there's a Schedule (no time zone yet). */
-export function EmptyAgenda({ today }: { today: string }) {
+export function EmptyWeekList({ today }: { today: string }) {
   return (
-    <div className={styles.agenda} data-empty>
-      {Array.from({ length: AGENDA_DAYS }, (_, i) => addDays(today, i)).map((date) => (
+    <div className={styles.weekList} data-empty>
+      {Array.from({ length: WEEK_LIST_DAYS }, (_, i) => addDays(today, i)).map((date) => (
         <section key={date} className={styles.day}>
           <DayHeading date={date} today={date === today} />
           <p className={styles.nothing}>Nothing planned</p>
@@ -111,8 +111,8 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
   const openBlock = open?.kind === "block" ? (blocksById.get(open.id) ?? null) : null;
   const openEvent = open?.kind === "event" ? (eventsById.get(open.id) ?? null) : null;
 
-  const days = Array.from({ length: AGENDA_DAYS }, (_, i) => addDays(today, i)).filter((d) => d <= lastDay);
-  const entries: AgendaEntry<Item>[] = [
+  const days = Array.from({ length: WEEK_LIST_DAYS }, (_, i) => addDays(today, i)).filter((d) => d <= lastDay);
+  const entries: WeekListEntry<Item>[] = [
     ...blocks.map((block) => ({
       item: { kind: "block" as const, block },
       start: new Date(block.start),
@@ -164,8 +164,8 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
         </div>
       )}
 
-      <div className={styles.agenda}>
-        {agendaDays(days, entries, timeZone).map(({ date, lines }) => (
+      <div className={styles.weekList}>
+        {weekListDays(days, entries, timeZone).map(({ date, lines }) => (
           <section key={date} className={styles.day} aria-label={dayLabel(date)}>
             <DayHeading date={date} today={date === today} />
             {lines.length === 0 && <p className={styles.nothing}>Nothing planned</p>}

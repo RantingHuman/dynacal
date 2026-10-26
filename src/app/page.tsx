@@ -30,7 +30,7 @@ function dynacalEventDetails(event: DynacalEvent): DynacalEventDetails {
 /**
  * The home screen: the masthead, the lead (the headline and standfirst, which also carry the missing time zone
  * and a broken Google connection), then the spread of the Tasks column and the calendar. Below 640px wide it's
- * the phone layout instead: the same pieces in two tabs, with the week as an agenda (see `PhoneHome`).
+ * the phone layout instead: the same pieces in two tabs, with the week list (see `PhoneHome`).
  * `block` is set when a reminder is tapped: the page opens on that Block.
  */
 export default async function HomePage({ searchParams }: { searchParams: Promise<{ block?: string }> }) {
@@ -47,7 +47,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
     scheduleView.status === "ready" ? blockForReminderLink(reminded ?? null, scheduleView.blocks) : null;
   const connectionBroken = connection.status === "broken";
 
-  // The Schedule as the browser gets it, for the calendar and the phone's agenda. Without a time zone there's none.
+  // The Schedule as the browser gets it, for the calendar and the phone's week list. Without a time zone there's none.
   const schedule =
     scheduleView.status === "ready"
       ? {

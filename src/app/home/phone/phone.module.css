@@ -1,5 +1,5 @@
 /*
- * The home screen below 640px wide: the masthead with its Menu, two tabs at the bottom, the week as an agenda,
+ * The home screen below 640px wide: the masthead with its Menu, two tabs at the bottom, the week list,
  * and the Block sheet. The breakpoint matches PHONE_QUERY in width-switch.tsx.
  */
 
@@ -96,14 +96,14 @@
   padding: var(--space-4) 0;
 }
 
-/* The agenda: each day a heading, then its lines. */
+/* The week list: each day a heading, then its lines. */
 
-.agenda {
+.weekList {
   display: grid;
   margin-top: var(--space-2);
 }
 
-.agenda[data-empty] {
+.weekList[data-empty] {
   opacity: 0.6;
 }
 
