@@ -11,6 +11,7 @@ import { blockForReminderLink } from "@/core/reminders";
 import { Calendar } from "./schedule/calendar";
 import type { DynacalEventDetails } from "./schedule/dynacal-event-form";
 import { NewEventProvider } from "./schedule/new-event";
+import { TaskEditorProvider, TaskEditorSlot } from "./tasks/task-editor-slot";
 import { TaskPanel } from "./tasks/task-panel";
 
 /** A dynacal Event as sent to the browser, with instants as ISO strings. */
@@ -47,6 +48,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       </header>
       {connection.status === "broken" && <ReconnectBanner email={connection.email} />}
       <NewEventProvider enabled={scheduleView.status === "ready"}>
+        <TaskEditorProvider>
         <div className="app-body">
           <div className={reviewStyles.tasksColumn}>
             <TaskPanel
@@ -68,6 +70,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             )}
           </div>
           <section className="schedule-panel" aria-label="Schedule">
+            <TaskEditorSlot>
             {scheduleView.status === "needs-time-zone" ? (
               <div className="notice">
                 <p>
@@ -110,8 +113,10 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
                 openBlockId={remindedBlock?.id}
               />
             )}
+            </TaskEditorSlot>
           </section>
         </div>
+        </TaskEditorProvider>
       </NewEventProvider>
     </div>
   );
