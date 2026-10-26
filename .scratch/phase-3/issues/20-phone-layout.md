@@ -13,9 +13,9 @@ See spec stories 83–96 and "Phone layout", and map ticket "How does the home s
 
 **Status:** ready-for-agent
 
-- [ ] Below 640px the tabs and agenda show; from 640px up the desktop layout shows
-- [ ] Schedule is the default tab and holds the headline, review box, Conflict strip and agenda; Tasks holds the add line and list
-- [ ] The Block sheet moves Blocks by each chip and by an exact time; moves pin; refused moves explain themselves
-- [ ] Checkboxes on agenda lines and "Mark the Task done" complete the whole Task
-- [ ] Events open their label with the Busy Override; the Menu holds the four items
+- [x] Below 640px the tabs and agenda show; from 640px up the desktop layout shows
+- [x] Schedule is the default tab and holds the headline, review box, Conflict strip and agenda; Tasks holds the add line and list
+- [x] The Block sheet moves Blocks by each chip and by an exact time; moves pin; refused moves explain themselves
+- [x] Checkboxes on agenda lines and "Mark the Task done" complete the whole Task
+- [x] Events open their label with the Busy Override; the Menu holds the four items
 - [ ] Checked by hand on a real phone (installed PWA) and at phone width in a desktop browser
