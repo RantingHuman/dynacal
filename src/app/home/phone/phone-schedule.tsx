@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { weekListDays, type WeekListEntry } from "@/core/week-list";
+import { dateParts, dayLabel, spanLabel, weekdayName } from "@/core/day-labels";
 import { formatMinutes } from "@/core/settings";
 import { formatDuration } from "@/core/tasks";
 import { addDays, toZoned } from "@/core/time-zone";
@@ -10,7 +11,6 @@ import { CompleteTaskButton } from "../../tasks/complete-task-button";
 import { useTaskEditor } from "../../tasks/task-editor-slot";
 import type { CalendarBlock, CalendarConflict, CalendarEvent } from "../../schedule/calendar";
 import calendarStyles from "../../schedule/calendar.module.css";
-import { dayLabel } from "../../schedule/day-label";
 import { DynacalEventForm } from "../../schedule/dynacal-event-form";
 import { EventDetails } from "../../schedule/event-details";
 import { FloatingLabel, LabelNote, LabelTime, LabelTitle } from "../../schedule/floating-label";
@@ -38,22 +38,11 @@ type Item = { kind: "block"; block: CalendarBlock } | { kind: "event"; event: Ca
 /** What's open over the week list: a Block (its sheet, or its label once it has ended) or an Event's label. */
 type Open = { kind: "block" | "event"; id: string } | null;
 
-const WEEKDAYS_LONG: Record<string, string> = {
-  Mon: "Monday",
-  Tue: "Tuesday",
-  Wed: "Wednesday",
-  Thu: "Thursday",
-  Fri: "Friday",
-  Sat: "Saturday",
-  Sun: "Sunday",
-};
-
 /** A day's heading: the date as a large numeral, then the weekday, with a squiggle under today. */
 function DayHeading({ date, today }: { date: string; today: boolean }) {
-  const [weekday, day] = dayLabel(date).split(" ");
   return (
     <h3 className={styles.dayHeading} data-today={today}>
-      <span className={styles.dayNumber}>{day}</span> {WEEKDAYS_LONG[weekday]}
+      <span className={styles.dayNumber}>{dateParts(date).day}</span> {weekdayName(date)}
       {today && (
         <svg className={styles.daySquiggle} viewBox="0 0 30 6" preserveAspectRatio="none" aria-hidden>
           <path d="M0 3 Q 2.5 0, 5 3 T 10 3 T 15 3 T 20 3 T 25 3 T 30 3" />
@@ -127,13 +116,6 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
     })),
   ];
 
-  /** e.g. "Mon 5 Jan, 13:30–14:30". */
-  function spanLabel(item: { start: string; end: string }): string {
-    const start = toZoned(new Date(item.start), timeZone);
-    const end = toZoned(new Date(item.end), timeZone);
-    return `${dayLabel(start.date)}, ${formatMinutes(start.minutes)}–${formatMinutes(end.minutes)}`;
-  }
-
   return (
     <>
       <div className={calendarStyles.heading}>
@@ -153,7 +135,7 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
               return (
                 <li key={`${c.blockId}/${c.eventId}`}>
                   {i === 0 && <strong>{conflicts.length === 1 ? "1 Conflict." : `${conflicts.length} Conflicts.`} </strong>}
-                  <em>{block.taskTitle}</em> ({spanLabel(block)}) overlaps <em>{event.title}</em>.{" "}
+                  <em>{block.taskTitle}</em> ({spanLabel(block, timeZone)}) overlaps <em>{event.title}</em>.{" "}
                   <button type="button" className="link" onClick={() => show({ kind: "block", id: block.id })}>
                     Resolve
                   </button>
@@ -236,7 +218,7 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
         {openBlock && ended(openBlock) && (
           <FloatingLabel kind="Block" labelledBy="ended-block-heading" onClose={close}>
             <LabelTitle id="ended-block-heading">{openBlock.taskTitle}</LabelTitle>
-            <LabelTime>{spanLabel(openBlock)}</LabelTime>
+            <LabelTime>{spanLabel(openBlock, timeZone)}</LabelTime>
             <LabelNote>This Block has ended, so it can’t be moved.</LabelNote>
           </FloatingLabel>
         )}

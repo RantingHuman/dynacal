@@ -2,26 +2,21 @@
 
 import { useState, useTransition } from "react";
 import type { BusyOverride } from "@/core/busy-override";
-import { formatMinutes } from "@/core/settings";
+import { dayLabel, spanLabel } from "@/core/day-labels";
 import { addDays, toZoned } from "@/core/time-zone";
 import { setBusyOverride } from "./actions";
 import type { CalendarEvent } from "./calendar";
-import { dayLabel } from "./day-label";
 import { DynacalEventForm } from "./dynacal-event-form";
 import styles from "./event-details.module.css";
 import { FloatingLabel, LabelTime, LabelTitle } from "./floating-label";
 
 /** e.g. "Mon 5 Jan, 13:30–14:30", "Mon 5 Jan, all day" or "Mon 5 Jan – Wed 7 Jan, all day". */
 function whenLabel(event: CalendarEvent, timeZone: string): string {
+  if (!event.allDay) return spanLabel(event, timeZone);
   const start = toZoned(new Date(event.start), timeZone);
-  const end = toZoned(new Date(event.end), timeZone);
-  if (event.allDay) {
-    // An all-day Event ends at midnight after its last day.
-    const lastDay = addDays(end.date, -1);
-    return lastDay <= start.date ? `${dayLabel(start.date)}, all day` : `${dayLabel(start.date)} – ${dayLabel(lastDay)}, all day`;
-  }
-  const endDay = end.date === start.date ? "" : `${dayLabel(end.date)} `;
-  return `${dayLabel(start.date)}, ${formatMinutes(start.minutes)}–${endDay}${formatMinutes(end.minutes)}`;
+  // An all-day Event ends at midnight after its last day.
+  const lastDay = addDays(toZoned(new Date(event.end), timeZone).date, -1);
+  return lastDay <= start.date ? `${dayLabel(start.date)}, all day` : `${dayLabel(start.date)} – ${dayLabel(lastDay)}, all day`;
 }
 
 type Choice = BusyOverride | "follow";

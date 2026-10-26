@@ -1,25 +1,11 @@
 import type { ReactNode } from "react";
+import { dateParts, monthName } from "@/core/day-labels";
 import styles from "./home.module.css";
-
-const MONTHS = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
 
 /** "Week of 5 January 2026", from the week's Monday (YYYY-MM-DD). */
 function issueDate(weekOf: string): string {
-  const [year, month, day] = weekOf.split("-").map(Number);
-  return `Week of ${day} ${MONTHS[month - 1]} ${year}`;
+  const { year, month, day } = dateParts(weekOf);
+  return `Week of ${day} ${monthName(month)} ${year}`;
 }
 
 /**

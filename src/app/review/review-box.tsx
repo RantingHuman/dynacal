@@ -1,6 +1,7 @@
 "use client";
 
 import { startTransition, useEffect, useState, useTransition, ViewTransition } from "react";
+import { spanLabel } from "@/core/day-labels";
 import { blockMinutes, canBePartlyDone, type ReviewOutcome } from "@/core/completion";
 import { formatDuration } from "@/core/tasks";
 import { DrawnSquiggle } from "../states/drawn-squiggle";
@@ -99,12 +100,6 @@ export function ReviewBox({ blocks, timeZone }: { blocks: UnreviewedBlockProps[]
   );
 }
 
-function formatSpan(start: Date, end: Date, timeZone: string): string {
-  const day = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone });
-  const time = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", timeZone });
-  return `${day.format(start)}, ${time.format(start)}–${time.format(end)}`;
-}
-
 /** One Unreviewed Block: did its work happen? Until the owner says, it counts as worked. */
 function ReviewQuote({ block, timeZone }: { block: UnreviewedBlockProps; timeZone: string }) {
   const span = { start: new Date(block.start), end: new Date(block.end) };
@@ -129,7 +124,7 @@ function ReviewQuote({ block, timeZone }: { block: UnreviewedBlockProps; timeZon
       <p className={styles.quote}>Did the work on {block.taskTitle} happen?</p>
       <div className={styles.footer}>
         <span>
-          {formatSpan(span.start, span.end, timeZone)} ({formatDuration(length)}) ·
+          {spanLabel(span, timeZone)} ({formatDuration(length)}) ·
         </span>
         <span className={styles.actions}>
           <button type="button" className="link" disabled={pending} onClick={() => submit({ review: "done" })}>

@@ -1,6 +1,6 @@
 import { addDays } from "@/core/time-zone";
 import calendarStyles from "./calendar.module.css";
-import { dayLabel } from "./day-label";
+import { dayLabel } from "@/core/day-labels";
 
 /** The height of the empty grid: the default 08:00–18:00 at the calendar's 48px an hour. */
 const EMPTY_HEIGHT_PX = 10 * 48;

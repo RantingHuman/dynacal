@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { spanLabel } from "@/core/day-labels";
 import type { MoveBlockResult } from "@/core/pinning";
 import { formatMinutes } from "@/core/settings";
 import { addDays, fromZoned, toZoned } from "@/core/time-zone";
 import { completeTask } from "../tasks/actions";
 import { moveBlock, unpinBlock } from "./actions";
 import type { CalendarBlock, CalendarEvent } from "./calendar";
-import { dayLabel } from "./day-label";
 import { FloatingLabel, LabelNote, LabelTime, LabelTitle } from "./floating-label";
 import styles from "./pinning.module.css";
 import { useSlow } from "../states/use-slow";
@@ -85,9 +85,7 @@ export function BlockEditor({
   return (
     <FloatingLabel kind={block.pinned ? "Pinned Block" : "Block"} labelledBy="block-editor-heading" onClose={onClose}>
       <LabelTitle id="block-editor-heading">{block.taskTitle}</LabelTitle>
-      <LabelTime>
-        {dayLabel(start.date)}, {formatMinutes(start.minutes)}–{formatMinutes(end.minutes)}
-      </LabelTime>
+      <LabelTime>{spanLabel(block, timeZone)}</LabelTime>
       {conflicts.length > 0 && (
         <LabelNote alert>
           Conflict: this Pinned Block overlaps {conflicts.map((c) => c.title).join(", ")}. dynacal won’t move it; move it,

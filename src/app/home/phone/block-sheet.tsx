@@ -2,13 +2,13 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { movedBlockTime, type BlockMove } from "@/core/block-moves";
+import { spanLabel } from "@/core/day-labels";
 import { formatMinutes } from "@/core/settings";
 import { toZoned } from "@/core/time-zone";
 import { completeTask } from "../../tasks/actions";
 import { moveBlock, unpinBlock } from "../../schedule/actions";
 import { moveError } from "../../schedule/block-editor";
 import type { CalendarBlock, CalendarEvent } from "../../schedule/calendar";
-import { dayLabel } from "../../schedule/day-label";
 import { LabelNote, LabelTime, LabelTitle } from "../../schedule/floating-label";
 import styles from "./phone.module.css";
 
@@ -45,7 +45,6 @@ export function BlockSheet({
   onClose: () => void;
 }) {
   const start = toZoned(new Date(block.start), timeZone);
-  const end = toZoned(new Date(block.end), timeZone);
   /** "Pick a time…": the day and start being picked, or null while it's closed. */
   const [exact, setExact] = useState<{ date: string; time: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -95,9 +94,7 @@ export function BlockSheet({
     <aside className={styles.sheet} aria-labelledby="block-sheet-heading">
       <span className={styles.kind}>{block.pinned ? "Pinned Block" : "Block"}</span>
       <LabelTitle id="block-sheet-heading">{block.taskTitle}</LabelTitle>
-      <LabelTime>
-        {dayLabel(start.date)}, {formatMinutes(start.minutes)}–{formatMinutes(end.minutes)}
-      </LabelTime>
+      <LabelTime>{spanLabel(block, timeZone)}</LabelTime>
       {conflicts.length > 0 && (
         <LabelNote alert>Conflict: this Pinned Block overlaps {conflicts.map((c) => c.title).join(", ")}.</LabelNote>
       )}

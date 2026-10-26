@@ -2,6 +2,7 @@
 
 import { addTransitionType, useCallback, useEffect, useRef, useState, useTransition, ViewTransition } from "react";
 import type { BusyOverride, EventRef } from "@/core/busy-override";
+import { dayLabel, rangeLabel, spanLabel } from "@/core/day-labels";
 import { movedBlocks } from "@/core/motion";
 import { formatMinutes, type WorkingHours } from "@/core/settings";
 import { DAY_MINUTES, GRID_MINUTES, MINUTE_MS } from "@/core/time";
@@ -12,7 +13,6 @@ import { useTaskEditor } from "../tasks/task-editor-slot";
 import { moveBlock, recalculate } from "./actions";
 import { BlockEditor, moveError } from "./block-editor";
 import calendarStyles from "./calendar.module.css";
-import { dayLabel } from "./day-label";
 import { DynacalEventForm, type DynacalEventDetails } from "./dynacal-event-form";
 import dynacalStyles from "./dynacal-events.module.css";
 import { EventDetails } from "./event-details";
@@ -139,20 +139,6 @@ function placeOnDays<T extends { start: string; end: string }>(items: T[], days:
     }
   }
   return byDay;
-}
-
-/** e.g. "Mon 5 Jan, 13:30–14:30" in the owner's time zone. */
-function spanLabel(item: { start: string; end: string }, timeZone: string): string {
-  const start = toZoned(new Date(item.start), timeZone);
-  const end = toZoned(new Date(item.end), timeZone);
-  return `${dayLabel(start.date)}, ${formatMinutes(start.minutes)}–${formatMinutes(end.minutes)}`;
-}
-
-/** e.g. "5 – 11 Jan" for a week, or "Mon 5 Jan" for a day. */
-function rangeLabel(days: string[]): string {
-  if (days.length === 1) return dayLabel(days[0]);
-  const [first, last] = [dayLabel(days[0]).split(" "), dayLabel(days[days.length - 1]).split(" ")];
-  return first[2] === last[2] ? `${first[1]} – ${last[1]} ${last[2]}` : `${first[1]} ${first[2]} – ${last[1]} ${last[2]}`;
 }
 
 /**

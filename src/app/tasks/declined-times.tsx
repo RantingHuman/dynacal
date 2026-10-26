@@ -2,14 +2,9 @@
 
 import { useTransition } from "react";
 import type { DeclinedTimeView } from "@/core/commands";
+import { spanLabel } from "@/core/day-labels";
 import { clearDeclinedTime } from "./actions";
 import styles from "./declined-times.module.css";
-
-function formatSpan(start: Date, end: Date, timeZone: string): string {
-  const day = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone });
-  const time = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", timeZone });
-  return `${day.format(start)}, ${time.format(start)}–${time.format(end)}`;
-}
 
 /**
  * A Task's Declined Times: times the owner deleted its Block events in Google, which Recalculation keeps the
@@ -46,7 +41,7 @@ function DeclinedTimeRow({
   timeZone: string;
 }) {
   const [pending, startTransition] = useTransition();
-  const span = formatSpan(new Date(declined.start), new Date(declined.end), timeZone);
+  const span = spanLabel(declined, timeZone);
   return (
     <li>
       <span>{span}</span>

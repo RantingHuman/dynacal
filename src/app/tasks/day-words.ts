@@ -1,9 +1,6 @@
-import { WEEKDAYS } from "@/core/settings";
+import { dateParts, monthName, weekdayName as weekday } from "@/core/day-labels";
 import type { DateOrDateTime } from "@/core/tasks";
-import { addDays, toZoned, weekdayOf } from "@/core/time-zone";
-
-const WEEKDAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+import { addDays, toZoned } from "@/core/time-zone";
 
 /** The owner's date now: in their time zone once it's saved, else the browser's. */
 export function todayIn(timeZone: string | null): string {
@@ -12,7 +9,7 @@ export function todayIn(timeZone: string | null): string {
 
 /** e.g. "Fri". */
 export function weekdayName(date: string): string {
-  return WEEKDAY_NAMES[WEEKDAYS.indexOf(weekdayOf(date))];
+  return weekday(date, "short");
 }
 
 /** The next seven days from today, for quick picks. */
@@ -27,8 +24,8 @@ function dayWord(date: string, today: string): string {
   if (date === addDays(today, -1)) return "yesterday";
   const near = date > today ? date <= addDays(today, 6) : date >= addDays(today, -6);
   if (near) return weekdayName(date);
-  const [, month, day] = date.split("-").map(Number);
-  return `${day} ${MONTHS[month - 1]}`;
+  const { month, day } = dateParts(date);
+  return `${day} ${monthName(month, "short")}`;
 }
 
 /** e.g. "Fri", "tomorrow 16:00" or "6 Nov". */

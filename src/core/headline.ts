@@ -1,3 +1,4 @@
+import { dateParts, monthName, weekdayName } from "./day-labels";
 import { DAY_MS, PLANNING_HORIZON_DAYS } from "./time";
 import { addDays } from "./time-zone";
 import type { FreeStretch, WeekState, WeekSummary } from "./week-summary";
@@ -50,36 +51,15 @@ function capitalise(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-const WEEKDAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-const MONTH_NAMES = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
-
 function daysSinceEpoch(date: string): number {
-  const [year, month, day] = date.split("-").map(Number);
+  const { year, month, day } = dateParts(date);
   return Date.UTC(year, month - 1, day) / DAY_MS;
-}
-
-function weekdayName(date: string): string {
-  // 1 January 1970 was a Thursday.
-  return WEEKDAY_NAMES[(daysSinceEpoch(date) + 3) % 7];
 }
 
 /** "Friday 2 January". */
 export function formatDay(date: string): string {
-  const [, month, day] = date.split("-").map(Number);
-  return `${weekdayName(date)} ${day} ${MONTH_NAMES[month - 1]}`;
+  const { month, day } = dateParts(date);
+  return `${weekdayName(date)} ${day} ${monthName(month)}`;
 }
 
 /** The free stretch as the subject of "… is still free". */
