@@ -5,3 +5,7 @@ data
 .env.*
 .git
 .scratch
+browser-tests
+playwright.config.ts
+test-results
+playwright-report

@@ -1,0 +1,3 @@
+# Keep browser-test authentication outside the deployed app
+
+Browser tests need a signed-in owner and a fake calendar, but a deployed sign-in bypass could expose the owner's Schedule. We build a separate test artifact from a temporary source copy with a substituted test runtime, and exclude the harness from the production container context. The test runtime seeds a normal session into a disposable database and runs only on loopback. A production image check exercises signed-out behavior with test settings and disposable data; a runtime flag in the deployed app would be easier to implement but would leave a bypass in the production artifact.

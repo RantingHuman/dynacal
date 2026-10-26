@@ -50,7 +50,7 @@ Stabilize the existing component tests and continue filling their most valuable 
 - Seed a normal owner session into the isolated database and supply its cookie to the browser. Keep normal authentication checks active and expose no general-purpose session creation or authentication bypass endpoint.
 - The deployed production artifact must not include or enable the test setup, even through runtime configuration. Verify this boundary automatically against the actual deployable artifact and a disposable database; never use live data for the check.
 - Use a known time consistently across server-side behavior, session expiry and browser-facing date calculations; audit direct clock reads rather than assuming the existing fake clock covers them. Set an explicit time zone.
-- The browser-test design proposes building from an isolated source copy with a test-only runtime substituted in that copy, excluding the harness from the normal container build. **This mechanism remains proposed and requires owner approval before implementation.** Prove the production artifact boundary and build compatibility; if they cannot be proven, stop and revisit the design.
+- Build from an isolated source copy with a test-only runtime substituted in that copy, excluding the harness from the normal container build. The owner approved this mechanism. Prove the production artifact boundary and build compatibility; if they cannot be proven, stop and revisit the design.
 - Create an ADR for the final test isolation and authentication boundary if it satisfies the repository's ADR criteria, after the design is accepted.
 
 ## Testing Decisions
@@ -71,4 +71,4 @@ Stabilize the existing component tests and continue filling their most valuable 
 
 ## Further Notes
 
-The existing test harness is a command-layer harness, not an app sign-in mode. The app currently wires the real database and external services in its runtime. The owner approved the test journeys, isolation goals, test boundaries and use of a production-like build if safely separated; approval of the concrete proposed mechanism is still outstanding. This spec's ready-for-agent label does not waive that explicit approval gate.
+The existing command-layer test harness is separate from the app runtime. The owner approved the test journeys, isolation goals, test boundaries and source-copy test runtime mechanism, subject to verifying the production boundary.
