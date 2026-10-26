@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useId, useState, useTransition, type ReactNode } from "react";
+import { useCallback, useId, useState, useTransition, type ReactNode } from "react";
 import { recalculate } from "../../schedule/actions";
+import { useEscape } from "../../states/use-escape";
 import styles from "./phone.module.css";
 
 /**
@@ -23,12 +24,10 @@ export function PhoneMasthead({
   const [pending, startTransition] = useTransition();
   const menuId = useId();
 
-  useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open]);
+  useEscape(
+    useCallback(() => setOpen(false), []),
+    open,
+  );
 
   return (
     <header className={styles.masthead}>

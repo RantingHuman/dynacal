@@ -1,6 +1,7 @@
 "use client";
 
-import { startTransition, useEffect, ViewTransition } from "react";
+import { startTransition, useCallback, ViewTransition } from "react";
+import { useEscape } from "../states/use-escape";
 import styles from "./floating-label.module.css";
 
 /**
@@ -23,20 +24,15 @@ export function FloatingLabel({
   onClose: () => void;
   children: React.ReactNode;
 }) {
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") startTransition(onClose);
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+  const close = useCallback(() => startTransition(onClose), [onClose]);
+  useEscape(close);
 
   return (
     <ViewTransition default="none" exit="label-close">
       <aside className={styles.label} aria-labelledby={labelledBy}>
         <div className={styles.top}>
           <span className={styles.kind}>{kind}</span>
-          <button type="button" className={`link ${styles.close}`} onClick={() => startTransition(onClose)}>
+          <button type="button" className={`link ${styles.close}`} onClick={close}>
             Close
           </button>
         </div>

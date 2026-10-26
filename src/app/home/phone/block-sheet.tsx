@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { movedBlockTime, type BlockMove } from "@/core/block-moves";
 import { spanLabel } from "@/core/day-labels";
 import { formatMinutes } from "@/core/settings";
@@ -10,6 +10,7 @@ import { moveBlock, unpinBlock } from "../../schedule/actions";
 import { moveError } from "../../schedule/block-editor";
 import type { CalendarBlock, CalendarEvent } from "../../schedule/calendar";
 import { LabelNote, LabelTime, LabelTitle } from "../../schedule/floating-label";
+import { useEscape } from "../../states/use-escape";
 import styles from "./phone.module.css";
 
 /** The Move chips: a few minutes either way, or the next day. */
@@ -50,11 +51,7 @@ export function BlockSheet({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+  useEscape(onClose);
 
   function move(how: BlockMove) {
     setError(null);
