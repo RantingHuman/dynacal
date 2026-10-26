@@ -1,11 +1,14 @@
 import { redirect } from "next/navigation";
 import { getRuntime } from "@/server/runtime";
 import { currentSession } from "@/server/session";
-import { ReconnectBanner } from "./google/reconnect-banner";
 import { RemindersToggle } from "./reminders/reminders-toggle";
 import { UnreviewedBanner } from "./review/unreviewed-banner";
 import type { DynacalEvent } from "@/core/dynacal-events";
 import { toWireTiming } from "@/core/event-timing";
+import { writeHeadline } from "@/core/headline";
+import { Lead } from "./home/lead";
+import { Masthead } from "./home/masthead";
+import styles from "./home/home.module.css";
 import { Calendar } from "./schedule/calendar";
 import type { DynacalEventDetails } from "./schedule/dynacal-event-form";
 import { NewEventProvider } from "./schedule/new-event";
@@ -16,6 +19,10 @@ function dynacalEventDetails(event: DynacalEvent): DynacalEventDetails {
   return { id: event.id, title: event.title, notes: event.notes, ...toWireTiming(event) };
 }
 
+/**
+ * The home screen: the masthead, the lead (the headline and standfirst, which also carry the missing time zone
+ * and a broken Google connection), then the spread of the Tasks column and the calendar.
+ */
 export default async function HomePage() {
   const session = await currentSession();
   if (!session) redirect("/sign-in");
@@ -24,50 +31,53 @@ export default async function HomePage() {
   if (!commands.getSetupStatus().complete) redirect("/setup");
   const scheduleView = commands.getSchedule();
   const connection = commands.getGoogleConnection();
+  const week = commands.getWeekSummary();
 
   return (
-    <div className="app">
-      <header className="app-header">
-        <span className="brand">dynacal</span>
-        <nav>
-          <RemindersToggle vapidPublicKey={getRuntime().config.VAPID_PUBLIC_KEY} />
-          <a href="/settings">Settings</a>
-          <form action="/api/auth/sign-out" method="post">
-            <button className="link" type="submit">
-              Sign out
-            </button>
-          </form>
-        </nav>
-      </header>
-      {connection.status === "broken" && <ReconnectBanner email={connection.email} />}
-      {scheduleView.status === "ready" && (
-        <UnreviewedBanner
-          timeZone={scheduleView.timeZone}
-          blocks={commands.listUnreviewedBlocks().map((b) => ({
-            id: b.id,
-            taskTitle: b.taskTitle,
-            start: b.start.toISOString(),
-            end: b.end.toISOString(),
-            suggestedWorkedMinutes: b.suggestedWorkedMinutes,
-          }))}
-        />
-      )}
+    <div className={styles.page}>
+      <Masthead
+        weekOf={week.weekOf}
+        controls={
+          <>
+            <RemindersToggle vapidPublicKey={getRuntime().config.VAPID_PUBLIC_KEY} />
+            <a href="/settings">Settings</a>
+            <form action="/api/auth/sign-out" method="post">
+              <button className="link" type="submit">
+                Sign out
+              </button>
+            </form>
+          </>
+        }
+      />
+      <Lead headline={writeHeadline(week, week.today)} />
       <NewEventProvider enabled={scheduleView.status === "ready"}>
-        <div className="app-body">
-          <TaskPanel
-            tasks={commands.listTasks()}
-            flags={scheduleView.status === "ready" ? scheduleView.flags : {}}
-            timeZone={scheduleView.status === "ready" ? scheduleView.timeZone : null}
-          />
-          <section className="schedule-panel" aria-label="Schedule">
-            {scheduleView.status === "needs-time-zone" ? (
-              <div className="notice">
-                <p>
-                  dynacal needs your time zone before it can build your Schedule.{" "}
-                  <a href="/settings">Set your time zone in Settings</a>.
-                </p>
-              </div>
-            ) : (
+        <div className={styles.spread}>
+          {/* The Tasks column (ticket 16 restyles it): the Task list, then the Unreviewed Blocks' review. */}
+          <div className={styles.column}>
+            <TaskPanel
+              tasks={commands.listTasks()}
+              flags={scheduleView.status === "ready" ? scheduleView.flags : {}}
+              timeZone={scheduleView.status === "ready" ? scheduleView.timeZone : null}
+            />
+            {/* The headline's review links land here. */}
+            <div id="review">
+              {scheduleView.status === "ready" && (
+                <UnreviewedBanner
+                  timeZone={scheduleView.timeZone}
+                  blocks={commands.listUnreviewedBlocks().map((b) => ({
+                    id: b.id,
+                    taskTitle: b.taskTitle,
+                    start: b.start.toISOString(),
+                    end: b.end.toISOString(),
+                    suggestedWorkedMinutes: b.suggestedWorkedMinutes,
+                  }))}
+                />
+              )}
+            </div>
+          </div>
+          {/* The calendar (ticket 17 restyles it). Without a time zone there's no Schedule; the headline says why. */}
+          <section className={styles.column} aria-label="Schedule">
+            {scheduleView.status === "ready" && (
               <Calendar
                 timeZone={scheduleView.timeZone}
                 horizon={{
