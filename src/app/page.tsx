@@ -9,6 +9,7 @@ import { toWireTiming } from "@/core/event-timing";
 import { Calendar } from "./schedule/calendar";
 import type { DynacalEventDetails } from "./schedule/dynacal-event-form";
 import { NewEventProvider } from "./schedule/new-event";
+import { TaskEditorProvider, TaskEditorSlot } from "./tasks/task-editor-slot";
 import { TaskPanel } from "./tasks/task-panel";
 
 /** A dynacal Event as sent to the browser, with instants as ISO strings. */
@@ -53,6 +54,7 @@ export default async function HomePage() {
         />
       )}
       <NewEventProvider enabled={scheduleView.status === "ready"}>
+        <TaskEditorProvider>
         <div className="app-body">
           <TaskPanel
             tasks={commands.listTasks()}
@@ -60,6 +62,7 @@ export default async function HomePage() {
             timeZone={scheduleView.status === "ready" ? scheduleView.timeZone : null}
           />
           <section className="schedule-panel" aria-label="Schedule">
+            <TaskEditorSlot>
             {scheduleView.status === "needs-time-zone" ? (
               <div className="notice">
                 <p>
@@ -100,8 +103,10 @@ export default async function HomePage() {
                 connectionBroken={connection.status === "broken"}
               />
             )}
+            </TaskEditorSlot>
           </section>
         </div>
+        </TaskEditorProvider>
       </NewEventProvider>
     </div>
   );
