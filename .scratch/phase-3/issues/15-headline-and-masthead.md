@@ -6,11 +6,11 @@
 
 **Status:** ready-for-agent
 
-- [ ] The week summary query ranks the eleven states as specified and returns the secondary states (at most two), counts, named Task, free stretch (2 hours or more) and rollover
-- [ ] The wording function gives two headline variants per state chosen by the date, fixed standfirsts and secondary sentences, numbers one to nine as words, and correct plurals
-- [ ] The standfirst names a Task only when exactly one is in the winning state; the headline never does
-- [ ] "Set your time zone in Settings", "Reconnect Google" and the review mention are links to their fixes
-- [ ] The headline describes the current week whatever the calendar shows, and switches to next week once no Working Hours remain
-- [ ] The time-zone notice and the reconnect banner no longer appear; their actions are reachable from the headline
-- [ ] Settings, Sign out and the reminders toggle sit in the masthead
+- [x] The week summary query ranks the eleven states as specified and returns the secondary states (at most two), counts, named Task, free stretch (2 hours or more) and rollover
+- [x] The wording function gives two headline variants per state chosen by the date, fixed standfirsts and secondary sentences, numbers one to nine as words, and correct plurals
+- [x] The standfirst names a Task only when exactly one is in the winning state; the headline never does
+- [x] "Set your time zone in Settings", "Reconnect Google" and the review mention are links to their fixes
+- [x] The headline describes the current week whatever the calendar shows, and switches to next week once no Working Hours remain
+- [x] The time-zone notice and the reconnect banner no longer appear; their actions are reachable from the headline
+- [x] Settings, Sign out and the reminders toggle sit in the masthead
 - [ ] Command-layer tests cover the summary; direct tests cover the wording; the page is checked by hand
