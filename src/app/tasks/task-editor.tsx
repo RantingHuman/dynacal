@@ -35,6 +35,7 @@ export function TaskEditor({
   today,
   act,
   onClose,
+  onSaved,
 }: {
   /** The Task being edited, or null for a new one. */
   task: TaskListItem | null;
@@ -44,6 +45,8 @@ export function TaskEditor({
   today: string;
   act: ActOnTasks;
   onClose: () => void;
+  /** An existing Task was saved: its row sweeps a highlighter and says so. */
+  onSaved: (taskId: string) => void;
 }) {
   const [input, setInput] = useState<TaskInput>(initial);
   const [errors, setErrors] = useState<TaskErrors>({});
@@ -65,6 +68,8 @@ export function TaskEditor({
     const invalid = validateTask(input);
     if (invalid) return setErrors(invalid);
     onClose();
+    // The saved row sweeps a highlighter and says "Saved"; a new Task's row arrives with its own sweep.
+    if (task) onSaved(task.id);
     const change = task
       ? ({ kind: "update", id: task.id, input } as const)
       : ({ kind: "add", id: `pending-${Date.now()}`, input } as const);

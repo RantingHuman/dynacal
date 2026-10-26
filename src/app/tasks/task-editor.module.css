@@ -1,4 +1,4 @@
-/* The full-page Task editor, in place of the calendar column. */
+/* The full-page Task editor, in place of the calendar column: it fades in rising 8px. */
 
 .editor {
   animation: open var(--slow) var(--expo) both;
@@ -7,7 +7,18 @@
 @keyframes open {
   from {
     opacity: 0;
-    transform: translateY(-6px);
+    transform: translateY(8px);
+  }
+}
+
+/* "Back to the week": the calendar fades back, quickly, as exits are. */
+.back {
+  animation: fade var(--fast) var(--expo);
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
   }
 }
 
@@ -116,9 +127,9 @@
   white-space: nowrap;
   cursor: pointer;
   transition:
-    background-color var(--base) var(--expo),
-    border-color var(--base) var(--expo),
-    color var(--base) var(--expo),
+    background-color var(--hover) var(--expo),
+    border-color var(--hover) var(--expo),
+    color var(--hover) var(--expo),
     transform var(--base) var(--bounce);
 }
 
@@ -127,7 +138,7 @@
 }
 
 .chip:active {
-  transform: scale(0.9);
+  transform: scale(0.92);
   transition-duration: var(--press);
 }
 
@@ -223,7 +234,7 @@
   height: 14px;
   border-radius: var(--radius-circle);
   background: var(--ink);
-  transition: transform var(--slow) var(--bounce);
+  transition: transform var(--knob) var(--bounce);
 }
 
 .switch[aria-checked="true"] .track {
@@ -293,6 +304,12 @@
 
 .danger {
   margin-left: auto;
+}
+
+/* "Delete it?" cross-fades in place of the button. */
+.confirm,
+.danger.plain {
+  animation: fade var(--fast) var(--expo);
 }
 
 .confirm {

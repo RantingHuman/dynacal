@@ -65,7 +65,11 @@
   background-repeat: no-repeat;
   background-position: 0 100%;
   background-size: 0 40%;
-  transition: background-size var(--base) var(--expo);
+  /* Struck through only once done; the line fades in after the sweep. */
+  text-decoration: line-through transparent;
+  transition:
+    background-size var(--base) var(--expo),
+    text-decoration-color var(--base) var(--expo);
 }
 
 .open:hover :global(.task-title),
@@ -88,7 +92,55 @@
 }
 
 .item[data-done="true"] :global(.task-title) {
-  text-decoration: line-through;
+  text-decoration-color: currentColor;
+}
+
+/*
+ * Completing a Task here: a highlighter sweeps across the title, then it settles, struck through and dimmed.
+ * The list reorders 600ms after the last tick (see CompletionProvider).
+ */
+.item[data-ticked] :global(.task-title) {
+  animation: sweep var(--slow) var(--expo);
+  transition-delay: 0ms, var(--base);
+}
+
+.item[data-ticked] .open {
+  transition: opacity var(--base) var(--expo) var(--base);
+}
+
+/* A new row, or one just saved from the editor: one highlighter sweep (the row itself slides in, see globals). */
+.open :global(.task-title)[data-sweep] {
+  animation: sweep var(--slow) var(--expo);
+}
+
+@keyframes sweep {
+  0% {
+    background-size: 0 40%;
+  }
+  60% {
+    background-size: 100% 40%;
+  }
+  100% {
+    background-size: 100% 0;
+  }
+}
+
+/* "Saved" shows by the row, then fades away. */
+.saved {
+  animation: linger var(--linger) var(--expo) both;
+}
+
+@keyframes linger {
+  0% {
+    opacity: 0;
+  }
+  15%,
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
 }
 
 /* "All done." over the finished Tasks, with the squiggle drawn in once beneath it. */

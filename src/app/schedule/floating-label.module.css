@@ -16,6 +16,22 @@
   outline-offset: 4px;
   background: var(--card);
   box-shadow: 0 24px 50px color-mix(in srgb, var(--ink) 14%, transparent);
+  /* Opening: fades in (expo) while rising 24px with a small overshoot (bounce). Closing: see globals. */
+  animation:
+    label-fade var(--slow) var(--expo) both,
+    label-rise var(--pop) var(--bounce) both;
+}
+
+@keyframes label-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes label-rise {
+  from {
+    translate: 0 24px;
+  }
 }
 
 @media (max-width: 640px) {

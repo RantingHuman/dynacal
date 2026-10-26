@@ -14,9 +14,9 @@ See spec stories 55–67 and "Motion approach", and map ticket "Which interactio
 
 **Status:** ready-for-agent
 
-- [ ] Each of the five moments behaves as specified
-- [ ] Every row of the interaction table is implemented with its curve and duration; exits are quicker than entrances
-- [ ] Blocks glide after Recalculation using the display key; no Block flashes unless the owner dropped it
-- [ ] The headline rises in only on a full load and cross-fades on a state change; only its squiggle loops
-- [ ] With reduce motion on, nothing moves and every change still shows
+- [x] Each of the five moments behaves as specified
+- [x] Every row of the interaction table is implemented with its curve and duration; exits are quicker than entrances
+- [x] Blocks glide after Recalculation using the display key; no Block flashes unless the owner dropped it
+- [x] The headline rises in only on a full load and cross-fades on a state change; only its squiggle loops
+- [x] With reduce motion on, nothing moves and every change still shows
 - [ ] Checked by hand on desktop and phone, including an installed iOS PWA if available (fall back to CSS-only where `<ViewTransition>` misbehaves)

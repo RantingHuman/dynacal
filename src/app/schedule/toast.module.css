@@ -1,4 +1,7 @@
-/* The message toast: an accent pill that rises from the bottom left corner. */
+/*
+ * The message toast: a pill that rises from the bottom left corner with a small overshoot (bounce, --pop) and
+ * drops away quickly (expo, --fast). Errors are in the accent; information is in ink.
+ */
 
 .toast {
   position: fixed;
@@ -6,6 +9,9 @@
   left: var(--space-7);
   bottom: var(--space-5);
   max-width: calc(100vw - 2 * var(--space-4));
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
   padding: 6px 14px;
   border-radius: var(--radius-pill);
   background: var(--accent);
@@ -14,16 +20,32 @@
   font-style: italic;
   font-size: 17px;
   transform: translateY(calc(100% + var(--space-6)));
-  transition: transform var(--base) var(--expo);
+  visibility: hidden;
+  /* Hidden only once it has slid away. */
+  transition:
+    transform var(--fast) var(--expo),
+    visibility 0s linear var(--fast);
+}
+
+.toast[data-tone="info"] {
+  background: var(--ink);
+  color: var(--paper);
 }
 
 .toast[data-show="true"] {
   transform: none;
-  transition: transform var(--slow) var(--bounce);
+  visibility: visible;
+  transition: transform var(--pop) var(--bounce);
 }
 
-.toast:empty {
-  visibility: hidden;
+.dismiss {
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: 18px / 1 var(--font-sans);
+  font-style: normal;
+  cursor: pointer;
 }
 
 @media (max-width: 640px) {

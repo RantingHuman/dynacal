@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useOptimistic, useState, useTransition } from "react";
+import { useCallback, useEffect, useOptimistic, useState, useTransition, ViewTransition } from "react";
 import type { TaskListItem } from "@/core/commands";
+import { heldOrder } from "@/core/motion";
 import { applyTaskChange, type TaskChange } from "@/core/task-list";
 import { formatDuration, type TaskInput } from "@/core/tasks";
 import type { TaskFlag } from "@/core/scheduler";
@@ -10,6 +11,7 @@ import { DrawnSquiggle } from "../states/drawn-squiggle";
 import statesStyles from "../states/states.module.css";
 import { OFFLINE_REASON, useOnline } from "../states/use-online";
 import { CompleteTaskButton } from "./complete-task-button";
+import { useCompletion } from "./completion";
 import { deadlineWords, todayIn } from "./day-words";
 import { FLAG_LABELS } from "./flags";
 import { useTaskEditor, type ActOnTasks } from "./task-editor-slot";
@@ -31,6 +33,11 @@ const isDesktop = () => window.matchMedia("(min-width: 48rem) and (pointer: fine
  * The Tasks column: a contents list of Tasks under a one-line add. Clicking a Task, or "Full form", opens the
  * full-page editor in place of the calendar column (see `TaskEditorSlot`). Adding, saving and completing show
  * at once and roll back with a toast if the server refuses. Offline, the list can only be looked at.
+ *
+ * Motion: a ticked Task sweeps a highlighter across its title, and the list holds its order until the ticks
+ * settle, then completed Tasks slide to the bottom and the open count ticks down. A new Task's row slides in and
+ * its title sweeps once the server has it; a row saved from the editor sweeps and says "Saved". Each row is a
+ * `<ViewTransition>`, so moves animate in Transitions.
  */
 export function TaskPanel({
   tasks,
@@ -42,7 +49,8 @@ export function TaskPanel({
   /** The owner's time zone, for dates and Declined Times; null until it's saved. */
   timeZone: string | null;
 }) {
-  const { open, openTask, setColumn } = useTaskEditor();
+  const { open, openTask, setColumn, saved } = useTaskEditor();
+  const { ticked, holding } = useCompletion();
   const [today, setToday] = useState(() => todayIn(timeZone));
   useEffect(() => setToday(todayIn(timeZone)), [timeZone, tasks]);
   const online = useOnline();
@@ -80,11 +88,26 @@ export function TaskPanel({
   const openId = open?.taskId ?? null;
   const openCount = shown.filter((t) => !t.completedAt).length;
 
+  // While ticks settle, the list keeps the order and count it had before the first tick (the server's list,
+  // which the tick hasn't reached yet).
+  const [held, setHeld] = useState<{ ids: string[]; open: number } | null>(null);
+  if (holding && held === null) setHeld({ ids: tasks.map((t) => t.id), open: tasks.filter((t) => !t.completedAt).length });
+  if (!holding && held !== null) setHeld(null);
+  const rows = heldOrder(held?.ids ?? null, shown);
+
+  // Rows that weren't there when the page loaded are new: their titles sweep once as they arrive.
+  const [loaded] = useState(() => new Set(tasks.map((t) => t.id)));
+  // How many times each Task has been saved from the editor here: each save sweeps its title again.
+  const [saves, setSaves] = useState<{ last: typeof saved; counts: Record<string, number> }>({ last: null, counts: {} });
+  if (saved !== saves.last) {
+    setSaves({ last: saved, counts: saved ? { ...saves.counts, [saved.taskId]: saved.n } : saves.counts });
+  }
+
   return (
     <section className="task-panel" aria-labelledby="tasks-heading">
       <h2 id="tasks-heading" className={styles.heading}>
         <span>Tasks</span>
-        <span className={styles.count}>{openCount} open</span>
+        <span className={styles.count}>{held?.open ?? openCount} open</span>
         <span className={styles.actions}>
           <button
             type="button"
@@ -120,35 +143,60 @@ export function TaskPanel({
       )}
       {shown.length > 0 && (
         <ol className={styles.list}>
-          {shown.map((task) => {
+          {rows.map((task) => {
             const flag = task.completedAt ? null : flags[task.id];
             const declined = task.completedAt ? 0 : task.declinedTimes.length;
+            const justSaved = saved?.taskId === task.id;
+            const timesSaved = saves.counts[task.id] ?? 0;
+            // A Task being added slides in; when the server has it, it swaps in place (no exit, no second
+            // entrance) and its title sweeps.
+            const adding = isPending(task);
             return (
-              <li key={task.id} className={styles.item} data-done={task.completedAt !== null}>
-                <CompleteTaskButton
-                  id={task.id}
-                  title={task.title}
-                  completed={task.completedAt !== null}
-                  disabled={!online || isPending(task)}
-                  act={act}
-                />
-                <button
-                  type="button"
-                  className={styles.open}
-                  disabled={!online || isPending(task)}
-                  title={online ? undefined : OFFLINE_REASON}
-                  aria-current={openId === task.id || undefined}
-                  onClick={() => openTask({ taskId: task.id, initial: inputOf(task) })}
-                >
-                  <span className="task-title">{task.title}</span>
-                  <span className={styles.meta}>
-                    {task.completedAt ? "Complete" : `${formatDuration(task.remainingMinutes)} left`}
-                    {task.deadline && ` · ${deadlineWords(task.deadline, today)}`}
-                    {flag && <em className={styles.flag}> · {FLAG_LABELS[flag]}</em>}
-                    {declined > 0 && ` · ${declined} Declined ${declined === 1 ? "Time" : "Times"}`}
-                  </span>
-                </button>
-              </li>
+              <ViewTransition
+                key={task.id}
+                default="task-row"
+                enter={adding ? "task-enter" : "none"}
+                exit={adding ? "none" : "task-exit"}
+              >
+                <li className={styles.item} data-done={task.completedAt !== null} data-ticked={ticked.has(task.id) || undefined}>
+                  <CompleteTaskButton
+                    id={task.id}
+                    title={task.title}
+                    completed={task.completedAt !== null}
+                    disabled={!online || adding}
+                    act={act}
+                  />
+                  <button
+                    type="button"
+                    className={styles.open}
+                    disabled={!online || adding}
+                    title={online ? undefined : OFFLINE_REASON}
+                    aria-current={openId === task.id || undefined}
+                    onClick={() => openTask({ taskId: task.id, initial: inputOf(task) })}
+                  >
+                    <span
+                      // A new key replays the sweep: once on arrival, and again on each save.
+                      key={timesSaved}
+                      className="task-title"
+                      data-sweep={timesSaved > 0 || (!adding && !loaded.has(task.id)) || undefined}
+                    >
+                      {task.title}
+                    </span>
+                    <span className={styles.meta}>
+                      {task.completedAt ? "Complete" : `${formatDuration(task.remainingMinutes)} left`}
+                      {task.deadline && ` · ${deadlineWords(task.deadline, today)}`}
+                      {flag && <em className={styles.flag}> · {FLAG_LABELS[flag]}</em>}
+                      {declined > 0 && ` · ${declined} Declined ${declined === 1 ? "Time" : "Times"}`}
+                      {justSaved && (
+                        <span key={saved.n} className={styles.saved} role="status">
+                          {" "}
+                          · Saved
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                </li>
+              </ViewTransition>
             );
           })}
         </ol>
