@@ -577,7 +577,7 @@ export function Calendar({
       )}
 
       {newEvent.draft && (
-        <FloatingLabel kind="New Event" labelledBy="new-event-heading" onClose={newEvent.close}>
+        <FloatingLabel kind="dynacal Event" labelledBy="new-event-heading" onClose={newEvent.close}>
           <LabelTitle id="new-event-heading">New Event</LabelTitle>
           <DynacalEventForm
             key={`${newEvent.draft.start}-${newEvent.draft.end}`}

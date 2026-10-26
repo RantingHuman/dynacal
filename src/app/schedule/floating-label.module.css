@@ -9,6 +9,7 @@
   gap: var(--space-2);
   width: min(380px, calc(100vw - 2 * var(--space-4)));
   max-height: calc(100vh - 2 * var(--space-6));
+  overflow-x: hidden;
   overflow-y: auto;
   padding: var(--space-5) var(--space-5) var(--space-4);
   border: var(--hairline) solid var(--ink);
@@ -90,4 +91,24 @@
 
 .alert {
   color: var(--accent);
+}
+
+/*
+ * Forms inside the label (the dynacal Event form): the label is their frame, so they drop their own border and
+ * padding, and their side-by-side rows stack, since two date-and-time inputs don't fit across the label.
+ */
+.label :global(.task-form) {
+  padding: 0;
+  border: 0;
+}
+
+.label :global(.form-row) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.label :global(.task-form) input:not([type="checkbox"]),
+.label :global(.task-form) select,
+.label :global(.task-form) textarea {
+  width: 100%;
+  min-width: 0;
 }
