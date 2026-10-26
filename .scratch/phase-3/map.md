@@ -22,10 +22,11 @@ A phase 3 spec at `.scratch/phase-3/spec.md`, in the same style as the MVP and p
 - [Which visual style should dynacal adopt?](issues/01-visual-style.md): "Editorial, refined". Editorial type and layout with an hourly week calendar, clear Task checkboxes, details in a floating label, Mono's highlighter and expo easing, and Memphis's bouncy presses and squiggles.
 - [Can the motion be built with CSS alone?](issues/03-motion-approach.md): mostly. CSS covers the Block springs, drag tilt, landing and label opening, React's `<ViewTransition>` covers Task reordering and Blocks moving across days, and there's no motion library.
 - [What are the design tokens?](issues/02-design-tokens.md): the prototype's warm palette, adjusted so every text colour passes AA (accent `#ad4527`). Flags share the accent, Instrument Serif for content and Sans for controls, 12px minimum, `next/font/google`, a 4px scale, square panels with pill buttons, keyboard focus rings, and `expo` and `bounce` curves.
+- [What does the headline say in each state of the week?](issues/04-headline-states.md): the most urgent of 11 ranked states wins the headline. No time zone and a broken connection take it over and replace their banners. The standfirst names a Task only when exactly one is affected and mentions up to two other states. Fixed templates rotate daily, and the headline rolls over to next week once Working Hours run out.
 
 ## Not yet specified
 
-- **Empty, loading and error states** in the new style: no Tasks yet, no time zone, Google connection broken, nothing scheduled this week. Some depend on what the headline says (the headline ticket) and where banners go (the controls ticket).
+- **Empty, loading and error states** beyond the headline: what the Task list and calendar themselves show with no Tasks, no time zone (no calendar at all) or a broken connection, and what loading looks like. The headline's words for these are settled in [What does the headline say in each state of the week?](issues/04-headline-states.md); where any remaining banners go depends on the controls ticket.
 - **How the redesign is staged into implementation tickets**: tokens first, then screen by screen, or one screen at a time end to end. It depends on how much the interaction ticket changes the calendar's code.
 - **Whether the "joy" extends to reminders and the installed app**: the web push notification text, the app icon and the theme colour in the manifest.
 

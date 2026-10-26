@@ -15,7 +15,7 @@ The prototype dropped many of today's home-screen controls. Where does each one 
 - the New Task button and form;
 - the Conflict notice, and the message after a failed move;
 - several Unreviewed Blocks at once (the prototype shows only one);
-- the reconnect banner;
+- the reconnect banner (now replaced by the headline, per [What does the headline say in each state of the week?](04-headline-states.md); only the reconnect action needs a home);
 - the reminders toggle;
 - Declined Times on a Task;
 - the Busy Override on an Event;
