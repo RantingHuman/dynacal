@@ -107,6 +107,7 @@ import {
   type TaskFlag,
 } from "./scheduler";
 import { DAY_MS, GRID_MS, PLANNING_HORIZON_DAYS, planningHorizonEnd } from "./time";
+import { summariseWeek, type WeekSummary } from "./week-summary";
 import { DEFAULT_SETTINGS, validateSettings, type Settings, type SettingsUpdate, type UpdateSettingsResult } from "./settings";
 import {
   compareTasks,
@@ -958,7 +959,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     });
   }
 
-  return {
+  const commands = {
     /** Only the deployment's owner (ADR-0001) may sign in, and only with an email Google has verified. */
     signIn(identity: GoogleIdentity): SignInResult {
       const email = identity.email.trim().toLowerCase();
@@ -1466,6 +1467,39 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       }
     },
   };
+
+  /** The facts behind the home screen's headline: the week's most urgent state and what it's about. */
+  function getWeekSummary(): WeekSummary {
+    const schedule = commands.getSchedule();
+    const flags = schedule.status === "ready" ? schedule.flags : {};
+    const conflicts =
+      schedule.status === "ready"
+        ? schedule.conflicts.map(({ blockId, eventId }) => ({
+            taskTitle: schedule.blocks.find((b) => b.id === blockId)!.taskTitle,
+            eventTitle: schedule.events.find((e) => e.id === eventId)!.title,
+          }))
+        : [];
+    const { timeZone, workingHours } = getSettings();
+    return summariseWeek({
+      now: clock.now(),
+      timeZone,
+      workingHours,
+      connection: getGoogleConnection(),
+      blocks: schedule.status === "ready" ? schedule.blocks : [],
+      busy: schedule.status === "ready" ? schedule.events.filter((e) => e.countsAsBusy) : [],
+      tasks: commands.listTasks().map((t) => ({
+        id: t.id,
+        title: t.title,
+        completed: t.completedAt !== null,
+        flag: flags[t.id] ?? null,
+        deadline: t.deadline,
+      })),
+      conflicts,
+      unreviewedBlocks: commands.listUnreviewedBlocks().length,
+    });
+  }
+
+  return { ...commands, getWeekSummary };
 }
 
 export type Commands = ReturnType<typeof createCommands>;
