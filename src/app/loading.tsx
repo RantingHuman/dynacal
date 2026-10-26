@@ -1,6 +1,6 @@
 import { Masthead } from "./home/masthead";
 import homeStyles from "./home/home.module.css";
-import { DrawnSquiggle } from "./states/drawn-squiggle";
+import { Squiggle } from "./states/squiggle";
 import styles from "./states/states.module.css";
 
 /**
@@ -12,7 +12,7 @@ export default function Loading() {
     <div className={`${homeStyles.page} ${styles.loading}`} role="status" aria-label="Loading">
       <Masthead />
       <div className={styles.loadingLine}>
-        <DrawnSquiggle loop />
+        <Squiggle motion="loop" />
       </div>
     </div>
   );

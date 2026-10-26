@@ -141,11 +141,8 @@
   bottom: -4px;
   width: 30px;
   height: 6px;
-  overflow: visible;
-  fill: none;
-  stroke: var(--accent);
-  stroke-width: 2.5;
-  stroke-linecap: round;
+  /* The squiggle's units are half as tall as this one, so a 2.5px line is 5 of them. */
+  --squiggle-stroke: 5;
 }
 
 .nothing {

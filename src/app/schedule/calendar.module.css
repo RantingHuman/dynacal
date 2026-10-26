@@ -170,20 +170,9 @@
   bottom: -6px;
   width: 100%;
   height: 6px;
-  fill: none;
-  stroke: var(--accent);
-  stroke-width: 1.5;
-  stroke-linecap: round;
-}
-
-.ripple path {
-  animation: ripple var(--slow) linear infinite;
-}
-
-@keyframes ripple {
-  to {
-    transform: translateX(12px);
-  }
+  /* A 1.5px line, in the squiggle's units (12 of them to this one's 6px), sliding a wavelength each --slow. */
+  --squiggle-stroke: 3;
+  --squiggle-loop: var(--slow);
 }
 
 .note {

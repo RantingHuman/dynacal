@@ -1,0 +1,80 @@
+/*
+ * The accent squiggle. The base look has no specificity (`:where`), so a caller's class can size and place it;
+ * `--squiggle-stroke` thins or thickens the line, in the squiggle's units (it's 12 tall).
+ */
+:where(.squiggle) {
+  display: block;
+  width: 100%;
+  height: 12px;
+  overflow: visible;
+}
+
+.squiggle {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: var(--squiggle-stroke, 2.5);
+  stroke-linecap: round;
+}
+
+/* A sliding wave runs past both ends, so its ends are clipped. */
+.squiggle[data-motion="wiggle"],
+.squiggle[data-motion="draw-wiggle"] {
+  overflow: hidden;
+}
+
+/* Drawn in once from the left. */
+.squiggle[data-motion="draw"] path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw var(--slow) var(--expo) forwards;
+}
+
+/* Drawn in, held, then rubbed out to the right, over and over. */
+.squiggle[data-motion="loop"] path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw-loop 1.8s var(--expo) infinite;
+}
+
+/* The wave slides one wavelength (24 units) and repeats; `--squiggle-loop` sets its speed. */
+.squiggle[data-motion="wiggle"] path {
+  animation: wiggle var(--squiggle-loop, var(--loop)) linear infinite;
+}
+
+/* Drawn in with the headline, then sliding slowly: the page's one piece of constant life. */
+.squiggle[data-motion="draw-wiggle"] path {
+  stroke-dasharray: 1;
+  animation:
+    draw-from var(--rise) var(--expo) both,
+    wiggle var(--squiggle-loop, var(--loop)) linear var(--rise) infinite;
+}
+
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes draw-from {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes draw-loop {
+  60% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: -1;
+  }
+}
+
+@keyframes wiggle {
+  to {
+    transform: translateX(24px);
+  }
+}

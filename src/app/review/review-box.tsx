@@ -4,7 +4,7 @@ import { startTransition, useEffect, useState, useTransition, ViewTransition } f
 import { spanLabel } from "@/core/day-labels";
 import { blockMinutes, canBePartlyDone, type ReviewOutcome } from "@/core/completion";
 import { formatDuration } from "@/core/tasks";
-import { DrawnSquiggle } from "../states/drawn-squiggle";
+import { Squiggle } from "../states/squiggle";
 import { reviewBlock } from "./actions";
 import styles from "./review-box.module.css";
 
@@ -56,7 +56,7 @@ export function ReviewBox({ blocks, timeZone }: { blocks: UnreviewedBlockProps[]
       >
         <p className={styles.caughtUp} role="status">
           All caught up.
-          <DrawnSquiggle className={styles.squiggle} />
+          <Squiggle motion="draw" className={styles.squiggle} />
         </p>
       </section>
     );

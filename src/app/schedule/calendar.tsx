@@ -22,6 +22,7 @@ import freeStyles from "./free-events.module.css";
 import { NEW_EVENT_MS, useNewEvent } from "./new-event";
 import styles from "./pinning.module.css";
 import { Toast } from "./toast";
+import { Squiggle } from "../states/squiggle";
 import { OFFLINE_REASON, useOnline } from "../states/use-online";
 
 /** A Block as sent to the browser: instants as ISO strings. */
@@ -590,9 +591,7 @@ export function Calendar({
             >
               {pending ? "Recalculating…" : "Recalculate"}
               {pending && (
-                <svg className={calendarStyles.ripple} viewBox="0 0 60 6" preserveAspectRatio="none" aria-hidden>
-                  <path d="M-12 3 Q -9 0, -6 3 T 0 3 T 6 3 T 12 3 T 18 3 T 24 3 T 30 3 T 36 3 T 42 3 T 48 3 T 54 3 T 60 3 T 66 3 T 72 3" />
-                </svg>
+                <Squiggle waves={5} motion="wiggle" className={calendarStyles.ripple} />
               )}
             </button>
             {connectionBroken && <span className={calendarStyles.note}>Uses the last Events dynacal saw</span>}

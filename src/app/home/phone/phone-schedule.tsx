@@ -16,6 +16,7 @@ import { EventDetails } from "../../schedule/event-details";
 import { FloatingLabel, LabelNote, LabelTime, LabelTitle } from "../../schedule/floating-label";
 import { useNewEvent } from "../../schedule/new-event";
 import pinningStyles from "../../schedule/pinning.module.css";
+import { Squiggle } from "../../states/squiggle";
 import { BlockSheet } from "./block-sheet";
 import styles from "./phone.module.css";
 
@@ -43,11 +44,7 @@ function DayHeading({ date, today }: { date: string; today: boolean }) {
   return (
     <h3 className={styles.dayHeading} data-today={today}>
       <span className={styles.dayNumber}>{dateParts(date).day}</span> {weekdayName(date)}
-      {today && (
-        <svg className={styles.daySquiggle} viewBox="0 0 30 6" preserveAspectRatio="none" aria-hidden>
-          <path d="M0 3 Q 2.5 0, 5 3 T 10 3 T 15 3 T 20 3 T 25 3 T 30 3" />
-        </svg>
-      )}
+      {today && <Squiggle waves={3} className={styles.daySquiggle} />}
     </h3>
   );
 }
