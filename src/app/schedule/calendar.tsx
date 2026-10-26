@@ -124,6 +124,7 @@ export function Calendar({
   conflicts,
   workingHours,
   connectionBroken = false,
+  openBlockId,
 }: {
   timeZone: string;
   horizon: { start: string; end: string };
@@ -136,14 +137,19 @@ export function Calendar({
    * planning around the Events dynacal last saw.
    */
   connectionBroken?: boolean;
+  /** A Block to open on arrival, e.g. the one a tapped reminder is for. */
+  openBlockId?: string;
 }) {
   const today = toZoned(new Date(horizon.start), timeZone).date;
   const lastDay = toZoned(new Date(horizon.end), timeZone).date;
   const [view, setView] = useState<View>("week");
-  const [anchor, setAnchor] = useState(today);
+  const [anchor, setAnchor] = useState(() => {
+    const opening = blocks.find((b) => b.id === openBlockId);
+    return opening ? toZoned(new Date(opening.start), timeZone).date : today;
+  });
   const [pending, startTransition] = useTransition();
   const [moving, startMoving] = useTransition();
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(openBlockId ?? null);
   const [openEventId, setOpenEventId] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ id: string; start: number; end: number } | null>(null);
   const [moveMessage, setMoveMessage] = useState<string | null>(null);
