@@ -89,3 +89,7 @@ The 600ms restarts on each tick, so a burst of checks reorders once at the end. 
 No glossary changes and no ADR: this is presentation only, and easy to change.
 
 What's left for other tickets: motion specific to Settings, setup and sign-in follows these rules, with any extras decided in [How do Settings, setup and sign-in look?](08-other-screens.md). Touch dragging and what a drop feels like on a phone belong to [How does the home screen work at phone width?](09-phone-width.md).
+
+## Later addition
+
+From [How does the home screen work at phone width?](09-phone-width.md): ticking a Block's checkbox plays the same "completing a Task" sequence, with all of that Task's Blocks dimming together. The phone's Block sheet opens and closes like the floating label.

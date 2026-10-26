@@ -47,3 +47,7 @@ Build on variant `editorial-plus` on branch `prototype/design-styles`.
 No feature is lost; Declined Times and the Block hint are now a click away. At narrow widths the toolbar wraps onto a second line, and the full phone layout is still open in [How does the home screen work at phone width?](09-phone-width.md).
 
 The prototype is on the throwaway branch `prototype/design-styles` (commit 7f82412), at route `/prototype-styles/controls`, variant `rail`. It runs at `pnpm dev` (`variants/controls.tsx`). Its interactions are stubbed and it uses sample data. Variants B and C are kept there for reference.
+
+## Later addition
+
+From [How does the home screen work at phone width?](09-phone-width.md): on the desktop, each Block that hasn't ended also gets a small round check in its corner that completes its Task, and a Block's details label gets "✓ Mark the Task done".
