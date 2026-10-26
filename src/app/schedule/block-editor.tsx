@@ -4,8 +4,11 @@ import { useState, useTransition } from "react";
 import type { MoveBlockResult } from "@/core/pinning";
 import { formatMinutes } from "@/core/settings";
 import { addDays, fromZoned, toZoned } from "@/core/time-zone";
+import { completeTask } from "../tasks/actions";
 import { moveBlock, unpinBlock } from "./actions";
 import type { CalendarBlock, CalendarEvent } from "./calendar";
+import { dayLabel } from "./day-label";
+import { FloatingLabel, LabelNote, LabelTime, LabelTitle } from "./floating-label";
 import styles from "./pinning.module.css";
 
 function minutesOf(time: string): number {
@@ -21,8 +24,9 @@ export function moveError(result: MoveBlockResult): string | null {
 }
 
 /**
- * Moving a Block without dragging: pick a date, a start and an end. Saving pins it.
- * Also where a Pinned Block is unpinned, and where its Conflicts are spelled out.
+ * A Block's details, in the floating label. Moving a Block without dragging: pick a date, a start and an end.
+ * Saving pins it. Also where a Pinned Block is unpinned, where its Conflicts are spelled out, and where its whole
+ * Task can be marked done.
  */
 export function BlockEditor({
   block,
@@ -66,23 +70,31 @@ export function BlockEditor({
     });
   }
 
+  /** Completes the Block's whole Task, as its checkbox in the Task list does. */
+  function markTaskDone() {
+    setError(null);
+    startTransition(async () => {
+      const result = await completeTask(block.taskId);
+      if (result.ok) onClose();
+      else setError("This Task no longer exists.");
+    });
+  }
+
   return (
-    <section className={styles.editor} aria-labelledby="block-editor-heading">
-      <h2 id="block-editor-heading">
-        {block.taskTitle}
-        {block.pinned && <span className={styles.pinnedTag}>Pinned</span>}
-      </h2>
+    <FloatingLabel kind={block.pinned ? "Pinned Block" : "Block"} labelledBy="block-editor-heading" onClose={onClose}>
+      <LabelTitle id="block-editor-heading">{block.taskTitle}</LabelTitle>
+      <LabelTime>
+        {dayLabel(start.date)}, {formatMinutes(start.minutes)}–{formatMinutes(end.minutes)}
+      </LabelTime>
       {conflicts.length > 0 && (
-        <p className={styles.conflictNote} role="alert">
+        <LabelNote alert>
           Conflict: this Pinned Block overlaps {conflicts.map((c) => c.title).join(", ")}. dynacal won’t move it; move it,
           shorten it or unpin it, or change the Event in your calendar.
-        </p>
+        </LabelNote>
       )}
-      <p className="muted">
-        {block.pinned
-          ? "Recalculation plans around this Block instead of moving it."
-          : "Saving a new time pins this Block, so Recalculation plans around it."}
-      </p>
+      <button type="button" className={`link ${styles.markDone}`} disabled={pending} onClick={markTaskDone}>
+        ✓ Mark the Task done
+      </button>
       <form className={styles.editorForm} onSubmit={save}>
         <label>
           Date
@@ -105,9 +117,6 @@ export function BlockEditor({
               Unpin
             </button>
           )}
-          <button type="button" className="link" onClick={onClose}>
-            Cancel
-          </button>
         </div>
       </form>
       {error && (
@@ -115,6 +124,12 @@ export function BlockEditor({
           {error}
         </p>
       )}
-    </section>
+      <LabelNote>
+        Drag to move · drag an edge to resize · or set the time here.{" "}
+        {block.pinned
+          ? "Recalculation plans around this Block instead of moving it."
+          : "A moved Block is pinned, so Recalculation plans around it."}
+      </LabelNote>
+    </FloatingLabel>
   );
 }
