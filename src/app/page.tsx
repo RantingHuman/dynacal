@@ -3,7 +3,8 @@ import { getRuntime } from "@/server/runtime";
 import { currentSession } from "@/server/session";
 import { ReconnectBanner } from "./google/reconnect-banner";
 import { RemindersToggle } from "./reminders/reminders-toggle";
-import { UnreviewedBanner } from "./review/unreviewed-banner";
+import { ReviewBox } from "./review/review-box";
+import reviewStyles from "./review/review-box.module.css";
 import type { DynacalEvent } from "@/core/dynacal-events";
 import { toWireTiming } from "@/core/event-timing";
 import { Calendar } from "./schedule/calendar";
@@ -40,25 +41,27 @@ export default async function HomePage() {
         </nav>
       </header>
       {connection.status === "broken" && <ReconnectBanner email={connection.email} />}
-      {scheduleView.status === "ready" && (
-        <UnreviewedBanner
-          timeZone={scheduleView.timeZone}
-          blocks={commands.listUnreviewedBlocks().map((b) => ({
-            id: b.id,
-            taskTitle: b.taskTitle,
-            start: b.start.toISOString(),
-            end: b.end.toISOString(),
-            suggestedWorkedMinutes: b.suggestedWorkedMinutes,
-          }))}
-        />
-      )}
       <NewEventProvider enabled={scheduleView.status === "ready"}>
         <div className="app-body">
-          <TaskPanel
-            tasks={commands.listTasks()}
-            flags={scheduleView.status === "ready" ? scheduleView.flags : {}}
-            timeZone={scheduleView.status === "ready" ? scheduleView.timeZone : null}
-          />
+          <div className={reviewStyles.tasksColumn}>
+            <TaskPanel
+              tasks={commands.listTasks()}
+              flags={scheduleView.status === "ready" ? scheduleView.flags : {}}
+              timeZone={scheduleView.status === "ready" ? scheduleView.timeZone : null}
+            />
+            {scheduleView.status === "ready" && (
+              <ReviewBox
+                timeZone={scheduleView.timeZone}
+                blocks={commands.listUnreviewedBlocks().map((b) => ({
+                  id: b.id,
+                  taskTitle: b.taskTitle,
+                  start: b.start.toISOString(),
+                  end: b.end.toISOString(),
+                  suggestedWorkedMinutes: b.suggestedWorkedMinutes,
+                }))}
+              />
+            )}
+          </div>
           <section className="schedule-panel" aria-label="Schedule">
             {scheduleView.status === "needs-time-zone" ? (
               <div className="notice">
@@ -77,6 +80,7 @@ export default async function HomePage() {
                 blocks={scheduleView.blocks.map((b) => ({
                   id: b.id,
                   displayKey: b.displayKey,
+                  taskId: b.taskId,
                   taskTitle: b.taskTitle,
                   start: b.start.toISOString(),
                   end: b.end.toISOString(),
