@@ -56,7 +56,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
           </>
         }
       />
-      <Lead headline={writeHeadline(week, week.today)} />
+      <Lead headline={writeHeadline(week, week.today)} state={week.state} />
       <NewEventProvider enabled={scheduleView.status === "ready"}>
         <TaskEditorProvider>
           <div className={styles.spread}>

@@ -50,6 +50,15 @@
   font-size: var(--text-headline);
   line-height: 0.95;
   letter-spacing: -0.025em;
+  /* Only on a full load: the headline stays mounted as the page refreshes, so this never replays. */
+  animation: rise var(--rise) var(--expo) both;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(0.25em);
+  }
 }
 
 .emphasis {
@@ -74,9 +83,24 @@
   stroke-linecap: round;
 }
 
-/* The one piece of constant life: the wave slides one wavelength (24 units) and repeats, slowly. */
+/*
+ * The squiggle draws in (with the headline on load, and again when the week gets better), then is the page's
+ * one piece of constant life: the wave slides one wavelength (24 units) and repeats, slowly.
+ */
 .squiggle path {
-  animation: wiggle 4s linear infinite;
+  stroke-dasharray: 1;
+  animation:
+    draw var(--rise) var(--expo) both,
+    wiggle var(--loop) linear var(--rise) infinite;
+}
+
+@keyframes draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
 }
 
 @keyframes wiggle {
