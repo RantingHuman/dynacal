@@ -97,7 +97,7 @@ import { forgetDynacalEventWrite, readDynacalEventWrites, recordDynacalEventWrit
 import { validatePushSubscription, type PushSender, type PushSubscriptionInput, type SubscribeToPushResult } from "./push";
 import { isHttps } from "./urls";
 import { validateBlockTime, type MoveBlockResult, type UnpinBlockResult } from "./pinning";
-import { dueReminders, reminderKey, reminderMessage } from "./reminders";
+import { REMINDER_GRACE_MS, dueReminders, reminderKey, reminderMessage } from "./reminders";
 import { blockEventsInGoogle, editWindow, readGoogleEdit, type BlockEventInGoogle } from "./google-edits";
 import { channelExpiry, planChannels } from "./push-channels";
 import { remainingByTask, schedulerTasks } from "./scheduler-input";
@@ -107,6 +107,7 @@ import {
   type TaskFlag,
 } from "./scheduler";
 import { DAY_MS, GRID_MS, PLANNING_HORIZON_DAYS, planningHorizonEnd } from "./time";
+import { summariseWeek, type WeekSummary } from "./week-summary";
 import { DEFAULT_SETTINGS, validateSettings, type Settings, type SettingsUpdate, type UpdateSettingsResult } from "./settings";
 import {
   compareTasks,
@@ -229,6 +230,15 @@ export interface BlockView {
   pinned: boolean;
 }
 
+/** A Block in the Schedule view. */
+export interface ScheduleBlockView extends BlockView {
+  /**
+   * Which Block this is for display, stable across Recalculations (which replace Blocks with new ones): its Task's id
+   * and its position among that Task's Blocks in time order, from 1 (for example `t2#1`). Never stored or synced.
+   */
+  displayKey: string;
+}
+
 /** Until the owner saves a time zone, there's no Schedule. */
 export type ScheduleView =
   | { status: "needs-time-zone" }
@@ -237,7 +247,7 @@ export type ScheduleView =
       timeZone: string;
       /** The Planning Horizon: from now until this many days ahead. */
       horizon: { start: Date; end: Date };
-      blocks: BlockView[];
+      blocks: ScheduleBlockView[];
       /** Every Event on the Busy Calendars, whether or not it counts as busy, in time order. */
       events: EventView[];
       flags: Record<string, TaskFlag | null>;
@@ -949,7 +959,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     });
   }
 
-  return {
+  const commands = {
     /** Only the deployment's owner (ADR-0001) may sign in, and only with an email Google has verified. */
     signIn(identity: GoogleIdentity): SignInResult {
       const email = identity.email.trim().toLowerCase();
@@ -1357,7 +1367,12 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
           .all()
           .map(({ id, flag }) => [id, flag]),
       );
-      const blockViews = rows.map(toBlockView);
+      const positions = new Map<string, number>();
+      const blockViews = rows.map((row): ScheduleBlockView => {
+        const position = (positions.get(row.block.taskId) ?? 0) + 1;
+        positions.set(row.block.taskId, position);
+        return { ...toBlockView(row), displayKey: `${row.block.taskId}#${position}` };
+      });
       const overrides = readBusyOverrides();
       const calendarNames = busyCalendarNames();
       const dynacalById = new Map(listDynacalEvents().map((e) => [e.id, e]));
@@ -1419,13 +1434,14 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       const { timeZone, reminderLeadMinutes } = getSettings();
       if (timeZone === null) return;
       const now = clock.now();
-      // Only Blocks that haven't started can be reminded, so older records are no longer needed.
-      db.delete(remindersSent).where(lt(remindersSent.blockStart, now)).run();
+      // Only Blocks that haven't started (give or take the grace) can be reminded, so older records are no longer needed.
+      const earliest = new Date(now.getTime() - REMINDER_GRACE_MS);
+      db.delete(remindersSent).where(lt(remindersSent.blockStart, earliest)).run();
       const candidates = db
-        .select({ taskId: blocks.taskId, start: blocks.start, taskTitle: tasks.title })
+        .select({ taskId: blocks.taskId, start: blocks.start, end: blocks.end, taskTitle: tasks.title })
         .from(blocks)
         .innerJoin(tasks, eq(blocks.taskId, tasks.id))
-        .where(gte(blocks.start, now))
+        .where(gte(blocks.start, earliest))
         .all();
       const alreadySent = new Set(
         db
@@ -1452,6 +1468,39 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       }
     },
   };
+
+  /** The facts behind the home screen's headline: the week's most urgent state and what it's about. */
+  function getWeekSummary(): WeekSummary {
+    const schedule = commands.getSchedule();
+    const flags = schedule.status === "ready" ? schedule.flags : {};
+    const conflicts =
+      schedule.status === "ready"
+        ? schedule.conflicts.map(({ blockId, eventId }) => ({
+            taskTitle: schedule.blocks.find((b) => b.id === blockId)!.taskTitle,
+            eventTitle: schedule.events.find((e) => e.id === eventId)!.title,
+          }))
+        : [];
+    const { timeZone, workingHours } = getSettings();
+    return summariseWeek({
+      now: clock.now(),
+      timeZone,
+      workingHours,
+      connection: getGoogleConnection(),
+      blocks: schedule.status === "ready" ? schedule.blocks : [],
+      busy: schedule.status === "ready" ? schedule.events.filter((e) => e.countsAsBusy) : [],
+      tasks: commands.listTasks().map((t) => ({
+        id: t.id,
+        title: t.title,
+        completed: t.completedAt !== null,
+        flag: flags[t.id] ?? null,
+        deadline: t.deadline,
+      })),
+      conflicts,
+      unreviewedBlocks: commands.listUnreviewedBlocks().length,
+    });
+  }
+
+  return { ...commands, getWeekSummary };
 }
 
 export type Commands = ReturnType<typeof createCommands>;

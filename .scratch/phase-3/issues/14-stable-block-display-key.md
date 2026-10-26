@@ -4,10 +4,10 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] The Schedule view returns a display key for every Block
-- [ ] A Recalculation that leaves a Task's Blocks in the same order keeps their display keys; keys follow position when the number or order of a Task's Blocks changes
-- [ ] The calendar uses the display key as each Block's React key
-- [ ] The key isn't written to the database or to Google; reminders, pinning, Declined Times and sync are untouched
-- [ ] Command-layer tests cover the keys across Recalculations; all existing tests pass
+- [x] The Schedule view returns a display key for every Block
+- [x] A Recalculation that leaves a Task's Blocks in the same order keeps their display keys; keys follow position when the number or order of a Task's Blocks changes
+- [x] The calendar uses the display key as each Block's React key
+- [x] The key isn't written to the database or to Google; reminders, pinning, Declined Times and sync are untouched
+- [x] Command-layer tests cover the keys across Recalculations; all existing tests pass

@@ -1,0 +1,161 @@
+/* The Tasks heading line: a kicker with the open count, "+ Task" at the end. */
+.heading {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+  padding-bottom: var(--space-2);
+  border-bottom: var(--hairline) solid var(--ink);
+  font: 600 var(--text-kicker) / 1.4 var(--font-sans);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.count {
+  color: var(--soft);
+  font-weight: 400;
+  letter-spacing: 0.06em;
+}
+
+.actions {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin-left: auto;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.actions :global(.link) {
+  font-size: var(--text-meta);
+  font-weight: 400;
+}
+
+/* A contents list: round checkbox, serif title, one meta line. */
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: var(--hairline) solid var(--faint);
+}
+
+.open {
+  flex: 1;
+  min-width: 0;
+  /* Block, not grid: the title must stay inline so the highlighter hugs its words, line by line. */
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.open :global(.task-title) {
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  background-image: linear-gradient(var(--highlight), var(--highlight));
+  background-repeat: no-repeat;
+  background-position: 0 100%;
+  background-size: 0 40%;
+  /* Struck through only once done; the line fades in after the sweep. */
+  text-decoration: line-through transparent;
+  transition:
+    background-size var(--base) var(--expo),
+    text-decoration-color var(--base) var(--expo);
+}
+
+.open:hover :global(.task-title),
+.open[aria-current="true"] :global(.task-title) {
+  background-size: 100% 40%;
+}
+
+.meta {
+  display: block;
+  margin-top: 2px;
+  color: var(--soft);
+  font-size: var(--text-meta);
+}
+
+.flag {
+  color: var(--accent);
+  font-style: italic;
+}
+
+.item[data-done="true"] .open {
+  opacity: 0.6;
+}
+
+.item[data-done="true"] :global(.task-title) {
+  text-decoration-color: currentColor;
+}
+
+/*
+ * Completing a Task here: a highlighter sweeps across the title, then it settles, struck through and dimmed.
+ * The list reorders 600ms after the last tick (see CompletionProvider).
+ */
+.item[data-ticked] :global(.task-title) {
+  animation: sweep var(--slow) var(--expo);
+  transition-delay: 0ms, var(--base);
+}
+
+.item[data-ticked] .open {
+  transition: opacity var(--base) var(--expo) var(--base);
+}
+
+/* A new row, or one just saved from the editor: one highlighter sweep (the row itself slides in, see globals). */
+.open :global(.task-title)[data-sweep] {
+  animation: sweep var(--slow) var(--expo);
+}
+
+@keyframes sweep {
+  0% {
+    background-size: 0 40%;
+  }
+  60% {
+    background-size: 100% 40%;
+  }
+  100% {
+    background-size: 100% 0;
+  }
+}
+
+/* "Saved" shows by the row, then fades away. */
+.saved {
+  animation: linger var(--linger) var(--expo) both;
+}
+
+@keyframes linger {
+  0% {
+    opacity: 0;
+  }
+  15%,
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* "All done." over the finished Tasks, with the squiggle drawn in once beneath it. */
+.allDone {
+  position: relative;
+  display: inline-block;
+}
+
+.allDoneSquiggle {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -8px;
+}

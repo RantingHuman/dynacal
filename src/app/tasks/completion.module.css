@@ -1,41 +1,37 @@
-.item {
-  display: flex;
-  gap: 0.5rem;
-  align-items: flex-start;
-}
-
-.body {
-  flex: 1;
-  min-width: 0;
-}
-
-.body > :global(.task-row) {
-  width: 100%;
-}
-
-.completed :global(.task-row) {
-  opacity: 0.6;
-}
-
-.completed :global(.task-title) {
-  text-decoration: line-through;
-}
-
 .toggle {
   flex: none;
-  width: 1.6rem;
-  height: 1.6rem;
-  margin-top: 0.55rem;
+  width: 1.4rem;
+  height: 1.4rem;
+  margin-top: 1px;
+  padding: 0;
   display: grid;
   place-items: center;
-  border: 1.5px solid var(--border);
-  border-radius: 999px;
-  background: none;
+  border: 1.5px solid var(--ink);
+  border-radius: var(--radius-circle);
+  background: var(--card);
   color: transparent;
   font: inherit;
-  font-size: 0.85rem;
-  line-height: 1;
   cursor: pointer;
+  transition:
+    background-color var(--base) var(--expo),
+    border-color var(--base) var(--expo),
+    color var(--base) var(--expo),
+    transform var(--base) var(--bounce);
+}
+
+.toggle svg {
+  width: 0.8rem;
+  height: 0.8rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.toggle:active:not(:disabled) {
+  transform: scale(0.85);
+  transition-duration: var(--press);
 }
 
 .toggle:hover,
@@ -44,14 +40,35 @@
   color: var(--accent);
 }
 
-.toggle:disabled {
-  cursor: progress;
-}
-
 .done,
 .done:hover {
   border-color: var(--accent);
   background: var(--accent);
-  color: var(--bg);
+  color: var(--on-accent);
   cursor: default;
+}
+
+/* Ticked here: the box springs back from its press while the tick draws in. */
+.done[data-ticked] {
+  animation: press var(--base) var(--bounce);
+}
+
+.done[data-ticked] path {
+  stroke-dasharray: 1;
+  animation: draw var(--base) var(--expo) both;
+}
+
+@keyframes press {
+  from {
+    transform: scale(0.85);
+  }
+}
+
+@keyframes draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
 }

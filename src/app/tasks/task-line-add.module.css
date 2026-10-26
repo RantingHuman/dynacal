@@ -1,0 +1,76 @@
+.add {
+  display: grid;
+  gap: 6px;
+  padding-bottom: var(--space-3);
+  border-bottom: var(--hairline) dashed var(--rule);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.plus {
+  color: var(--accent);
+  font: 22px / 1 var(--font-serif);
+}
+
+.row input {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 0;
+  border: 0;
+  border-bottom: var(--hairline) solid transparent;
+  background: transparent;
+  color: var(--ink);
+  font: italic 19px var(--font-serif);
+  transition: border-color var(--base) var(--expo);
+}
+
+.row input:focus-visible {
+  outline: none;
+  border-bottom-color: var(--accent);
+}
+
+.preview,
+.hint {
+  margin: 0;
+  font-size: var(--text-meta);
+}
+
+.hint {
+  color: var(--soft);
+}
+
+.preview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+}
+
+.preview em {
+  font: italic 15px var(--font-serif);
+}
+
+/* Defaults are dashed; what the line picked out is solid accent, and pops in. */
+.preview span {
+  padding: 0 7px;
+  border: var(--hairline) dashed var(--rule);
+  border-radius: var(--radius-pill);
+  color: var(--soft);
+}
+
+.preview span[data-found="true"] {
+  border-style: solid;
+  border-color: var(--accent);
+  color: var(--accent);
+  animation: pop var(--base) var(--bounce);
+}
+
+@keyframes pop {
+  from {
+    transform: scale(0.7);
+  }
+}

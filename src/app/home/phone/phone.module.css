@@ -1,0 +1,351 @@
+/*
+ * The home screen below 640px wide: the masthead with its Menu, two tabs at the bottom, the week list,
+ * and the Block sheet. The breakpoint matches PHONE_QUERY in width-switch.tsx.
+ */
+
+.phoneOnly {
+  display: none;
+  /* The tab bar's height, which labels, sheets and the page's end keep clear of. */
+  --tab-bar: calc(52px + env(safe-area-inset-bottom, 0px));
+}
+
+@media (max-width: 639.98px) {
+  .phoneOnly {
+    display: block;
+  }
+
+  .desktopOnly {
+    display: none;
+  }
+}
+
+.page {
+  min-height: 100vh;
+  padding: var(--space-3) var(--space-4) calc(var(--tab-bar) + var(--space-6));
+}
+
+/* The masthead: the title, and the Menu dropping down under it. */
+
+.masthead {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-2) 0;
+  border-top: var(--masthead-rule) solid var(--ink);
+  border-bottom: var(--hairline) solid var(--ink);
+  font-size: 13px;
+}
+
+.title {
+  font: italic 28px / 1 var(--font-serif);
+  letter-spacing: -0.01em;
+}
+
+.menu {
+  position: absolute;
+  z-index: 35;
+  top: calc(100% + var(--space-1));
+  right: 0;
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+  min-width: 13rem;
+  padding: var(--space-4);
+  border: var(--hairline) solid var(--ink);
+  background: var(--card);
+  box-shadow: 0 16px 40px color-mix(in srgb, var(--ink) 14%, transparent);
+}
+
+.menu[hidden] {
+  display: none;
+}
+
+.menu form {
+  display: contents;
+}
+
+/* The lead, shortened to fit. */
+
+.lead h1 {
+  font-size: 40px;
+}
+
+.lead p {
+  margin-top: var(--space-4);
+  font-size: 16px;
+}
+
+.review:not(:empty) {
+  padding: var(--space-4) 0;
+}
+
+/* The week list: each day a heading, then its lines. */
+
+.weekList {
+  display: grid;
+  margin-top: var(--space-2);
+}
+
+.weekList[data-empty] {
+  opacity: 0.6;
+}
+
+.day {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3) 0 var(--space-2);
+  border-bottom: var(--hairline) solid var(--rule);
+}
+
+.dayHeading {
+  position: relative;
+  justify-self: start;
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-1);
+  font: 600 var(--text-kicker) var(--font-sans);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.dayNumber {
+  font: 30px / 1 var(--font-serif);
+  letter-spacing: 0;
+}
+
+.dayHeading[data-today="true"] .dayNumber {
+  color: var(--accent);
+}
+
+.daySquiggle {
+  position: absolute;
+  left: 0;
+  bottom: -4px;
+  width: 30px;
+  height: 6px;
+  /* The squiggle's units are half as tall as this one, so a 2.5px line is 5 of them. */
+  --squiggle-stroke: 5;
+}
+
+.nothing {
+  margin: 0;
+  color: var(--soft);
+  font: italic 15px var(--font-serif);
+}
+
+/* A line: the Task's checkbox (for a Block that hasn't ended), then the time, title and length. */
+.row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.line {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 40px;
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-2);
+  border: 0;
+  border-left: 2px solid var(--ink);
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.line[data-kind="block"] {
+  border-left-color: var(--accent);
+  background: var(--block);
+}
+
+.line[data-free="true"] {
+  border-left-style: dashed;
+  color: var(--soft);
+}
+
+.line[data-past="true"] {
+  opacity: 0.45;
+}
+
+.line[data-conflict="true"] {
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent 0 5px,
+    color-mix(in srgb, var(--accent) 22%, transparent) 5px 7px
+  );
+}
+
+.lineTime,
+.lineLength {
+  color: var(--soft);
+  font-size: var(--text-kicker);
+  font-variant-numeric: tabular-nums;
+}
+
+.lineTitle {
+  font: 17px / 1.15 var(--font-serif);
+  overflow-wrap: anywhere;
+}
+
+/* Labels and the Block sheet rise above the tab bar, across the screen. */
+
+.overlays aside {
+  left: var(--space-2);
+  right: var(--space-2);
+  bottom: calc(var(--tab-bar) + var(--space-2));
+  width: auto;
+  max-height: calc(100dvh - var(--tab-bar) - var(--space-7));
+}
+
+.overlays [role="status"] {
+  bottom: calc(var(--tab-bar) + var(--space-3));
+}
+
+/* The Block sheet: a card like the floating label, with the Move chips. */
+.sheet {
+  position: fixed;
+  z-index: 30;
+  display: grid;
+  gap: var(--space-2);
+  overflow-y: auto;
+  padding: var(--space-4);
+  border: var(--hairline) solid var(--ink);
+  outline: var(--hairline) solid var(--ink);
+  outline-offset: 3px;
+  background: var(--card);
+  box-shadow: 0 -16px 40px color-mix(in srgb, var(--ink) 18%, transparent);
+}
+
+.sheet p {
+  margin: 0;
+}
+
+.kind {
+  color: var(--soft);
+  font-size: var(--text-kicker);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.markDone {
+  justify-self: start;
+  font-size: 14px;
+}
+
+.move {
+  display: grid;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: var(--hairline) solid var(--rule);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  height: 34px;
+  padding: 0 var(--space-3);
+  border: var(--hairline) solid var(--rule);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition:
+    border-color var(--base) var(--expo),
+    transform var(--base) var(--bounce);
+}
+
+.chip:hover:not(:disabled) {
+  border-color: var(--ink);
+}
+
+.chip:active:not(:disabled) {
+  transform: scale(0.92);
+  transition-duration: var(--press);
+}
+
+.chip:disabled {
+  opacity: 0.5;
+  cursor: progress;
+}
+
+.exact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.exact input {
+  padding: var(--space-1) 6px;
+  border: 0;
+  border-bottom: var(--hairline) solid var(--rule);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.sheetButtons {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* The tab bar, fixed to the bottom of the screen. */
+
+.tabs {
+  position: fixed;
+  z-index: 25;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  height: var(--tab-bar);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  border-top: var(--hairline) solid var(--ink);
+  background: var(--paper);
+}
+
+.tabs button {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: none;
+  color: var(--soft);
+  font: 600 13px var(--font-sans);
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.tabs button[aria-selected="true"] {
+  color: var(--ink);
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+
+/* The Conflict badge on Schedule. */
+.badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 11px;
+  letter-spacing: 0;
+}

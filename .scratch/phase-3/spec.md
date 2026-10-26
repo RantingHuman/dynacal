@@ -1,6 +1,6 @@
 # Spec: dynacal phase 3: a calmer, more joyful dynacal
 
-Status: ready-for-agent
+Status: resolved
 
 ## Problem Statement
 
@@ -23,7 +23,7 @@ A redesign in one visual style, "Editorial, refined", across every screen, with 
 - **Quicker Tasks.** I add a Task by typing one line ("Board memo 2h by fri !high"), and edit one on a full page with every field visible.
 - **Motion where it counts.** Five moments get delight (completing a Task, dropping a Block, adding a Task, finishing my reviews, and Recalculate). Everything else stays quiet, and "reduce motion" turns movement off everywhere.
 - **Settings in plain sentences** that I edit in place and that save as I go. Setup is a short numbered letter.
-- **A real phone layout.** Two tabs: Schedule (the headline and the week as a calm agenda) and Tasks. Blocks move with a sheet instead of a drag.
+- **A real phone layout.** Two tabs: Schedule (the headline and a calm week list) and Tasks. Blocks move with a sheet instead of a drag.
 - **Designed states** for empty, loading, error and offline.
 - **Quiet reminders and a new icon.** Notifications stay plain but say how long the Block is and open on it. The app gets an editorial "d" icon and paper-coloured chrome.
 
@@ -133,7 +133,7 @@ A redesign in one visual style, "Editorial, refined", across every screen, with 
 
 83. As the owner on my phone, I want the home screen below 640px wide to switch to two tabs, Schedule and Tasks, so that each gets the whole screen.
 84. As the owner on my phone, I want Schedule to open first, with the headline, the review box and my week, so that I see what I'm doing now.
-85. As the owner on my phone, I want my week as an agenda (each day a heading, its Blocks and Events as lines with a time and length), so that it's calm and readable.
+85. As the owner on my phone, I want my week as a list (each day a heading, its Blocks and Events as lines with a time and length), so that it's calm and readable.
 86. As the owner on my phone, I want days with nothing to say "Nothing planned", so that empty days are clear.
 87. As the owner on my phone, I want the Tasks tab to hold the one-line add and the Task list, so that adding and checking off Tasks is one tap away.
 88. As the owner on my phone, I want a badge on Schedule when there's a Conflict, so that I notice it from the Tasks tab.
@@ -219,12 +219,12 @@ A redesign in one visual style, "Editorial, refined", across every screen, with 
   - **Event toggles:** the Free and all-day settings render as do/don't toggles.
 - **Phone layout** (map: "How does the home screen work at phone width?").
   - **When:** below 640px wide.
-  - **Tabs:** Schedule, the default, holds the headline, the review box, "The week ahead" with "+ Event", the Conflict strip and the agenda. Tasks holds the one-line add and the list. A Conflict puts a badge on Schedule. The masthead is the title and a Menu (Recalculate, reminders, Settings, Sign out).
+  - **Tabs:** Schedule, the default, holds the headline, the review box, "The week ahead" with "+ Event", the Conflict strip and the week list. Tasks holds the one-line add and the list. A Conflict puts a badge on Schedule. The masthead is the title and a Menu (Recalculate, reminders, Settings, Sign out).
   - **No hourly grid on phones,** so no touch dragging. A Block that hasn't ended opens a Block sheet: Move chips (−30m, −15m, +15m, +30m, Next day), "Pick a time…" for an exact day and time, "Mark the Task done", Unpin and Close. A move goes through the existing move command, so it pins and is refused the same way.
-  - **Agenda lines:** each Block that hasn't ended starts with its Task's checkbox. Events and ended Blocks open the usual label.
+  - **Week list lines:** each Block that hasn't ended starts with its Task's checkbox. Events and ended Blocks open the usual label.
 - **States** (map: "What do the empty, loading and error states show?").
   - **Copy:** the empty-state lines as listed in the user stories.
-  - **No time zone:** an empty dimmed week grid, or seven empty days in the agenda.
+  - **No time zone:** an empty dimmed week grid, or seven empty days in the week list.
   - **Stale Events:** while Google is broken or unreachable, Events are drawn dimmer and dashed.
   - **Loading:** a route-level loading screen shown only after 300ms.
   - **Actions:** optimistic updates with rollback and a toast, and "…" on buttons after one second.
@@ -264,7 +264,7 @@ A redesign in one visual style, "Editorial, refined", across every screen, with 
   - the full-page editor;
   - every motion moment and the reduce-motion fallback;
   - the prose Settings and setup;
-  - the phone tabs, agenda and Block sheet;
+  - the phone tabs, week list and Block sheet;
   - the loading, error and offline screens;
   - the new icon on an installed PWA (Android and iOS where available).
 - **Prior art:**

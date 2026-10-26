@@ -4,12 +4,18 @@
 
 **Blocked by:** 13
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] The parser handles every form in the spec in any order, applies the defaults, leaves the rest as the title, and copes with a title containing "by" or "from" without a day
-- [ ] The preview chips show picked-out fields solidly and defaults dashed; the empty line shows the hint
-- [ ] "+ Task" focuses the line; Enter adds a valid Task through the existing command; "Full form" opens the editor pre-filled
-- [ ] The full-page editor shows duration chips plus "other", deadline and Earliest Start chips plus a date picker and optional time, Priority pills, the Don't split switch, notes and Declined Times with Clear, and "← Back to the week"
-- [ ] An existing Task's page shows its remaining time and flag; Delete asks "Delete it?" in place
-- [ ] Task validation and errors are unchanged
+- [x] The parser handles every form in the spec in any order, applies the defaults, leaves the rest as the title, and copes with a title containing "by" or "from" without a day
+- [x] The preview chips show picked-out fields solidly and defaults dashed; the empty line shows the hint
+- [x] "+ Task" focuses the line; Enter adds a valid Task through the existing command; "Full form" opens the editor pre-filled
+- [x] The full-page editor shows duration chips plus "other", deadline and Earliest Start chips plus a date picker and optional time, Priority pills, the Don't split switch, notes and Declined Times with Clear, and "← Back to the week"
+- [x] An existing Task's page shows its remaining time and flag; Delete asks "Delete it?" in place
+- [x] Task validation and errors are unchanged
 - [ ] Direct tests cover the parser; the column and editor are checked by hand
+
+## Comments
+
+- 2026-10-26: Built and merged on `phase-3/integration`; typecheck, tests and build pass. The unticked "checked by hand" item is still open: no one has looked at this in a browser yet, because the agents could not sign in through Google.
+- 2026-10-26: The owner checked the Tasks column in a browser. Two fixes followed: adding a Task looped (the column read the context it published into; its data now has its own context, f2e760a), and the hover highlight filled the whole column (the title is inline again, 0ab75f7).
+- 2026-10-26: The owner looked over the redesign in a browser on desktop and approved the merge to `main`. Checks on a real phone or installed PWA, offline, and with reduce motion on weren't reported separately, so the hand-check item stays unticked.

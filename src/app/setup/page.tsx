@@ -1,47 +1,26 @@
 import { redirect } from "next/navigation";
-import { GoogleCalendarSection } from "@/app/settings/google-calendar-section";
-import { SettingsForm } from "@/app/settings/settings-form";
+import { loadCalendarView } from "@/app/settings/calendar-view";
+import styles from "@/app/settings/prose.module.css";
 import { getRuntime } from "@/server/runtime";
 import { currentSession } from "@/server/session";
+import { SetupLetter } from "./setup-letter";
 
-/** First-run setup: connect Google, choose Busy Calendars, then set Working Hours and time zone. */
+/** First-run setup: connect Google, confirm Busy Calendars, then confirm the time zone and Working Hours. */
 export default async function SetupPage({ searchParams }: { searchParams: Promise<{ google?: string }> }) {
   if (!(await currentSession())) redirect("/sign-in");
   const { google } = await searchParams;
   const { commands } = getRuntime();
-  const status = commands.getSetupStatus();
 
   return (
-    <main className="wide setup">
-      <h1>Set up dynacal</h1>
-      <p className="muted">Three steps, and dynacal can start planning your Tasks around your calendar.</p>
-
-      <ol className="setup-steps">
-        <li className={status.googleConnected && status.busyCalendarsChosen ? "done" : undefined}>
-          <h2>Connect Google Calendar and choose Busy Calendars</h2>
-          <GoogleCalendarSection from="setup" error={google} />
-        </li>
-        <li className={status.timeZoneSaved ? "done" : undefined}>
-          <h2>Set your Working Hours and time zone</h2>
-          <SettingsForm initial={commands.getSettings()} showEventToggles={false} />
-        </li>
-        <li>
-          <h2>Start planning</h2>
-          {status.complete ? (
-            <a className="button" href="/">
-              Go to your Schedule
-            </a>
-          ) : (
-            <p className="muted">
-              {!status.googleConnected
-                ? "Connect Google Calendar to finish."
-                : !status.busyCalendarsChosen
-                  ? "Confirm your Busy Calendars to finish."
-                  : "Save your Working Hours and time zone to finish."}
-            </p>
-          )}
-        </li>
-      </ol>
+    <main className={styles.letter}>
+      <span className={styles.brand}>dynacal</span>
+      <h1 className={styles.head}>Hello. Let&rsquo;s get your week ready.</h1>
+      <SetupLetter
+        status={commands.getSetupStatus()}
+        calendar={await loadCalendarView()}
+        settings={commands.getSettings()}
+        connectError={google}
+      />
     </main>
   );
 }

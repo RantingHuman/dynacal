@@ -12,11 +12,16 @@ See spec stories 55–67 and "Motion approach", and map ticket "Which interactio
 
 **Blocked by:** 14, 15, 16, 17
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Each of the five moments behaves as specified
-- [ ] Every row of the interaction table is implemented with its curve and duration; exits are quicker than entrances
-- [ ] Blocks glide after Recalculation using the display key; no Block flashes unless the owner dropped it
-- [ ] The headline rises in only on a full load and cross-fades on a state change; only its squiggle loops
-- [ ] With reduce motion on, nothing moves and every change still shows
+- [x] Each of the five moments behaves as specified
+- [x] Every row of the interaction table is implemented with its curve and duration; exits are quicker than entrances
+- [x] Blocks glide after Recalculation using the display key; no Block flashes unless the owner dropped it
+- [x] The headline rises in only on a full load and cross-fades on a state change; only its squiggle loops
+- [x] With reduce motion on, nothing moves and every change still shows
 - [ ] Checked by hand on desktop and phone, including an installed iOS PWA if available (fall back to CSS-only where `<ViewTransition>` misbehaves)
+
+## Comments
+
+- 2026-10-26: Built and merged on `phase-3/integration`; typecheck, tests and build pass. The unticked "checked by hand" item is still open: no one has looked at this in a browser yet, because the agents could not sign in through Google.
+- 2026-10-26: The owner looked over the redesign in a browser on desktop and approved the merge to `main`. Checks on a real phone or installed PWA, offline, and with reduce motion on weren't reported separately, so the hand-check item stays unticked.

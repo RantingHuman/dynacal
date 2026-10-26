@@ -1,5 +1,8 @@
 import { redirect } from "next/navigation";
+import { GoogleButton } from "@/app/settings/google-button";
 import { currentSession } from "@/server/session";
+import { Squiggle } from "../states/squiggle";
+import styles from "./sign-in.module.css";
 
 const ERRORS: Record<string, string> = {
   "not-owner": "That Google account isn't allowed to use this dynacal. Only its owner can sign in.",
@@ -12,12 +15,17 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
   const { error } = await searchParams;
 
   return (
-    <main>
-      <h1>dynacal</h1>
-      {error && <p className="error">{ERRORS[error] ?? ERRORS.failed}</p>}
-      <a className="button" href="/api/auth/google">
-        Sign in with Google
-      </a>
+    <main className={styles.card}>
+      <h1 className={styles.title}>dynacal</h1>
+      <Squiggle waves={4} className={styles.squiggle} />
+      <p className={styles.line}>A planner for one, kept on your own server.</p>
+      {error && (
+        <p className={styles.error} role="alert">
+          {ERRORS[error] ?? ERRORS.failed}
+        </p>
+      )}
+      <GoogleButton href="/api/auth/google">Sign in with Google</GoogleButton>
+      <p className={styles.note}>Only the owner can sign in.</p>
     </main>
   );
 }

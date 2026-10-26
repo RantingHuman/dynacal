@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { blockForReminderLink } from "./reminders";
 import type { TaskInput } from "./tasks";
 import { createTestApp } from "./testing";
 
@@ -39,9 +40,9 @@ function createTask(commands: ReturnType<typeof createTestApp>["commands"], inpu
 }
 
 describe("reminders", () => {
-  it("sends a push naming the Task at the Reminder Lead Time before its Block starts", async () => {
+  it("sends a push naming the Task, its start and its length at the Reminder Lead Time before its Block starts", async () => {
     const { commands, clock, pushSender } = appWithSubscription();
-    createTask(commands);
+    createTask(commands, { estimatedMinutes: 90 });
 
     clock.set(new Date("2026-01-05T09:49:00Z"));
     await commands.sendDueReminders();
@@ -52,9 +53,39 @@ describe("reminders", () => {
     expect(pushSender.sent).toEqual([
       {
         endpoint: subscription.endpoint,
-        message: { title: "Write quarterly report", body: "Starts at 10:00, in 10 minutes", url: "/" },
+        message: { title: "Write quarterly report", body: "Starts at 10:00, in 10 minutes · 1h 30m", url: expect.any(String) },
       },
     ]);
+  });
+
+  it("links to its Block by Task and start, so tapping it opens that Block", async () => {
+    const { commands, clock, pushSender } = appWithSubscription();
+    const task = createTask(commands);
+
+    clock.set(new Date("2026-01-05T09:50:00Z"));
+    await commands.sendDueReminders();
+    const [{ message }] = pushSender.sent;
+
+    expect(message.url).toBe(`/?block=${task.id}%40${Date.parse("2026-01-05T10:00:00Z")}`);
+    const schedule = commands.getSchedule();
+    if (schedule.status !== "ready") throw new Error("no schedule");
+    const opened = blockForReminderLink(new URL(message.url, "https://dynacal.test").searchParams.get("block"), schedule.blocks);
+    expect(opened).toMatchObject({ taskId: task.id, start: new Date("2026-01-05T10:00:00Z") });
+  });
+
+  it("opens nothing when the reminded Block is gone or the link is malformed", async () => {
+    const { commands, clock, pushSender } = appWithSubscription();
+    const task = createTask(commands);
+    clock.set(new Date("2026-01-05T09:50:00Z"));
+    await commands.sendDueReminders();
+    const block = new URL(pushSender.sent[0].message.url, "https://dynacal.test").searchParams.get("block");
+
+    commands.deleteTask(task.id);
+    const schedule = commands.getSchedule();
+    if (schedule.status !== "ready") throw new Error("no schedule");
+    expect(blockForReminderLink(block, schedule.blocks)).toBeNull();
+    expect(blockForReminderLink("nonsense", schedule.blocks)).toBeNull();
+    expect(blockForReminderLink(null, schedule.blocks)).toBeNull();
   });
 
   it("reminds about each Block only once, however often the job runs", async () => {
@@ -91,7 +122,7 @@ describe("reminders", () => {
 
     clock.set(new Date("2026-01-05T10:50:00Z"));
     await commands.sendDueReminders();
-    expect(pushSender.sent.map((p) => p.message.body)).toEqual(["Starts at 11:00, in 10 minutes"]);
+    expect(pushSender.sent.map((p) => p.message.body)).toEqual(["Starts at 11:00, in 10 minutes · 1h"]);
   });
 
   it("drops the reminder for a Block that's deleted before it fires", async () => {
@@ -117,7 +148,23 @@ describe("reminders", () => {
 
     clock.set(new Date("2026-01-05T09:30:00Z"));
     await commands.sendDueReminders();
-    expect(pushSender.sent.map((p) => p.message.body)).toEqual(["Starts at 10:00, in 30 minutes"]);
+    expect(pushSender.sent.map((p) => p.message.body)).toEqual(["Starts at 10:00, in 30 minutes · 1h"]);
+  });
+
+  it("says the Block is starting now when the Reminder Lead Time is 0, even if the job runs a few seconds late", async () => {
+    const { commands, clock, pushSender } = appWithSubscription();
+    commands.updateSettings({ reminderLeadMinutes: 0 });
+    createTask(commands);
+
+    clock.set(new Date("2026-01-05T09:59:50Z"));
+    await commands.sendDueReminders();
+    expect(pushSender.sent).toEqual([]);
+
+    clock.set(new Date("2026-01-05T10:00:20Z"));
+    await commands.sendDueReminders();
+    clock.set(new Date("2026-01-05T10:00:50Z"));
+    await commands.sendDueReminders();
+    expect(pushSender.sent.map((p) => p.message.body)).toEqual(["Starting now · 1h"]);
   });
 
   it("doesn't remind about a Block that has already started, e.g. after the server was down", async () => {

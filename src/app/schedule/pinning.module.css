@@ -1,56 +1,171 @@
-/* Pinned Blocks, Conflicts, dragging and the Block editor. */
+/* Pinned Blocks, Conflicts, dragging, resize handles, the Block's checkbox and the Block editor. */
 
+/*
+ * A Block you can move lifts 2px on hover. Picked up, it grows and (when moving, not resizing) tilts, and
+ * follows the pointer with no lag: only its look is animated, never its place.
+ */
 .movable {
   cursor: grab;
   touch-action: auto;
+  transition:
+    transform var(--hover) var(--expo),
+    box-shadow var(--hover) var(--expo),
+    opacity var(--base) var(--expo);
 }
 
-.movable:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+.movable:hover:not(.dragging) {
+  transform: translateY(-2px);
+  box-shadow: 0 3px 8px color-mix(in srgb, var(--ink) 14%, transparent);
 }
 
 .dragging {
   cursor: grabbing;
   opacity: 0.85;
-  box-shadow: 0 4px 12px rgb(0 0 0 / 0.25);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--ink) 25%, transparent);
   z-index: 3;
+  transition:
+    transform var(--pick) var(--bounce),
+    box-shadow var(--pick) var(--expo);
 }
 
-/* A Pinned Block: a solid accent fill and a thick left rule, so it reads as placed by hand. */
-.pinned {
-  border-left-width: 6px;
-  background: color-mix(in srgb, var(--accent) 38%, var(--bg));
-  box-shadow: inset 0 0 0 1px var(--accent);
+.lifted {
+  transform: rotate(3deg) scale(1.07);
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--ink) 28%, transparent);
 }
 
-.pinnedMark {
-  font-weight: 600;
+/* Dropped (the owner's own drop, the one delight a Block gets): a boing from the lifted pose, and a flash. */
+.dropped {
+  animation: boing var(--slow) var(--bounce);
 }
 
-/* A Conflict: a red outline on both the Pinned Block and the Event it overlaps. */
+.dropped::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--accent);
+  pointer-events: none;
+  animation: flash var(--rise) var(--expo) both;
+}
+
+@keyframes boing {
+  from {
+    transform: rotate(3deg) scale(1.07);
+  }
+}
+
+@keyframes flash {
+  from {
+    opacity: 0.45;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* Resized: the edge settles with a small overshoot. No tilt, no flash. */
+.resized {
+  animation: settle var(--base) var(--bounce);
+}
+
+@keyframes settle {
+  from {
+    transform: scaleY(1.04);
+  }
+}
+
+/* A refused move springs back with one small horizontal shake; the toast says why. */
+.refused {
+  animation: shake var(--base) var(--expo);
+}
+
+@keyframes shake {
+  25% {
+    transform: translateX(-4px);
+  }
+  60% {
+    transform: translateX(3px);
+  }
+}
+
+/* After a Recalculation, moved Blocks glide on the spring, one after another. Never while dragging. */
+.glide:not(.dragging) {
+  transition:
+    top var(--slow) var(--spring),
+    height var(--slow) var(--spring);
+  transition-delay: calc(var(--stagger) * var(--glide-index, 0));
+}
+
+/* A Task just completed: all of its Blocks dim together. */
+.done {
+  opacity: 0.45;
+}
+
+/* Where a New Event from clicked time will go. */
+.draft {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  border: var(--hairline) dashed var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  pointer-events: none;
+  animation: appear var(--base) var(--expo);
+}
+
+@keyframes appear {
+  from {
+    opacity: 0;
+  }
+}
+
+/* A Block or Event that has ended: faded, as it's history. */
+.past {
+  opacity: 0.45;
+}
+
+/* A Conflict: the Pinned Block and the Event it overlaps are hatched in the accent. */
+.conflict,
+.eventConflict {
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent 0 5px,
+    color-mix(in srgb, var(--accent) 22%, transparent) 5px 7px
+  );
+}
+
 .conflict {
-  outline: 2px solid var(--error-fg);
-  outline-offset: -1px;
-  border-left-color: var(--error-fg);
   /* Leaves the overlapped Event visible beside it. */
   left: 45%;
 }
 
-.conflictMark {
-  color: var(--error-fg);
-}
-
 .eventConflict {
-  border: 2px solid var(--error-fg);
+  border-color: var(--accent);
 }
 
+/* Resize handles: the pointer turns to a resize cursor at a Block's top or bottom edge, and a short accent bar
+   shows only while it's on that edge, so the cue appears exactly where resizing is possible. */
 .handle {
   position: absolute;
   left: 0;
   right: 0;
   height: 6px;
   cursor: ns-resize;
+}
+
+.handle::after {
+  content: "";
+  position: absolute;
+  left: 30%;
+  right: 30%;
+  top: 1px;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  opacity: 0;
+  transition: opacity var(--base) var(--expo);
+}
+
+.movable .handle:hover::after {
+  opacity: 1;
 }
 
 .handleTop {
@@ -61,96 +176,122 @@
   bottom: 0;
 }
 
-.hint {
-  margin: 0;
-  font-size: 0.8rem;
-}
-
-.conflicts {
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--error-fg);
-  border-radius: 0.4rem;
-  background: var(--error-bg);
-}
-
-.conflicts h2 {
-  margin: 0 0 0.4rem;
-  font-size: 1rem;
-  color: var(--error-fg);
-}
-
-.conflicts ul {
-  margin: 0;
+/* The round check in the corner of a Block that hasn't ended: it completes the Block's Task. */
+.check {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  z-index: 1;
+  width: 16px;
+  height: 16px;
   padding: 0;
-  list-style: none;
   display: grid;
-  gap: 0.35rem;
+  place-items: center;
+  border: 1.25px solid var(--ink);
+  border-radius: var(--radius-circle);
+  background: var(--card);
+  color: transparent;
+  cursor: pointer;
+  transition:
+    border-color var(--base) var(--expo),
+    color var(--base) var(--expo),
+    transform var(--base) var(--bounce);
 }
 
-.conflicts li {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem 0.75rem;
-  align-items: baseline;
+.check svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-.editor {
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--accent);
-  border-radius: 0.4rem;
-  display: grid;
-  gap: 0.5rem;
+/* Hovering previews the tick. */
+.check:hover,
+.check:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
-.editor h2 {
-  margin: 0;
-  font-size: 1rem;
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
+.check:active:not(:disabled) {
+  transform: scale(0.85);
+  transition-duration: var(--press);
 }
 
-.editor p {
-  margin: 0;
+.check:disabled {
+  cursor: progress;
+  color: var(--accent);
 }
 
-.pinnedTag {
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 0.05rem 0.4rem;
-  border-radius: 0.3rem;
+/* Done: a filled tick. Ticked here, the box springs back from its press while the tick draws in, as in the Task list. */
+.check[data-done] {
+  border-color: var(--accent);
   background: var(--accent);
-  color: white;
+  color: var(--on-accent);
+  cursor: default;
 }
 
-.conflictNote {
-  color: var(--error-fg);
+.check[data-ticked] {
+  animation: press var(--base) var(--bounce);
+}
+
+.check[data-ticked] path {
+  stroke-dasharray: 1;
+  animation: draw var(--base) var(--expo) both;
+}
+
+@keyframes press {
+  from {
+    transform: scale(0.85);
+  }
+}
+
+@keyframes draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* A Block with a check leaves room for it beside its title. */
+.hasCheck :global(.block-title) {
+  padding-right: 16px;
+}
+
+.markDone {
+  justify-self: start;
+  font-size: var(--text-body);
 }
 
 .editorForm {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  gap: var(--space-3);
   align-items: end;
 }
 
 .editorForm label {
   display: grid;
-  gap: 0.25rem;
-  font-size: 0.85rem;
+  gap: var(--space-1);
+  font-size: var(--text-meta);
 }
 
 .editorForm input {
   font: inherit;
+  font-size: var(--text-body);
   padding: 0.35rem 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: 0.3rem;
-  background: var(--bg);
-  color: var(--fg);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-square);
+  background: var(--card);
+  color: var(--ink);
 }
 
 .editorActions {
   display: flex;
-  gap: 0.75rem;
+  gap: var(--space-3);
   align-items: center;
 }

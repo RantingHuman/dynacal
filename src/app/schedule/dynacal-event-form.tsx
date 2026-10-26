@@ -8,6 +8,8 @@ import { HOUR_MINUTES, MINUTE_MS } from "@/core/time";
 import { addDays, fromZoned, toZoned } from "@/core/time-zone";
 import { createDynacalEvent, deleteDynacalEvent, updateDynacalEvent } from "./actions";
 import { NEW_EVENT_MS, type NewEventDraft } from "./new-event";
+import { OFFLINE_REASON, useOnline } from "../states/use-online";
+import { useSlow } from "../states/use-slow";
 
 /** When an all-day Event switched to a timed one starts, on its first day, until the owner picks a time. */
 const TIMED_DEFAULT_START_MINUTES = 9 * HOUR_MINUTES;
@@ -86,6 +88,10 @@ export function DynacalEventForm({
   const [errors, setErrors] = useState<DynacalEventErrors>({});
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const slow = useSlow(pending);
+  // Offline, the Event can be read but not saved or deleted.
+  const online = useOnline();
+  const offlineTitle = online ? undefined : OFFLINE_REASON;
 
   function update(change: Partial<Fields>) {
     setFields((current) => ({ ...current, ...change }));
@@ -93,6 +99,7 @@ export function DynacalEventForm({
 
   function save(e: React.FormEvent) {
     e.preventDefault();
+    if (!online) return;
     const { title, notes } = fields;
     let input;
     if (fields.allDay) {
@@ -114,7 +121,7 @@ export function DynacalEventForm({
   }
 
   function remove() {
-    if (!event || !window.confirm(`Delete “${event.title}”?`)) return;
+    if (!event || !online || !window.confirm(`Delete “${event.title}”?`)) return;
     startTransition(async () => {
       await deleteDynacalEvent(event.id);
       onDone();
@@ -177,14 +184,14 @@ export function DynacalEventForm({
       {notice && <p className="error">{notice}</p>}
 
       <div className="actions">
-        <button className="button" type="submit" disabled={pending}>
-          {event ? "Save" : "Add Event"}
+        <button className="button" type="submit" disabled={pending || !online} title={offlineTitle}>
+          {slow ? "…" : event ? "Save" : "Add Event"}
         </button>
         <button type="button" className="link" onClick={onDone}>
           Cancel
         </button>
         {event && (
-          <button type="button" className="link danger" onClick={remove} disabled={pending}>
+          <button type="button" className="link danger" onClick={remove} disabled={pending || !online} title={offlineTitle}>
             Delete
           </button>
         )}

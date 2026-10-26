@@ -1,0 +1,156 @@
+/* The calendar's own controls, on "The week ahead" heading line (see `WeekHeading`); below 960px they wrap. */
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Today is dimmed when you're already on it. */
+.nav :global(.link):disabled {
+  opacity: 1;
+  color: var(--soft);
+  box-shadow: none;
+}
+
+.arrow {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: var(--hairline) solid var(--rule);
+  border-radius: var(--radius-circle);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    border-color var(--base) var(--expo),
+    transform var(--base) var(--bounce);
+}
+
+.arrow:hover:not(:disabled) {
+  border-color: var(--ink);
+}
+
+.arrow:active:not(:disabled) {
+  transform: scale(0.85);
+  transition-duration: var(--press);
+}
+
+.arrow:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.range {
+  display: inline-grid;
+  margin-left: var(--space-1);
+  color: var(--soft);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The label and an invisible widest-possible label share one cell, so the cell is always the widest one's size. */
+.range > * {
+  grid-area: 1 / 1;
+}
+
+.rangeSizer {
+  visibility: hidden;
+}
+
+/* The label sits at the cell's right edge, beside Day/Week; any spare room falls between it and the arrows. */
+.range > :first-child {
+  justify-self: end;
+}
+
+/* Day/Week: the dark pill slides between the two (bounce), rather than each button filling. */
+.segmented {
+  position: relative;
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  font-size: var(--text-kicker);
+}
+
+.segmented::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: calc(50% - 3px);
+  border-radius: var(--radius-pill);
+  background: var(--ink);
+  transition: transform var(--base) var(--bounce);
+}
+
+.segmented[data-view="week"]::before {
+  transform: translateX(calc(100% + 2px));
+}
+
+.segmented :global(button) {
+  position: relative;
+}
+
+.segmented[data-view] :global(button[aria-pressed="true"]) {
+  background: transparent;
+}
+
+/* The grid: moving between days or weeks slides it 24px the way you went and cross-fades; Day/Week cross-fades. */
+.grid[data-shift="forward"] {
+  animation: from-right var(--base) var(--expo);
+}
+
+.grid[data-shift="back"] {
+  animation: from-left var(--base) var(--expo);
+}
+
+.grid[data-shift="view"] {
+  animation: fade var(--fast) var(--expo);
+}
+
+@keyframes from-right {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+
+@keyframes from-left {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Before a time zone is saved: an empty week, dimmed. */
+.emptyWeek {
+  padding-top: var(--space-3);
+  opacity: 0.45;
+}
+
+/*
+ * While Google is broken or unreachable, Events are the last ones dynacal saw, so they may be stale: dimmer, with
+ * a dashed edge. Blocks look normal, since dynacal owns them.
+ */
+:global(.event).stale {
+  opacity: 0.6;
+  border-style: dashed;
+}

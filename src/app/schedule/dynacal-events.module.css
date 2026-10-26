@@ -1,17 +1,9 @@
 /*
- * dynacal Events: drawn solid in their own colour with a thick left edge, so they read differently from both
- * Blocks (accent blue) and Events from other calendars (grey hatching).
+ * dynacal Events: card with a double ink edge, so they read differently from both Blocks (the block fill with an
+ * accent edge) and Events from other calendars (a thin ink edge).
  */
 
 .dynacalEvent {
-  --dynacal-event: #b45309;
-  background: color-mix(in srgb, var(--dynacal-event) 18%, var(--bg));
-  border: 1px solid color-mix(in srgb, var(--dynacal-event) 45%, var(--bg));
-  border-left: 3px solid var(--dynacal-event);
-}
-
-@media (prefers-color-scheme: dark) {
-  .dynacalEvent {
-    --dynacal-event: #f59e0b;
-  }
+  border: 1px solid var(--rule);
+  border-left: 4px double var(--ink);
 }

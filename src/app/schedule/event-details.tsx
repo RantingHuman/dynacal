@@ -2,26 +2,22 @@
 
 import { useState, useTransition } from "react";
 import type { BusyOverride } from "@/core/busy-override";
-import { formatMinutes } from "@/core/settings";
+import { dayLabel, spanLabel } from "@/core/day-labels";
 import { addDays, toZoned } from "@/core/time-zone";
+import { OFFLINE_REASON, useOnline } from "../states/use-online";
 import { setBusyOverride } from "./actions";
 import type { CalendarEvent } from "./calendar";
-import { dayLabel } from "./day-label";
 import { DynacalEventForm } from "./dynacal-event-form";
 import styles from "./event-details.module.css";
-
+import { FloatingLabel, LabelTime, LabelTitle } from "./floating-label";
 
 /** e.g. "Mon 5 Jan, 13:30–14:30", "Mon 5 Jan, all day" or "Mon 5 Jan – Wed 7 Jan, all day". */
 function whenLabel(event: CalendarEvent, timeZone: string): string {
+  if (!event.allDay) return spanLabel(event, timeZone);
   const start = toZoned(new Date(event.start), timeZone);
-  const end = toZoned(new Date(event.end), timeZone);
-  if (event.allDay) {
-    // An all-day Event ends at midnight after its last day.
-    const lastDay = addDays(end.date, -1);
-    return lastDay <= start.date ? `${dayLabel(start.date)}, all day` : `${dayLabel(start.date)} – ${dayLabel(lastDay)}, all day`;
-  }
-  const endDay = end.date === start.date ? "" : `${dayLabel(end.date)} `;
-  return `${dayLabel(start.date)}, ${formatMinutes(start.minutes)}–${endDay}${formatMinutes(end.minutes)}`;
+  // An all-day Event ends at midnight after its last day.
+  const lastDay = addDays(toZoned(new Date(event.end), timeZone).date, -1);
+  return lastDay <= start.date ? `${dayLabel(start.date)}, all day` : `${dayLabel(start.date)} – ${dayLabel(lastDay)}, all day`;
 }
 
 type Choice = BusyOverride | "follow";
@@ -49,9 +45,11 @@ export function EventDetails({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const current: Choice = event.busyOverride ?? "follow";
+  // Offline, the Event can be read but its Busy Override not changed.
+  const online = useOnline();
 
   function choose(choice: Choice) {
-    if (choice === current) return;
+    if (choice === current || !online) return;
     setError(null);
     startTransition(async () => {
       const result = await setBusyOverride(event.ref, choice === "follow" ? null : choice);
@@ -71,21 +69,13 @@ export function EventDetails({
           : "It’s busy in its calendar";
 
   return (
-    <section className={styles.panel} aria-labelledby="event-details-heading">
-      <div className={styles.header}>
-        <h2 id="event-details-heading">
-          {event.title}
-          {event.busyOverride !== null && <span className={styles.overrideTag}>Busy Override</span>}
-        </h2>
-        <button type="button" className="link" onClick={onClose}>
-          Close
-        </button>
-      </div>
+    <FloatingLabel kind={dynacal ? "dynacal Event" : "Event"} labelledBy="event-details-heading" onClose={onClose}>
+      <LabelTitle id="event-details-heading">{event.title}</LabelTitle>
+      {event.busyOverride !== null && <span className={styles.overrideTag}>Busy Override</span>}
+      <LabelTime>{whenLabel(event, timeZone)}</LabelTime>
       <dl className={styles.facts}>
         <dt>Calendar</dt>
         <dd>{event.calendarName}</dd>
-        <dt>When</dt>
-        <dd>{whenLabel(event, timeZone)}</dd>
         {!dynacal && (
           <>
             <dt>In its calendar</dt>
@@ -98,7 +88,7 @@ export function EventDetails({
         <dd>{why}</dd>
       </dl>
 
-      <fieldset className={styles.override} disabled={pending}>
+      <fieldset className={styles.override} disabled={pending || !online} title={online ? undefined : OFFLINE_REASON}>
         <legend>Busy Override</legend>
         <div className="segmented" role="group" aria-label="Busy Override">
           {CHOICES.map((c) => (
@@ -125,6 +115,6 @@ export function EventDetails({
           {error}
         </p>
       )}
-    </section>
+    </FloatingLabel>
   );
 }

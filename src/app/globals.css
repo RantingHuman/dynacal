@@ -1,22 +1,112 @@
+/*
+ * Design tokens for "Editorial, refined". Every screen builds on these; nothing else should name a colour,
+ * a curve or a duration. Dark mode follows the system only, so the colours are redefined under
+ * prefers-color-scheme: dark.
+ */
 :root {
-  --bg: #fafaf9;
-  --fg: #1c1917;
-  --muted: #57534e;
-  --accent: #2563eb;
-  --error-bg: #fef2f2;
-  --error-fg: #991b1b;
-  --border: #d6d3d1;
+  /* Colour. Every text pair passes WCAG AA in both modes. */
+  --paper: #f5f1ea; /* page background */
+  --card: #fbf8f3; /* Events, panels that sit on the page, checkboxes, form fields */
+  --ink: #1b1a18; /* text and strong rules */
+  --soft: #625d56; /* meta text, secondary labels, the Unscheduled flag */
+  --rule: #d6cfc2; /* hairline rules */
+  --faint: #e7e0d3; /* calendar grid lines and row dividers */
+  --accent: #ad4527; /* terracotta: emphasis, Blocks, At Risk, Overdue and errors */
+  --on-accent: #ffffff; /* text on accent fills */
+  --highlight: color-mix(in srgb, var(--accent) 22%, transparent); /* hover sweeps */
+  --block: color-mix(in srgb, var(--accent) 14%, var(--card)); /* Block fill */
+
+  /* Type. The font variables come from next/font (src/app/fonts.ts). */
+  --font-serif: var(--font-instrument-serif), Georgia, serif; /* content */
+  --font-sans: var(--font-instrument-sans), system-ui, sans-serif; /* controls */
+  --text-headline: clamp(44px, 6.5vw, 84px);
+  --text-day: 40px; /* day numbers */
+  --text-label-title: 34px;
+  --text-task: 20px; /* Task titles */
+  --text-item: 15px; /* Block and Event titles */
+  --text-body: 15px;
+  --text-meta: 12.5px;
+  --text-kicker: 12px; /* in spaced capitals; also the smallest text */
+  --text-hour: 11px; /* the calendar's hour labels, the one exception to 12px */
+
+  /* Space. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 40px;
+
+  /* Shape. Panels and Blocks are square; buttons, chips and toggles are pills; checkboxes are circles. */
+  --radius-square: 0;
+  --radius-pill: 999px;
+  --radius-circle: 50%;
+  --hairline: 1px;
+  --masthead-rule: 3px;
+
+  /* Focus: a 2px accent ring with a 2px gap, on keyboard focus only. */
+  --focus-width: 2px;
+  --focus-gap: 2px;
+
+  /* Motion. What you touch bounces; what the app moves glides. */
+  --expo: cubic-bezier(0.16, 1, 0.3, 1); /* sweeps, fades, glides */
+  --bounce: cubic-bezier(0.3, 1.8, 0.5, 1); /* presses and landings: overshoots */
+  --fast: 120ms; /* exits */
+  --base: 350ms; /* hovers and sweeps */
+  --slow: 600ms; /* entrances */
+  --press: 80ms; /* how quickly a pressed control squeezes in */
+  --hover: 250ms; /* a Block lifting, a chip filling */
+  --pick: 300ms; /* a Block picked up */
+  --knob: 400ms; /* a switch's knob */
+  --pop: 500ms; /* toasts and the floating label rising in */
+  --rise: 900ms; /* the headline rising in, a dropped Block's flash */
+  --loop: 6s; /* the headline squiggle's one slow cycle */
+  --linger: 2.2s; /* how long a passing message stays: an information toast, "Saved" */
+  --stagger: 30ms; /* between Blocks gliding after a Recalculation */
+  /* Blocks moved by Recalculation: a spring that overshoots a little and settles, over --slow. */
+  --spring: linear(0, 0.009, 0.035 2.1%, 0.141 4.4%, 0.723 12.9%, 0.938 16.7%, 1.017 19.8%, 1.051 22.7%, 1.06 25.9%, 1.044 31.6%, 1.012 41.5%, 0.998 51.7%, 0.997 61.4%, 1);
+
+  color-scheme: light dark;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #1c1917;
-    --fg: #f5f5f4;
-    --muted: #a8a29e;
-    --accent: #60a5fa;
-    --error-bg: #450a0a;
-    --error-fg: #fecaca;
-    --border: #44403c;
+    --paper: #151412;
+    --card: #1c1a17;
+    --ink: #eee8de;
+    --soft: #a59e92;
+    --rule: #38342d;
+    --faint: #24221e;
+    --accent: #e57a55;
+    --on-accent: #151412;
+    --highlight: color-mix(in srgb, var(--accent) 30%, transparent);
+    --block: color-mix(in srgb, var(--accent) 20%, var(--card));
+  }
+}
+
+/* One rule turns all movement off. Changes still show: colours and opacity cross-fade quickly, everything else swaps. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-property: opacity, color, background-color, border-color !important;
+    transition-duration: var(--fast) !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: var(--fast) !important;
+  }
+
+  ::view-transition-group(*) {
+    animation-name: none !important;
   }
 }
 
@@ -26,9 +116,32 @@
 
 body {
   margin: 0;
-  background: var(--bg);
-  color: var(--fg);
-  font-family: system-ui, -apple-system, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font: var(--text-body) / 1.5 var(--font-sans);
+}
+
+/* Content reads in the serif. */
+h1,
+h2,
+h3,
+.task-title,
+.block-title,
+.calendar-day-label {
+  font-family: var(--font-serif);
+  font-weight: 400;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: var(--font-sans);
+}
+
+:focus-visible {
+  outline: var(--focus-width) solid var(--accent);
+  outline-offset: var(--focus-gap);
 }
 
 main {
@@ -37,27 +150,43 @@ main {
   padding: 0 1rem;
 }
 
+/* Buttons are pills that bounce when pressed. */
 .button {
   display: inline-block;
   padding: 0.6rem 1rem;
-  border: 0;
-  border-radius: 0.4rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-pill);
   background: var(--accent);
-  color: white;
+  color: var(--on-accent);
   font: inherit;
   text-decoration: none;
   cursor: pointer;
+  transition:
+    box-shadow var(--base) var(--expo),
+    transform var(--base) var(--bounce);
+}
+
+.button:hover:not(:disabled) {
+  box-shadow: inset 0 -2.4em 0 color-mix(in srgb, var(--ink) 15%, transparent);
+}
+
+.button:active:not(:disabled),
+.segmented button:active,
+.link:active:not(:disabled) {
+  transform: scale(0.92);
+  transition-duration: var(--press);
 }
 
 .error {
   padding: 0.75rem 1rem;
-  border-radius: 0.4rem;
-  background: var(--error-bg);
-  color: var(--error-fg);
+  border-left: 2px solid var(--accent);
+  background: var(--card);
+  color: var(--accent);
 }
 
 .muted {
-  color: var(--muted);
+  color: var(--soft);
+  font-size: 0.85rem;
 }
 
 main.wide {
@@ -65,71 +194,45 @@ main.wide {
   margin-top: 2rem;
 }
 
-a {
+/* Links and text buttons: a highlighter sweeps up behind them on hover. */
+a,
+.link {
   color: var(--accent);
+  text-decoration: none;
+  box-shadow: inset 0 -1px 0 var(--rule);
+  transition:
+    box-shadow var(--base) var(--expo),
+    transform var(--base) var(--bounce);
 }
 
-.settings {
-  display: grid;
-  gap: 1.5rem;
+a:hover,
+.link:hover:not(:disabled) {
+  box-shadow: inset 0 -1.25em 0 var(--highlight);
 }
 
-.settings fieldset {
-  border: 1px solid var(--border);
-  border-radius: 0.4rem;
-  padding: 1rem;
+a.button {
+  box-shadow: none;
 }
 
-.settings label {
-  display: grid;
-  gap: 0.3rem;
-}
-
-.settings input,
-.settings select {
-  font: inherit;
-  padding: 0.35rem 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: 0.3rem;
-  background: var(--bg);
-  color: var(--fg);
-  max-width: 20rem;
-}
-
-.day {
-  display: grid;
-  grid-template-columns: 7rem 1fr;
-  gap: 0.5rem;
-  padding: 0.5rem 0;
-  border-top: 1px solid var(--border);
-}
-
-.windows {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 1rem;
-  align-items: center;
-}
-
-.window {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  align-items: center;
-}
-
+/* A text button looks like a link. */
 .link {
   border: 0;
   background: none;
-  color: var(--accent);
   font: inherit;
   cursor: pointer;
-  padding: 0;
+  padding: 0 2px;
 }
 
+.link:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* A form's message fades in under its field; errors stay quiet, so nothing shakes. */
 .field-error {
-  color: var(--error-fg);
+  color: var(--accent);
   flex-basis: 100%;
+  animation: fade-in var(--base) var(--expo);
 }
 
 .actions {
@@ -138,117 +241,25 @@ a {
   align-items: center;
 }
 
-@media (max-width: 30rem) {
-  .day {
-    grid-template-columns: 1fr;
-  }
-}
-
-.app {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-
-.app-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid var(--border);
-}
-
-.app-header nav {
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-}
-
-.brand {
-  font-weight: 600;
-}
-
-.app-body {
-  flex: 1;
-  display: grid;
-  grid-template-columns: minmax(20rem, 26rem) 1fr;
-}
-
 .task-panel {
-  border-right: 1px solid var(--border);
+  border-right: 1px solid var(--rule);
   padding: 1rem;
   display: grid;
   gap: 1rem;
   align-content: start;
 }
 
-.schedule-panel {
-  padding: 1rem;
-}
-
-.panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.panel-header h2 {
-  margin: 0;
-  font-size: 1.1rem;
-}
-
-.task-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 0.5rem;
-}
-
-.task-row {
-  width: 100%;
-  display: grid;
-  gap: 0.25rem;
-  text-align: left;
-  padding: 0.6rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 0.4rem;
-  background: none;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
-
-.task-row.selected {
-  border-color: var(--accent);
-}
-
-.task-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem 0.75rem;
-  font-size: 0.85rem;
-  color: var(--muted);
-}
-
-.priority {
-  font-weight: 600;
-}
-
-.priority-critical {
-  color: var(--error-fg);
-}
-
-.priority-high {
-  color: var(--accent);
+.task-title {
+  font-size: var(--text-task);
+  line-height: 1.2;
 }
 
 .task-form {
   display: grid;
   gap: 0.75rem;
   padding: 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 0.4rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-square);
 }
 
 .task-form label,
@@ -273,10 +284,10 @@ a {
 .task-form textarea {
   font: inherit;
   padding: 0.35rem 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: 0.3rem;
-  background: var(--bg);
-  color: var(--fg);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-square);
+  background: var(--card);
+  color: var(--ink);
 }
 
 .task-form .checkbox {
@@ -285,73 +296,75 @@ a {
   align-items: center;
 }
 
+/* Checkboxes are circles: card when clear, accent with an on-accent tick when checked. */
+input[type="checkbox"] {
+  appearance: none;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  margin: 0;
+  padding: 0;
+  border: 1.5px solid var(--ink);
+  border-radius: var(--radius-circle);
+  background: var(--card);
+  cursor: pointer;
+  transition:
+    background-color var(--base) var(--expo),
+    border-color var(--base) var(--expo),
+    transform var(--base) var(--bounce);
+}
+
+input[type="checkbox"]::after {
+  content: "";
+  width: 0.3rem;
+  height: 0.55rem;
+  margin-top: -0.1rem;
+  border: solid var(--on-accent);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  opacity: 0;
+}
+
+input[type="checkbox"]:hover {
+  border-color: var(--accent);
+}
+
+input[type="checkbox"]:active {
+  transform: scale(0.85);
+  transition-duration: var(--press);
+}
+
+input[type="checkbox"]:checked {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+input[type="checkbox"]:checked::after {
+  opacity: 1;
+}
+
+input[type="checkbox"]:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.75rem;
 }
 
-.date-time-inputs {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.muted {
-  font-size: 0.85rem;
-}
-
 .danger {
-  color: var(--error-fg);
   margin-left: auto;
 }
 
 @media (max-width: 48rem) {
-  .app-body {
-    grid-template-columns: 1fr;
-  }
-
   .task-panel {
     border-right: 0;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--rule);
   }
-}
-
-.task-title-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.5rem;
-  align-items: baseline;
-}
-
-.flag {
-  flex: none;
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 0.1rem 0.45rem;
-  border-radius: 999px;
-  border: 1px solid currentColor;
-}
-
-.flag-overdue,
-.flag-at-risk {
-  color: var(--error-fg);
-  background: var(--error-bg);
-}
-
-.flag-unscheduled {
-  color: var(--muted);
-}
-
-.notice {
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--border);
-  border-radius: 0.4rem;
-}
-
-.notice p {
-  margin: 0;
 }
 
 .calendar {
@@ -359,60 +372,33 @@ a {
   gap: 0.75rem;
 }
 
-.calendar-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.calendar-nav {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-  margin-right: auto;
-}
-
-.calendar-range {
-  font-weight: 600;
-}
-
 .segmented {
   display: inline-flex;
-  border: 1px solid var(--border);
-  border-radius: 0.4rem;
-  overflow: hidden;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-pill);
 }
 
 .segmented button {
   font: inherit;
-  padding: 0.35rem 0.8rem;
+  padding: 0.25rem 0.75rem;
   border: 0;
+  border-radius: var(--radius-pill);
   background: none;
-  color: var(--fg);
+  color: var(--ink);
   cursor: pointer;
+  transition:
+    background-color var(--base) var(--expo),
+    color var(--base) var(--expo),
+    transform var(--base) var(--bounce);
 }
 
 .segmented button[aria-pressed="true"] {
-  background: var(--accent);
-  color: white;
+  background: var(--ink);
+  color: var(--paper);
 }
 
-.icon-button {
-  font: inherit;
-  font-size: 1.2rem;
-  line-height: 1;
-  width: 2rem;
-  height: 2rem;
-  border: 1px solid var(--border);
-  border-radius: 0.4rem;
-  background: none;
-  color: var(--fg);
-  cursor: pointer;
-}
-
-.icon-button:disabled,
 .button:disabled {
   opacity: 0.4;
   cursor: default;
@@ -424,6 +410,10 @@ a {
   border: 1px solid var(--accent);
 }
 
+.button.secondary:hover:not(:disabled) {
+  box-shadow: inset 0 -2.4em 0 var(--highlight);
+}
+
 .calendar-grid {
   display: grid;
   column-gap: 2px;
@@ -431,8 +421,8 @@ a {
 }
 
 .calendar-day-label {
-  font-size: 0.8rem;
-  color: var(--muted);
+  font-size: 1.05rem;
+  color: var(--soft);
   text-align: center;
   padding-bottom: 0.35rem;
   white-space: nowrap;
@@ -442,13 +432,12 @@ a {
 
 .calendar-day-label.today {
   color: var(--accent);
-  font-weight: 600;
 }
 
 .calendar-hours {
   position: relative;
-  font-size: 0.7rem;
-  color: var(--muted);
+  font-size: var(--text-hour);
+  color: var(--soft);
 }
 
 .calendar-hours span {
@@ -459,8 +448,8 @@ a {
 
 .calendar-day {
   position: relative;
-  border-left: 1px solid var(--border);
-  background-image: linear-gradient(to bottom, var(--border) 1px, transparent 1px);
+  border-left: 1px solid var(--faint);
+  background-image: linear-gradient(to bottom, var(--faint) 1px, transparent 1px);
 }
 
 .calendar-day.outside-horizon {
@@ -471,17 +460,18 @@ a {
   position: absolute;
   left: 0;
   right: 0;
-  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  background: color-mix(in srgb, var(--card) 70%, transparent);
 }
 
 .now-line {
   position: absolute;
   left: 0;
   right: 0;
-  border-top: 2px solid var(--error-fg);
+  border-top: 2px solid var(--accent);
   z-index: 2;
 }
 
+/* Blocks: square, the block fill with a solid accent left edge. */
 .block {
   position: absolute;
   left: 3px;
@@ -490,26 +480,27 @@ a {
   flex-direction: column;
   overflow: hidden;
   padding: 0.15rem 0.35rem;
-  border-radius: 0.3rem;
+  border-radius: var(--radius-square);
   border-left: 3px solid var(--accent);
-  background: color-mix(in srgb, var(--accent) 22%, var(--bg));
-  font-size: 0.75rem;
+  background: var(--block);
+  font-size: var(--text-kicker);
   line-height: 1.25;
   z-index: 1;
 }
 
 .block-title {
-  font-weight: 600;
+  font-size: var(--text-item);
+  line-height: 1.15;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .block-time {
-  color: var(--muted);
+  color: var(--soft);
 }
 
-/* Events: read-only busy time from Busy Calendars, drawn as grey hatched boxes so they read differently from Blocks. */
+/* Events: read-only busy time from Busy Calendars, drawn on card with a thin ink edge so they read differently from Blocks. */
 .event {
   position: absolute;
   left: 3px;
@@ -518,15 +509,12 @@ a {
   flex-direction: column;
   overflow: hidden;
   padding: 0.15rem 0.35rem;
-  border-radius: 0.3rem;
-  border: 1px solid var(--border);
-  background: repeating-linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--muted) 12%, var(--bg)) 0 6px,
-    color-mix(in srgb, var(--muted) 20%, var(--bg)) 6px 12px
-  );
-  color: var(--fg);
-  font-size: 0.75rem;
+  border-radius: var(--radius-square);
+  border: 1px solid var(--rule);
+  border-left: 1px solid var(--ink);
+  background: var(--card);
+  color: var(--ink);
+  font-size: var(--text-kicker);
   line-height: 1.25;
 }
 
@@ -536,11 +524,13 @@ a {
   padding: 0.1rem 0.35rem;
   white-space: nowrap;
   text-overflow: ellipsis;
+  font-family: var(--font-serif);
+  font-size: var(--text-item);
 }
 
 .calendar-all-day-label {
-  font-size: 0.7rem;
-  color: var(--muted);
+  font-size: var(--text-kicker);
+  color: var(--soft);
   text-align: right;
   padding-right: 0.4rem;
 }
@@ -553,47 +543,112 @@ a {
   min-width: 0;
 }
 
-/* First-run setup and the Google Calendar section of Settings. */
-.setup-steps {
-  padding-left: 1.25rem;
-}
-
-.setup-steps > li {
-  margin-bottom: 2rem;
-}
-
-.setup-steps > li.done > h2::after {
-  content: " ✓";
-  color: var(--accent);
-}
-
-.busy-calendars {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.checkbox,
-.settings label.checkbox {
+/* A checkbox beside its label. */
+.checkbox {
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
 
-.recalculate {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
 }
 
-.recalculate-note {
-  font-size: 0.8125rem;
+/*
+ * View transitions, run by React's <ViewTransition> in Transitions. Their pseudo-elements belong to the document,
+ * so they live here rather than in a module. Only movement is wrapped in no-preference: with reduce motion on,
+ * the global rule above leaves a quick cross-fade.
+ */
+
+/* Task rows: reordering after ticks settle glides; the headline cross-fades to its new wording. */
+::view-transition-group(.task-row),
+::view-transition-group(.task-enter),
+::view-transition-old(.task-row),
+::view-transition-new(.task-row) {
+  animation-duration: var(--slow);
+  animation-timing-function: var(--expo);
 }
 
-.panel-actions {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
+::view-transition-group(.headline),
+::view-transition-old(.headline),
+::view-transition-new(.headline) {
+  animation-duration: var(--base);
+  animation-timing-function: var(--expo);
+}
+
+/* Blocks moving to another day after a Recalculation glide on the spring. */
+::view-transition-group(.block-glide) {
+  animation-duration: var(--slow);
+  animation-timing-function: var(--spring);
+}
+
+/*
+ * During a Recalculation the page itself doesn't cross-fade: Blocks that stay on their day glide on the live page
+ * (a CSS transition), and the old page would ghost under them.
+ */
+:root:active-view-transition-type(recalculate)::view-transition-old(root) {
+  animation: none;
+  opacity: 0;
+}
+
+:root:active-view-transition-type(recalculate)::view-transition-new(root) {
+  animation: none;
+}
+
+/* The floating label closes by fading out, quickly. */
+::view-transition-old(.label-close):only-child {
+  animation: fade-out var(--fast) var(--expo) both;
+}
+
+::view-transition-group(.review-in),
+::view-transition-old(.review-out):only-child {
+  animation-duration: var(--base);
+  animation-timing-function: var(--expo);
+}
+
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* A new Task's row slides into the list. */
+  ::view-transition-new(.task-enter):only-child {
+    animation: row-in var(--slow) var(--expo) both;
+  }
+
+  /* Reviewing: the answered card fades in place while the next slides in from the right. */
+  ::view-transition-new(.review-in):only-child {
+    animation: card-in var(--base) var(--expo) both;
+  }
+
+  /* A deleted Task's row collapses and fades; the rows under it close up. */
+  ::view-transition-old(.task-exit):only-child {
+    transform-origin: top;
+    animation: row-out var(--base) var(--expo) both;
+  }
+}
+
+@keyframes row-in {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+}
+
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+
+@keyframes row-out {
+  to {
+    opacity: 0;
+    transform: scaleY(0);
+  }
 }
