@@ -4,8 +4,12 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Done, Partly with minutes, and Not done are covered.
-- [ ] Paging and the final All caught up state are covered.
-- [ ] Offline review controls and relevant refusal feedback are covered.
+- [x] Done, Partly with minutes, and Not done are covered.
+- [x] Paging and the final All caught up state are covered.
+- [x] Offline review controls and relevant refusal feedback are covered.
+
+## Comments
+
+Clearing the Partly minutes field exposed a React warning for NaN; the field now renders empty correctly and prevents submitting an empty value.
