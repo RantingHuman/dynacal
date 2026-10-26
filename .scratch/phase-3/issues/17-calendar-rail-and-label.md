@@ -17,3 +17,5 @@
 ## Comments
 
 - 2026-10-26: Built and merged on `phase-3/integration`; typecheck, tests and build pass. The unticked "checked by hand" item is still open: no one has looked at this in a browser yet, because the agents could not sign in through Google.
+- 2026-10-26: The owner checked the calendar in a browser. Three fixes followed: resize bars now show only on the edge under the pointer (98f470c); the New Event form fits the floating label (7eb95d1); and the date range keeps a fixed, right-aligned width, so the arrows don't move between weeks (9051a3f, e149c03).
+- 2026-10-26: The owner looked over the redesign in a browser on desktop and approved the merge to `main`. Checks on a real phone or installed PWA, offline, and with reduce motion on weren't reported separately, so the hand-check item stays unticked.
