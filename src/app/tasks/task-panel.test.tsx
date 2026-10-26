@@ -55,8 +55,10 @@ describe("adding a Task from the one-line add", () => {
     await userEvent.type(line, "Board memo{Enter}");
 
     await waitFor(() => expect(screen.getByText("“Board memo” wasn't added.")).toBeTruthy());
-    expect(taskList().queryByText("Board memo")).toBeNull();
-    expect(line).toHaveProperty("value", "Board memo");
+    await waitFor(() => {
+      expect(taskList().queryByText("Board memo")).toBeNull();
+      expect(line).toHaveProperty("value", "Board memo");
+    });
   });
 });
 
@@ -83,7 +85,7 @@ describe("ticking a Task off", () => {
     await userEvent.click(screen.getByRole("button", { name: "Mark “Write Q4 planning doc” complete" }));
 
     await waitFor(() => expect(screen.getByText("“Write Q4 planning doc” no longer exists.")).toBeTruthy());
-    expect(screen.getByRole("button", { name: "Mark “Write Q4 planning doc” complete" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Mark “Write Q4 planning doc” complete" })).toBeTruthy();
   });
 });
 
