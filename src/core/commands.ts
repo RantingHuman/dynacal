@@ -229,6 +229,15 @@ export interface BlockView {
   pinned: boolean;
 }
 
+/** A Block in the Schedule view. */
+export interface ScheduleBlockView extends BlockView {
+  /**
+   * Which Block this is for display, stable across Recalculations (which replace Blocks with new ones): its Task's id
+   * and its position among that Task's Blocks in time order, from 1 (for example `t2#1`). Never stored or synced.
+   */
+  displayKey: string;
+}
+
 /** Until the owner saves a time zone, there's no Schedule. */
 export type ScheduleView =
   | { status: "needs-time-zone" }
@@ -237,7 +246,7 @@ export type ScheduleView =
       timeZone: string;
       /** The Planning Horizon: from now until this many days ahead. */
       horizon: { start: Date; end: Date };
-      blocks: BlockView[];
+      blocks: ScheduleBlockView[];
       /** Every Event on the Busy Calendars, whether or not it counts as busy, in time order. */
       events: EventView[];
       flags: Record<string, TaskFlag | null>;
@@ -1357,7 +1366,12 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
           .all()
           .map(({ id, flag }) => [id, flag]),
       );
-      const blockViews = rows.map(toBlockView);
+      const positions = new Map<string, number>();
+      const blockViews = rows.map((row): ScheduleBlockView => {
+        const position = (positions.get(row.block.taskId) ?? 0) + 1;
+        positions.set(row.block.taskId, position);
+        return { ...toBlockView(row), displayKey: `${row.block.taskId}#${position}` };
+      });
       const overrides = readBusyOverrides();
       const calendarNames = busyCalendarNames();
       const dynacalById = new Map(listDynacalEvents().map((e) => [e.id, e]));
