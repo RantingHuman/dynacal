@@ -4,7 +4,7 @@
 
 **Blocked by:** 07: Isolated browser test: create and complete a Task.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] A Settings change is made using the visible controls.
-- [ ] Reloading shows the saved value, with independent test data.
+- [x] A Settings change is made using the visible controls.
+- [x] Reloading shows the saved value, with independent test data.
