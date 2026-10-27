@@ -17,5 +17,5 @@
 ## Comments
 
 - 2026-10-26: Built and merged on `phase-3/integration`; typecheck, tests and build pass. The unticked "checked by hand" item is still open: no one has looked at this in a browser yet, because the agents could not sign in through Google.
-- 2026-10-26: The owner checked the Tasks column in a browser. Two fixes followed: adding a Task looped (the column read the context it published into; its data now has its own context, f2e760a), and the hover highlight filled the whole column (the title is inline again, 0ab75f7).
+- 2026-10-26: The owner checked the Tasks column in a browser. Two fixes followed: adding a Task looped (the column read the context it published into; its data now has its own context, 1dae281), and the hover highlight filled the whole column (the title is inline again, e70a758).
 - 2026-10-26: The owner looked over the redesign in a browser on desktop and approved the merge to `main`. Checks on a real phone or installed PWA, offline, and with reduce motion on weren't reported separately, so the hand-check item stays unticked.

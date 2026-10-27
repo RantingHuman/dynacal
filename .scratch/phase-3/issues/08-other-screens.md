@@ -42,4 +42,4 @@ The masthead has "← Back to the week" and "Sign out". At narrow widths, the va
 
 **Not settled here:** what an invalid value (overlapping windows, an end before its start) does when there's no Save button. This is added to the map's error-states fog.
 
-The prototype is on the throwaway branch `prototype/design-styles` (commit 9bc3e06), at route `/prototype-styles/other-screens`, variant `prose`, with a `screen` parameter (`variants/other-screens.tsx`). Takes A and B are kept there for reference.
+The prototype is on the throwaway branch `prototype/design-styles` (commit e4da4ec), at route `/prototype-styles/other-screens`, variant `prose`, with a `screen` parameter (`variants/other-screens.tsx`). Takes A and B are kept there for reference.

@@ -10,7 +10,7 @@ The owner finds dynacal crowded and boring and wants a little joy in every inter
 
 ## Answer
 
-**"Editorial, refined"**: variant `editorial-plus` of the throwaway prototype on branch `prototype/design-styles` (commit 74c1fa0, route `/prototype-styles` in `pnpm dev`).
+**"Editorial, refined"**: variant `editorial-plus` of the throwaway prototype on branch `prototype/design-styles` (commit 7f9e0ac, route `/prototype-styles` in `pnpm dev`).
 
 - **Base:** Contemporary Editorial. A masthead, a big serif headline written from the week, a standfirst, and Tasks as a contents list. Type is Instrument Serif with Instrument Sans, on warm paper with one terracotta accent.
 - **Calendar:** an hourly week grid (like today's UI and the Botanical variant), not Editorial's seven-column programme.

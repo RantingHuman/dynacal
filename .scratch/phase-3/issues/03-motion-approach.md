@@ -30,4 +30,4 @@ For each option, find out its bundle size, how it honours "reduce motion", its b
 - **Browser support:** iOS Safari 17.2+ for `linear()`, 17.5+ for `@starting-style` and 18.0+ for View Transitions. Whether View Transitions behave the same in an installed iOS PWA is unverified.
 - **Touch:** dragging ignores touch today, so the tilt and landing never happen on a phone. That belongs to [How does the home screen work at phone width?](09-phone-width.md)
 
-Findings with sources: `.scratch/phase-3/research/motion-approach.md` on the throwaway branch `research/motion-approach` (commit 1590503, never merged).
+Findings with sources: `.scratch/phase-3/research/motion-approach.md` on the throwaway branch `research/motion-approach` (commit 874dad7, never merged).

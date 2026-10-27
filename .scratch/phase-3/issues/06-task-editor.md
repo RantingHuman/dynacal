@@ -43,4 +43,4 @@ The fields:
 
 On narrow widths, the labels stack above their controls.
 
-The prototype is on the throwaway branch `prototype/design-styles` (commit 19e6b5d), at route `/prototype-styles/task-editor`, variant `sentence` (`variants/task-editor.tsx`). Variants A and B are kept there for reference. The parser is a throwaway regex sketch, not a spec for edge cases.
+The prototype is on the throwaway branch `prototype/design-styles` (commit 7634687), at route `/prototype-styles/task-editor`, variant `sentence` (`variants/task-editor.tsx`). Variants A and B are kept there for reference. The parser is a throwaway regex sketch, not a spec for edge cases.

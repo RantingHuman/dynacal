@@ -10,7 +10,7 @@ The window is about as long as the transition: roughly 350–600ms, the `--base`
 
 ## Evidence
 
-Found while diagnosing an intermittent browser test (commit `6c492a2` on `codex/browser-test-integration`, whose message has the detail):
+Found while diagnosing an intermittent browser test (commit `d48d36a` on `codex/browser-test-integration`, whose message has the detail):
 
 - With the CPU slowed fourfold, a drag started about 50ms after adding a Task failed 8 of 15 times.
 - In every failure, `document.elementsFromPoint` at the press returned only `<html>`, and `document.activeViewTransition` was set. In every pass it returned the Block.
