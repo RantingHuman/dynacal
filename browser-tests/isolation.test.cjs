@@ -70,3 +70,18 @@ test("copies linked dependencies into the build while preserving links inside th
   assert.equal(fs.lstatSync(path.join(destination, "pkg")).isSymbolicLink(), true);
   assert.equal(fs.readFileSync(path.join(destination, "pkg", "value"), "utf8"), "installed");
 });
+
+test("finds test-only code in a built app, outside node_modules", async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "dynacal-markers-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const { findTestOnlyMarkers, TEST_ONLY_MARKERS } = await import("./test-only-markers.mjs");
+  const fakeCalendar = TEST_ONLY_MARKERS.find((m) => m.source === "the fake calendar");
+  const fakeClock = TEST_ONLY_MARKERS.find((m) => m.source === "FakeClock and FakePushSender");
+  fs.mkdirSync(path.join(dir, ".next", "server", "chunks"), { recursive: true });
+  fs.writeFileSync(path.join(dir, ".next", "server", "chunks", "a.js"), `x=new Error(${JSON.stringify(fakeCalendar.text)})`);
+  fs.mkdirSync(path.join(dir, "node_modules", "pkg"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "node_modules", "pkg", "index.js"), JSON.stringify(fakeClock.text));
+  assert.deepEqual(await findTestOnlyMarkers(dir), [fakeCalendar]);
+  fs.rmSync(path.join(dir, ".next"), { recursive: true });
+  assert.deepEqual(await findTestOnlyMarkers(dir), []);
+});

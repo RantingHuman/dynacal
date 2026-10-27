@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { copyDependencies } from "./copy-dependencies.mjs";
+import { findTestOnlyMarkers, TEST_ONLY_MARKERS } from "./test-only-markers.mjs";
 
 /** Build in a disposable source copy: never modify the normal app's build or runtime. */
 export default async function setup() {
@@ -33,6 +34,11 @@ export default async function setup() {
     await cp(join(root, "browser-tests/network-guard.cjs"), join(standalone, "network-guard.cjs"));
     const server = join(standalone, "server.js");
     await writeFile(server, `import './browser-test-bootstrap.cjs';\n${await readFile(server, "utf8")}`);
+    // The production check looks for these markers; each must survive into a build that has the test code, or not
+    // finding it in production would prove nothing.
+    const found = await findTestOnlyMarkers(standalone);
+    const missing = TEST_ONLY_MARKERS.filter((marker) => !found.includes(marker));
+    if (missing.length) throw new Error(`Test-only markers missing from the test build: ${missing.map((m) => m.source).join(", ")}`);
     // The generated server rejects unsafe input before binding or opening a database.
     const attempt = (env: Record<string, string>) => spawnSync(process.execPath, [server], {
       cwd: standalone, env: { PATH: process.env.PATH, NODE_ENV: "production", ...env }, timeout: 5_000,

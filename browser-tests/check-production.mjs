@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
 
 // Exercise a real deployment artifact using an empty tmpfs, never an owner's volume.
@@ -11,7 +12,16 @@ let started = false;
 try {
   docker("build", "-t", image, ".");
   docker("run", "--rm", "--entrypoint", "sh", image, "-c",
-    "test ! -e /app/browser-tests && test ! -e /app/browser-test-bootstrap.cjs && test ! -e /app/network-guard.cjs && ! grep -R -q 'Unsafe browser test configuration' /app/.next/server");
+    "test ! -e /app/browser-tests && test ! -e /app/browser-test-bootstrap.cjs && test ! -e /app/network-guard.cjs");
+  // Scan the whole app (outside node_modules) for every piece of test-only code: the bootstrap, the network guard,
+  // the test runtime, the seeded session, the fake calendar and the fake clock. The marker module is mounted in
+  // read-only for this one run, so the image itself never contains it.
+  const markers = fileURLToPath(new URL("./test-only-markers.mjs", import.meta.url));
+  const leaked = docker("run", "--rm", "-v", `${markers}:/tmp/test-only-markers.mjs:ro`, "--entrypoint", "node", image,
+    "--input-type=module", "-e",
+    "const { findTestOnlyMarkers } = await import('/tmp/test-only-markers.mjs'); " +
+      "console.log(JSON.stringify((await findTestOnlyMarkers('/app')).map((m) => m.source)));");
+  if (leaked !== "[]") throw new Error(`Production image contains test-only code: ${leaked}`);
   docker("run", "-d", "--name", container, "--tmpfs", "/data:uid=1000,gid=1000,mode=0700",
     "-p", "127.0.0.1::3000", "-e", "GOOGLE_CLIENT_ID=test", "-e", "GOOGLE_CLIENT_SECRET=test",
     "-e", "OWNER_EMAIL=owner@example.com", "-e", "PUBLIC_BASE_URL=http://127.0.0.1",
@@ -32,8 +42,6 @@ try {
   if (!home.headers.get("location")?.includes("/sign-in") && !/http-equiv="refresh"[^>]*url=\/sign-in/i.test(homeBody)) {
     throw new Error(`Signed-out home did not redirect to sign-in (status ${home.status}, body ${homeBody.slice(0, 600)})`);
   }
-  const route = await fetch(`${origin}/__test__/session`, { redirect: "manual" });
-  if (route.status !== 404) throw new Error(`Unexpected test session route: ${route.status}`);
   await fetch(`${origin}/api/auth/google`, { redirect: "manual" });
   const result = docker("exec", container, "node", "-e", `
     const { DatabaseSync } = require('node:sqlite');
