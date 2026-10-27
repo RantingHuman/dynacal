@@ -33,9 +33,18 @@ Requires Node 24 and pnpm.
 ```bash
 pnpm install
 pnpm dev         # http://localhost:3000, data in ./data/dynacal.db
-pnpm test        # vitest
+pnpm test        # vitest: domain tests and component tests
 pnpm typecheck
 ```
+
+The browser tests run the app in Chromium through Playwright. They need Docker (to check that the production image excludes all test code) and a one-time browser install:
+
+```bash
+pnpm exec playwright install chromium
+pnpm test:browser
+```
+
+Each browser test starts its own isolated server with a throwaway database, a fake Google Calendar and a fake push sender, so it never touches real data or accounts ([ADR-0005](docs/adr/0005-isolated-browser-test-runtime.md), [browser-tests/README.md](browser-tests/README.md)). Real Google sign-in and sync, push delivery, installed-app behaviour on a phone, and reduced motion still need checking by hand.
 
 Stack: Next.js, React, SQLite via Drizzle, and a pure TypeScript scheduler with no I/O ([ADR-0004](docs/adr/0004-single-container-typescript-sqlite.md)).
 
