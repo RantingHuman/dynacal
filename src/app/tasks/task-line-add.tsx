@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { parseTaskLine } from "@/core/task-line";
 import { PRIORITY_LABELS, formatDuration, validateTask, type TaskErrors, type TaskInput } from "@/core/tasks";
 import { OFFLINE_REASON } from "../states/use-online";
@@ -21,14 +21,29 @@ export function TaskLineAdd({
   offline,
   act,
   onFullForm,
+  focusWhenEmpty = false,
 }: {
   today: string;
   offline: boolean;
   act: ActOnTasks;
   onFullForm: (input: TaskInput) => void;
+  focusWhenEmpty?: boolean;
 }) {
   const [text, setText] = useState("");
   const [errors, setErrors] = useState<TaskErrors>({});
+  // The server-rendered input must not accept text before its submit handler exists.
+  const [interactive, setInteractive] = useState(false);
+  useEffect(() => setInteractive(true), []);
+  const line = useRef<HTMLInputElement>(null);
+  const consideredFocus = useRef(false);
+  useEffect(() => {
+    if (!focusWhenEmpty) consideredFocus.current = false;
+    if (!interactive || !focusWhenEmpty || consideredFocus.current) return;
+    consideredFocus.current = true;
+    if (!offline && document.activeElement === document.body && window.matchMedia("(min-width: 48rem) and (pointer: fine)").matches) {
+      line.current?.focus();
+    }
+  }, [interactive, focusWhenEmpty, offline]);
   const { input, found } = parseTaskLine(text, today);
   const picked = (field: (typeof found)[number]) => found.includes(field);
 
@@ -57,6 +72,7 @@ export function TaskLineAdd({
           +
         </span>
         <input
+          ref={line}
           id={TASK_LINE_ID}
           value={text}
           onChange={(e) => {
@@ -66,7 +82,7 @@ export function TaskLineAdd({
           placeholder={offline ? OFFLINE_REASON : "Add a Task: “Board memo 2h by fri”"}
           aria-label="Add a Task"
           aria-describedby="task-line-preview"
-          disabled={offline}
+          disabled={offline || !interactive}
           autoComplete="off"
         />
       </div>

@@ -26,9 +26,6 @@ function inputOf({ title, notes, estimatedMinutes, deadline, earliestStart, prio
 /** A Task shown before the server has added it: it can't be opened or completed yet. */
 const isPending = (task: TaskListItem) => task.id.startsWith("pending-");
 
-/** Whether the pointer is precise and the screen wide, where focusing the add line won't pop up a keyboard. */
-const isDesktop = () => window.matchMedia("(min-width: 48rem) and (pointer: fine)").matches;
-
 /**
  * The Tasks column: a contents list of Tasks under a one-line add. Clicking a Task, or "Full form", opens the
  * full-page editor in place of the calendar column (see `TaskEditorSlot`). Adding, saving and completing show
@@ -81,9 +78,6 @@ export function TaskPanel({
 
   // A first-time owner starts in the add line, on desktop.
   const empty = tasks.length === 0;
-  useEffect(() => {
-    if (empty && isDesktop()) document.getElementById(TASK_LINE_ID)?.focus();
-  }, [empty]);
 
   const openId = open?.taskId ?? null;
   const openCount = shown.filter((t) => !t.completedAt).length;
@@ -124,6 +118,7 @@ export function TaskPanel({
       <TaskLineAdd
         today={today}
         offline={!online}
+        focusWhenEmpty={empty}
         act={act}
         onFullForm={(initial) => openTask({ taskId: null, initial })}
       />

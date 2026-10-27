@@ -76,10 +76,31 @@ export function Value({
   );
 }
 
-/** A value that flips with a click, like "do" and "don't". */
-export function FlipValue({ label, children, onFlip }: { label: string; children: ReactNode; onFlip: () => void }) {
+/**
+ * A value that flips with a click, like "do" and "don't". It's a switch named by `label`, so a screen reader hears
+ * "Count free Events, switch, off" rather than a bare "don't".
+ */
+export function FlipValue({
+  label,
+  on,
+  children,
+  onFlip,
+}: {
+  label: string;
+  on: boolean;
+  children: ReactNode;
+  onFlip: () => void;
+}) {
   return (
-    <button type="button" className={styles.value} title={`${label}: click to flip`} onClick={onFlip}>
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      className={styles.value}
+      title={`${label}: click to flip`}
+      onClick={onFlip}
+    >
       {children}
     </button>
   );

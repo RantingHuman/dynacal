@@ -94,7 +94,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
     </>
   );
   // The offline line sits under the masthead in both layouts.
-  const offlineNotice = <OfflineNotice renderedAt={new Date().toISOString()} timeZone={schedule?.timeZone ?? null} />;
+  const offlineNotice = <OfflineNotice renderedAt={getRuntime().now().toISOString()} timeZone={schedule?.timeZone ?? null} />;
   const lead = <Lead headline={writeHeadline(week, week.today)} state={week.state} />;
   const taskPanel = (
     <TaskPanel

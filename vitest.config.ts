@@ -6,6 +6,9 @@ export default defineConfig({
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
   },
   test: {
-    include: ["src/**/*.test.ts"],
+    // Domain tests (`.test.ts`) run in Node; component tests (`.test.tsx`) opt into a DOM with a
+    // `@vitest-environment jsdom` comment and share the setup below.
+    include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+    setupFiles: ["src/app/testing/setup.ts"],
   },
 });
