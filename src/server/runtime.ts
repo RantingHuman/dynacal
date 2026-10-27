@@ -2,18 +2,14 @@ import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { Google } from "arctic";
 import { systemClock } from "@/core/clock";
-import { createCommands, type Commands } from "@/core/commands";
+import { createCommands } from "@/core/commands";
 import { openDatabase } from "@/core/db";
-import { loadConfig, type Config } from "./config";
+import { loadConfig } from "./config";
 import { createGoogleCalendarGateway } from "./google-calendar";
+import type { Runtime } from "./runtime-type";
 import { createWebPushSender } from "./web-push-sender";
 
-export interface Runtime {
-  config: Config;
-  commands: Commands;
-  google: Google;
-  now: () => Date;
-}
+export type { Runtime };
 
 const globalForRuntime = globalThis as unknown as { dynacalRuntime?: Runtime };
 

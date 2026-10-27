@@ -1,14 +1,15 @@
 import { writeSync } from "node:fs";
 import { join } from "node:path";
 import { Google } from "arctic";
-import { createCommands, type Commands } from "@/core/commands";
+import { createCommands } from "@/core/commands";
 import { openDatabase } from "@/core/db";
 import { googleConnection } from "@/core/db/schema";
 import { FakeCalendarGateway } from "@/core/fake-calendar-gateway";
 import { FakeClock, FakePushSender } from "@/core/testing";
 import type { Config } from "@/server/config";
+import type { Runtime } from "@/server/runtime-type";
 
-export interface Runtime { config: Config; commands: Commands; google: Google; now: () => Date }
+export type { Runtime };
 const globalRuntime = globalThis as unknown as {
   dynacalRuntime?: Runtime;
   __dynacalBrowserTest?: { dir: string; sessionFd: number; calendarFd: number };
