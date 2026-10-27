@@ -9,6 +9,7 @@ import type { DynacalEvent } from "@/core/dynacal-events";
 import { toWireTiming } from "@/core/event-timing";
 import { writeHeadline } from "@/core/headline";
 import { blockForReminderLink } from "@/core/reminders";
+import { BackgroundRefresh } from "./home/background-refresh";
 import { Lead } from "./home/lead";
 import { Masthead } from "./home/masthead";
 import { PhoneHome } from "./home/phone/phone-home";
@@ -124,6 +125,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   return (
     <NewEventProvider enabled={schedule !== null}>
       {reminded !== undefined && <ForgetReminderLink />}
+      <BackgroundRefresh />
       <TaskEditorProvider>
         <WidthSwitch
           phone={

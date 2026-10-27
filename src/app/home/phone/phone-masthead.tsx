@@ -40,7 +40,8 @@ export function PhoneMasthead({
       <button type="button" className="link" aria-expanded={open} aria-controls={menuId} onClick={() => setOpen(!open)}>
         Menu
       </button>
-      <nav id={menuId} className={styles.menu} aria-label="Menu" hidden={!open}>
+      {/* While open, a background refresh waits (see BackgroundRefresh). */}
+      <nav id={menuId} className={styles.menu} aria-label="Menu" hidden={!open} data-refresh-hold={open || undefined}>
         {blocks !== null && <RecalculateButton recalculation={recalculation} connectionBroken={connectionBroken} stacked />}
         {children}
       </nav>

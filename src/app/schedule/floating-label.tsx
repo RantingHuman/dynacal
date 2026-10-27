@@ -65,7 +65,8 @@ export function LabelFrame({
 }) {
   return (
     <ViewTransition default="none" exit="label-close">
-      <aside className={`${styles.opening} ${className}`} aria-labelledby={labelledBy}>
+      {/* data-refresh-hold: a background refresh waits until it closes (see BackgroundRefresh). */}
+      <aside className={`${styles.opening} ${className}`} aria-labelledby={labelledBy} data-refresh-hold>
         {children}
       </aside>
     </ViewTransition>

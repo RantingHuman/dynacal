@@ -95,7 +95,8 @@ export function TaskEditor({
   }
 
   return (
-    <section ref={section} className={styles.editor} aria-labelledby="task-editor-heading">
+    // data-refresh-hold: a background refresh waits until the editor closes (see BackgroundRefresh).
+    <section ref={section} className={styles.editor} aria-labelledby="task-editor-heading" data-refresh-hold>
       <h2 id="task-editor-heading" className={styles.kicker}>
         <span>{task ? "Task" : "New Task"}</span>
         <button type="button" className="link" onClick={onClose}>

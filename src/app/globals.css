@@ -572,6 +572,22 @@ input[type="checkbox"]:disabled {
  * the global rule above leaves a quick cross-fade.
  */
 
+/*
+ * A background refresh (see BackgroundRefresh) brings in changes made elsewhere. They appear without motion, which
+ * stays for the owner's own actions, and any view transition finishes at once, so it never freezes input.
+ */
+:root[data-quiet-refresh]::view-transition-group(*),
+:root[data-quiet-refresh]::view-transition-old(*),
+:root[data-quiet-refresh]::view-transition-new(*) {
+  animation: none !important;
+}
+
+:root[data-quiet-refresh] *,
+:root[data-quiet-refresh] *::before,
+:root[data-quiet-refresh] *::after {
+  transition: none !important;
+}
+
 /* Task rows: reordering after ticks settle glides; the headline cross-fades to its new wording. */
 ::view-transition-group(.task-row),
 ::view-transition-group(.task-enter),
