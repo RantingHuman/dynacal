@@ -70,6 +70,8 @@ export interface CalendarEvent {
 type View = "day" | "week";
 
 const HOUR_PX = 48;
+/** Below this height a Block or Event can't fit its title above its time, so they share one line instead. */
+const TWO_LINE_PX = 36;
 
 /** Long enough for a landing's longest part, the drop's flash (--rise). */
 const LANDING_MS = 900;
@@ -680,7 +682,7 @@ export function Calendar({
                   <div
                     key={`${event.id}-${day}`}
                     {...props}
-                    className={`event ${props.className}`}
+                    className={`event ${props.className}${px(bottom) - px(top) < TWO_LINE_PX ? " compact" : ""}`}
                     style={{ top: px(top), height: px(bottom) - px(top) }}
                   >
                     <span className="block-title">
@@ -711,6 +713,7 @@ export function Calendar({
                   landed && styles[landed],
                   glide !== undefined && styles.glide,
                   completedTasks.has(block.taskId) && styles.done,
+                  px(bottom) - px(top) < TWO_LINE_PX && "compact",
                 ].filter(Boolean);
                 // Only a Block's first part carries its name: a name must be unique on the page.
                 const first = toZoned(new Date(block.start), timeZone).date === day;

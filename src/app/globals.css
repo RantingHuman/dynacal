@@ -500,6 +500,29 @@ input[type="checkbox"]:disabled {
   color: var(--soft);
 }
 
+/*
+ * A Block or Event too short for two lines (under about 45 minutes): the title and the time share one line, the
+ * title giving way with an ellipsis. Stacked, the title shrank to a sliver while the time kept its full height.
+ */
+.block.compact,
+.event.compact {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 0.35rem;
+  padding-top: 0.05rem;
+  padding-bottom: 0;
+}
+
+.compact .block-title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.compact .block-time {
+  flex: none;
+  font-size: var(--text-meta);
+}
+
 /* Events: read-only busy time from Busy Calendars, drawn on card with a thin ink edge so they read differently from Blocks. */
 .event {
   position: absolute;
