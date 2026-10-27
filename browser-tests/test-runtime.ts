@@ -1,4 +1,4 @@
-import { closeSync, lstatSync, openSync, realpathSync, writeFileSync } from "node:fs";
+import { writeSync } from "node:fs";
 import { join } from "node:path";
 import { Google } from "arctic";
 import { createCommands, type Commands } from "@/core/commands";
@@ -9,19 +9,18 @@ import { FakeClock, FakePushSender } from "@/core/testing";
 import type { Config } from "@/server/config";
 
 export interface Runtime { config: Config; commands: Commands; google: Google; now: () => Date }
-const globalRuntime = globalThis as unknown as { dynacalRuntime?: Runtime };
+const globalRuntime = globalThis as unknown as {
+  dynacalRuntime?: Runtime;
+  __dynacalBrowserTest?: { dir: string; sessionFd: number; calendarFd: number };
+};
 
 /** This file is substituted only into a disposable browser-test build. */
 export function getRuntime(): Runtime {
   if (globalRuntime.dynacalRuntime) return globalRuntime.dynacalRuntime;
-  const dir = process.env.DYNACAL_TEST_RUN_DIR;
-  if (!dir || process.env.HOSTNAME !== "127.0.0.1" || realpathSync(dir) !== dir) throw new Error("Unsafe browser test configuration");
-  const stat = lstatSync(dir);
-  if (!stat.isDirectory() || stat.isSymbolicLink() || stat.uid !== process.getuid?.() || (stat.mode & 0o077) !== 0) {
-    throw new Error("Unsafe browser test directory");
-  }
+  const fixture = globalRuntime.__dynacalBrowserTest;
+  if (!fixture) throw new Error("Browser test bootstrap did not create an isolated directory");
+  const { dir, sessionFd, calendarFd } = fixture;
   const database = join(dir, "test.sqlite");
-  closeSync(openSync(database, "wx", 0o600));
   const db = openDatabase(database);
   const clock = new FakeClock();
   const calendar = new FakeCalendarGateway();
@@ -29,7 +28,7 @@ export function getRuntime(): Runtime {
   const createEvent = calendar.createDynacalCalendarEvent.bind(calendar);
   calendar.createDynacalCalendarEvent = async (...args) => {
     const result = await createEvent(...args);
-    writeFileSync(join(dir, "calendar-writes"), JSON.stringify(calendar.writes), { mode: 0o600 });
+    writeSync(calendarFd, `${JSON.stringify(calendar.writes)}\n`);
     return result;
   };
   const now = clock.now();
@@ -39,7 +38,7 @@ export function getRuntime(): Runtime {
   commands.updateSettings({ timeZone: "Europe/London" });
   const session = commands.signIn({ email: "owner@example.com", emailVerified: true });
   if (!session.ok) throw new Error("Could not seed test session");
-  writeFileSync(join(dir, "session"), session.sessionId, { flag: "wx", mode: 0o600 });
+  writeSync(sessionFd, session.sessionId);
   const config: Config = { DATABASE_PATH: database, OWNER_EMAIL: "owner@example.com", PUBLIC_BASE_URL: "http://127.0.0.1",
     GOOGLE_CLIENT_ID: "test", GOOGLE_CLIENT_SECRET: "test", VAPID_PUBLIC_KEY: "test", VAPID_PRIVATE_KEY: "test" };
   globalRuntime.dynacalRuntime = { config, commands, google: new Google("test", "test", "http://127.0.0.1/callback"), now: () => clock.now() };

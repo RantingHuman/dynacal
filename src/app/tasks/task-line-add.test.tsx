@@ -2,11 +2,22 @@
 
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { renderToString } from "react-dom/server";
 import { expect, it, vi } from "vitest";
 import { renderGuarded } from "../testing/render";
 import { TaskLineAdd } from "./task-line-add";
 
 vi.mock("./actions", () => ({ createTask: vi.fn() }));
+
+it("keeps the Task line disabled in server-rendered HTML until it becomes interactive", () => {
+  const markup = renderToString(<TaskLineAdd today="2026-10-26" offline={false} act={vi.fn()} onFullForm={vi.fn()} />);
+  const document = new DOMParser().parseFromString(markup, "text/html");
+  expect(document.querySelector('input[aria-label="Add a Task"]')?.hasAttribute("disabled")).toBe(true);
+  const view = renderGuarded(<TaskLineAdd today="2026-10-26" offline={false} act={vi.fn()} onFullForm={vi.fn()} />);
+  expect(screen.getByRole("textbox", { name: "Add a Task" })).toHaveProperty("disabled", false);
+  view.rerender(<TaskLineAdd today="2026-10-26" offline act={vi.fn()} onFullForm={vi.fn()} />);
+  expect(screen.getByRole("textbox", { name: "Add a Task" })).toHaveProperty("disabled", true);
+});
 
 it("previews what was parsed as the Task line is typed", async () => {
   renderGuarded(<TaskLineAdd today="2026-10-26" offline={false} act={vi.fn()} onFullForm={vi.fn()} />);

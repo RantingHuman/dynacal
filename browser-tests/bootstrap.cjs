@@ -1,11 +1,32 @@
-// Preloaded into the disposable test artifact before Next can bind or open a database.
+// Runs in the disposable test artifact before Next can bind or open a database.
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
-const dir = process.env.DYNACAL_TEST_RUN_DIR;
-if (!dir || process.env.HOSTNAME !== "127.0.0.1" || fs.realpathSync(dir) !== dir) throw new Error("Unsafe browser test configuration");
-const stat = fs.lstatSync(dir);
-if (!stat.isDirectory() || stat.isSymbolicLink() || stat.uid !== process.getuid?.() || (stat.mode & 0o077) !== 0) {
-  throw new Error("Unsafe browser test directory");
+if (process.env.DYNACAL_TEST_RUN_DIR || process.env.HOSTNAME !== "127.0.0.1") {
+  throw new Error("Unsafe browser test configuration");
 }
-if (fs.existsSync(path.join(dir, "test.sqlite")) || fs.existsSync(path.join(dir, "session"))) throw new Error("Test directory already used");
+
+// Never accept a caller-provided run directory. Reserve every output before reporting it to the harness.
+const dir = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "dynacal-browser-run-"));
+const flags = fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_RDWR | fs.constants.O_NOFOLLOW;
+const opened = [];
+try {
+  const reserve = (name) => {
+    const fd = fs.openSync(path.join(dir, name), flags, 0o600);
+    opened.push(fd);
+    return fd;
+  };
+  const databaseFd = reserve("test.sqlite");
+  const sessionFd = reserve("session");
+  const calendarFd = reserve("calendar-writes");
+  fs.closeSync(databaseFd);
+  opened.shift();
+  // An inherited private pipe is required; no session is exposed through an HTTP endpoint.
+  fs.writeSync(3, `${dir}\n`);
+  globalThis.__dynacalBrowserTest = { dir, sessionFd, calendarFd };
+} catch (error) {
+  for (const fd of opened) fs.closeSync(fd);
+  fs.rmSync(dir, { recursive: true, force: true });
+  throw new Error("Unsafe browser test configuration", { cause: error });
+}
 require("./network-guard.cjs");

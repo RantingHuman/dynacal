@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:browser": "node browser-tests/check-production.mjs && playwright test",
+    "test:browser": "node --test browser-tests/isolation.test.cjs && node browser-tests/check-production.mjs && playwright test",
     "db:generate": "drizzle-kit generate"
   },
   "packageManager": "pnpm@9.1.4",

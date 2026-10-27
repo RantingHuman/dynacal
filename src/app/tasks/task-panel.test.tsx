@@ -28,6 +28,23 @@ function renderPanel(tasks = [taskItem({ title: "Write Q4 planning doc" })]) {
 
 const taskList = () => within(screen.getByRole("list"));
 
+it("focuses the interactive Task line for a first-time owner on desktop", () => {
+  renderPanel([]);
+  expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Add a Task" }));
+});
+
+it("does not take focus away from another control while becoming interactive", () => {
+  const other = document.createElement("button");
+  document.body.append(other);
+  other.focus();
+  try {
+    renderPanel([]);
+    expect(document.activeElement).toBe(other);
+  } finally {
+    other.remove();
+  }
+});
+
 describe("adding a Task from the one-line add", () => {
   beforeEach(() => vi.mocked(createTask).mockReset());
 

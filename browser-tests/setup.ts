@@ -3,6 +3,7 @@ import { realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
+import { copyDependencies } from "./copy-dependencies.mjs";
 
 /** Build in a disposable source copy: never modify the normal app's build or runtime. */
 export default async function setup() {
@@ -14,7 +15,7 @@ export default async function setup() {
     }
     await cp(join(root, "browser-tests", "test-runtime.ts"), join(temp, "src/server/runtime.ts"));
     // Turbopack rejects dependencies that resolve outside its build root.
-    await cp(join(root, "node_modules"), join(temp, "node_modules"), { recursive: true, verbatimSymlinks: true });
+    await copyDependencies(join(root, "node_modules"), join(temp, "node_modules"));
     await new Promise<void>((ok, fail) => {
       const child = spawn(process.execPath, [join(temp, "node_modules/next/dist/bin/next"), "build"], {
         cwd: temp,
@@ -33,7 +34,6 @@ export default async function setup() {
     const server = join(standalone, "server.js");
     await writeFile(server, `import './browser-test-bootstrap.cjs';\n${await readFile(server, "utf8")}`);
     // The generated server rejects unsafe input before binding or opening a database.
-    const unsafe = await mkdtemp(join(temp, "unsafe-"));
     const attempt = (env: Record<string, string>) => spawnSync(process.execPath, [server], {
       cwd: standalone, env: { PATH: process.env.PATH, NODE_ENV: "production", ...env }, timeout: 5_000,
     });
@@ -43,18 +43,12 @@ export default async function setup() {
         throw new Error(`Test server did not reject unsafe configuration before startup: ${String(result.error)} ${result.status} ${result.stderr.toString()}`);
       }
     };
-    reject({ HOSTNAME: "0.0.0.0", DYNACAL_TEST_RUN_DIR: unsafe });
+    reject({ HOSTNAME: "0.0.0.0" });
     reject({ HOSTNAME: "127.0.0.1" });
-    const external = spawnSync(process.execPath, ["-r", join(standalone, "browser-test-bootstrap.cjs"), "-e",
-      "require('node:net').connect(443, '1.1.1.1')"], {
-      cwd: standalone, env: { PATH: process.env.PATH, NODE_ENV: "production", HOSTNAME: "127.0.0.1", DYNACAL_TEST_RUN_DIR: unsafe }, timeout: 5_000,
-    });
-    if (external.error || external.status === 0 || !external.stderr.toString().includes("BROWSER_TEST_EXTERNAL_CONNECTION_BLOCKED")) {
-      throw new Error("Test server did not block an external connection");
-    }
+    const unsafe = await mkdtemp(join(temp, "unsafe-"));
     await writeFile(join(unsafe, "test.sqlite"), "sentinel");
     const reused = attempt({ HOSTNAME: "127.0.0.1", DYNACAL_TEST_RUN_DIR: unsafe });
-    if (reused.error || reused.status === 0 || !reused.stderr.toString().includes("Test directory already used") ||
+    if (reused.error || reused.status === 0 || !reused.stderr.toString().includes("Unsafe browser test") ||
         await readFile(join(unsafe, "test.sqlite"), "utf8") !== "sentinel") {
       throw new Error("Test server accepted or changed a pre-existing database");
     }
