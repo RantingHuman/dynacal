@@ -61,6 +61,25 @@ describe("an optimistic change to the Task list", () => {
     expect(shown[1].completedAt).not.toBeNull();
   });
 
+  it("moves a reopened Task back up among the open ones, where the list will have it", () => {
+    const app = appWithTasks(
+      { title: "Board memo", deadline: { date: "2026-01-09", time: null } },
+      { title: "Expenses", priority: "high" },
+      { title: "Tidy inbox", priority: "low" },
+    );
+    const [memo, , inbox] = app.commands.listTasks();
+    app.commands.completeTask(memo.id);
+    app.commands.completeTask(inbox.id);
+    const before = app.commands.listTasks();
+
+    const shown = applyTaskChange(before, { kind: "reopen", id: memo.id }, new Date());
+    app.commands.reopenTask(memo.id);
+
+    expect(titles(shown)).toEqual(titles(app.commands.listTasks()));
+    expect(titles(shown)).toEqual(["Board memo", "Expenses", "Tidy inbox"]);
+    expect(shown[0].completedAt).toBeNull();
+  });
+
   it("shows a saved edit, moving the Task to where its new deadline or priority puts it", () => {
     const app = appWithTasks(
       { title: "Board memo", deadline: { date: "2026-01-09", time: null } },

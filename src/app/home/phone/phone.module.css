@@ -65,6 +65,13 @@
   display: contents;
 }
 
+/* Far enough apart on a touch screen that the items' 44px tap areas (see globals) don't overlap. */
+@media (pointer: coarse) {
+  .menu {
+    gap: var(--space-6);
+  }
+}
+
 /* The lead, shortened to fit. */
 
 .lead h1 {

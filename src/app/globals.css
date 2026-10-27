@@ -228,6 +228,37 @@ a.button {
   cursor: default;
 }
 
+/*
+ * On a touch screen, links and text buttons are tapped through an area at least 44px tall (Apple's minimum),
+ * reaching past their text without changing how they look.
+ */
+@media (pointer: coarse) {
+  a,
+  .link {
+    position: relative;
+  }
+
+  a::after,
+  .link::after {
+    content: "";
+    position: absolute;
+    inset: min(0px, calc((100% - 44px) / 2)) -8px;
+  }
+}
+
+/*
+ * On a touch screen, fields are at least 16px: iPhone Safari zooms in on a smaller field when it takes focus, and
+ * doesn't zoom back out, leaving the page wider than the screen. `1em` is the text around the field, which most
+ * fields take on, so larger fields keep their size. Important, as fields set `font` in many places.
+ */
+@media (pointer: coarse) {
+  input:not([type="checkbox"]),
+  select,
+  textarea {
+    font-size: max(16px, 1em) !important;
+  }
+}
+
 /* A form's message fades in under its field; errors stay quiet, so nothing shakes. */
 .field-error {
   color: var(--accent);

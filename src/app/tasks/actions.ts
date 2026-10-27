@@ -46,6 +46,13 @@ export async function completeTask(id: string): Promise<CompleteTaskResult> {
   return result;
 }
 
+export async function reopenTask(id: string): Promise<CompleteTaskResult> {
+  await requireOwner();
+  const result = getRuntime().commands.reopenTask(z.string().parse(id));
+  revalidatePath("/");
+  return result;
+}
+
 export async function clearDeclinedTime(id: number): Promise<ClearDeclinedTimeResult> {
   await requireOwner();
   const result = getRuntime().commands.clearDeclinedTime(z.number().int().parse(id));

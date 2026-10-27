@@ -41,11 +41,17 @@
 }
 
 .done,
-.done:hover {
+.done:disabled:hover {
   border-color: var(--accent);
   background: var(--accent);
   color: var(--on-accent);
-  cursor: default;
+}
+
+/* Hovering a filled tick previews taking it back: the fill lifts, leaving the tick. */
+.done:hover:not(:disabled),
+.done:focus-visible {
+  background: var(--card);
+  color: var(--accent);
 }
 
 /* Ticked here: the box springs back from its press while the tick draws in. */

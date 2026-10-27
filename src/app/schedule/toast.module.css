@@ -48,6 +48,19 @@
   cursor: pointer;
 }
 
+/* On a touch screen, the × is tapped through a 44px square around it, like the links (see globals). */
+@media (pointer: coarse) {
+  .dismiss {
+    position: relative;
+  }
+
+  .dismiss::after {
+    content: "";
+    position: absolute;
+    inset: min(0px, calc((100% - 44px) / 2));
+  }
+}
+
 @media (max-width: 640px) {
   .toast {
     left: var(--space-4);

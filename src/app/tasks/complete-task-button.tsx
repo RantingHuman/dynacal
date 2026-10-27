@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { completeTask } from "./actions";
+import { completeTask, reopenTask } from "./actions";
 import { useCompletion } from "./completion";
 import styles from "./completion.module.css";
 import { useTaskColumn, type ActOnTasks } from "./task-editor-slot";
@@ -10,6 +10,14 @@ import { useTaskColumn, type ActOnTasks } from "./task-editor-slot";
 function completeThrough(act: ActOnTasks, id: string, title: string) {
   act({ kind: "complete", id }, async () => {
     const result = await completeTask(id);
+    return result.ok ? null : `“${title}” no longer exists.`;
+  });
+}
+
+/** Reopens a completed Task through the Task list's `act`, the same way: open at once, and back if refused. */
+function reopenThrough(act: ActOnTasks, id: string, title: string) {
+  act({ kind: "reopen", id }, async () => {
+    const result = await reopenTask(id);
     return result.ok ? null : `“${title}” no longer exists.`;
   });
 }
@@ -45,10 +53,10 @@ function Tick() {
 }
 
 /**
- * A round tick button that marks a Task complete; once complete, it shows a filled tick. The Task shows as
- * complete at once, and comes back if the server refuses. Ticked here, the tick draws in while the box presses,
- * and the list holds its order until the ticks settle (see `CompletionProvider`). `disabled` while offline, or
- * while the Task is still being added.
+ * A round tick button that marks a Task complete; once complete, it shows a filled tick, which reopens the Task
+ * when pressed (for a Task ticked by mistake). Either change shows at once, and is undone if the server refuses.
+ * Ticked here, the tick draws in while the box presses, and the list holds its order until the ticks settle (see
+ * `CompletionProvider`). `disabled` while offline, or while the Task is still being added.
  */
 export function CompleteTaskButton({
   id,
@@ -63,17 +71,23 @@ export function CompleteTaskButton({
   disabled?: boolean;
   act: ActOnTasks;
 }) {
-  const { ticked, tick } = useCompletion();
+  const { ticked, tick, untick } = useCompletion();
   if (completed) {
     return (
-      <span
+      <button
+        type="button"
         className={`${styles.toggle} ${styles.done}`}
         data-ticked={ticked.has(id) || undefined}
-        role="img"
-        aria-label={`“${title}” is complete`}
+        aria-label={`Mark “${title}” not complete`}
+        title="Mark not complete"
+        disabled={disabled}
+        onClick={() => {
+          untick(id);
+          reopenThrough(act, id, title);
+        }}
       >
         <Tick />
-      </span>
+      </button>
     );
   }
   return (

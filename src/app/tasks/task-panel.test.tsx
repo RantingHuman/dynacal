@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TaskResult } from "@/core/tasks";
 import { deferred, taskItem } from "../testing/fixtures";
 import { renderGuarded } from "../testing/render";
-import { completeTask, createTask } from "./actions";
+import { completeTask, createTask, reopenTask } from "./actions";
 import { TaskEditorProvider } from "./task-editor-slot";
 import { TaskPanel } from "./task-panel";
 
@@ -15,6 +15,7 @@ vi.mock("./actions", () => ({
   updateTask: vi.fn(),
   deleteTask: vi.fn(),
   completeTask: vi.fn(),
+  reopenTask: vi.fn(),
   clearDeclinedTime: vi.fn(),
 }));
 
@@ -89,7 +90,7 @@ describe("ticking a Task off", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Mark “Write Q4 planning doc” complete" }));
 
-    expect(screen.getByRole("img", { name: "“Write Q4 planning doc” is complete" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Mark “Write Q4 planning doc” not complete" })).toBeTruthy();
     expect(completeTask).toHaveBeenCalledOnce();
     completing.resolve({ ok: true });
     await waitFor(() => expect(completeTask).toHaveReturned());
@@ -103,6 +104,35 @@ describe("ticking a Task off", () => {
 
     await waitFor(() => expect(screen.getByText("“Write Q4 planning doc” no longer exists.")).toBeTruthy());
     expect(await screen.findByRole("button", { name: "Mark “Write Q4 planning doc” complete" })).toBeTruthy();
+  });
+});
+
+describe("reopening a completed Task", () => {
+  beforeEach(() => vi.mocked(reopenTask).mockReset());
+  const done = () => taskItem({ title: "Write Q4 planning doc", completedAt: new Date("2026-01-05T09:00:00Z") });
+
+  it("shows it open at once and sends it to the server", async () => {
+    const reopening = deferred<{ ok: true }>();
+    vi.mocked(reopenTask).mockReturnValue(reopening.promise);
+    const task = done();
+    renderPanel([task]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Mark “Write Q4 planning doc” not complete" }));
+
+    expect(screen.getByRole("button", { name: "Mark “Write Q4 planning doc” complete" })).toBeTruthy();
+    expect(reopenTask).toHaveBeenCalledWith(task.id);
+    reopening.resolve({ ok: true });
+    await waitFor(() => expect(reopenTask).toHaveReturned());
+  });
+
+  it("shows it complete again and says why when the server refuses", async () => {
+    vi.mocked(reopenTask).mockResolvedValue({ ok: false, notFound: true });
+    renderPanel([done()]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Mark “Write Q4 planning doc” not complete" }));
+
+    await waitFor(() => expect(screen.getByText("“Write Q4 planning doc” no longer exists.")).toBeTruthy());
+    expect(await screen.findByRole("button", { name: "Mark “Write Q4 planning doc” not complete" })).toBeTruthy();
   });
 });
 

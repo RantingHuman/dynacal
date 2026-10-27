@@ -1293,6 +1293,17 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       return { ok: true };
     },
 
+    /**
+     * Reopens a completed Task, as when it was ticked by mistake: it's open again and its Remaining Duration is
+     * scheduled afresh. A Block that completing it cut short stays as it ended, since that time has passed.
+     */
+    reopenTask(id: string): CompleteTaskResult {
+      const row = db.update(tasks).set({ completedAt: null }).where(eq(tasks.id, id)).returning().get();
+      if (!row) return { ok: false, notFound: true };
+      recalculateAutomatically();
+      return { ok: true };
+    },
+
     /** Moves or resizes a Block, which makes it a Pinned Block at its new time, then recalculates. */
     moveBlock(id: string, to: { start: Date; end: Date }): MoveBlockResult {
       const block = db.select().from(blocks).where(eq(blocks.id, id)).get();
@@ -1318,7 +1329,12 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       return { ok: true };
     },
 
-    /** Records whether a past Block's work happened, then recalculates so any time added back is scheduled. */
+    /**
+     * Records whether a past Block's work happened, then recalculates so any time added back is scheduled. A Block
+     * whose work didn't happen at all is removed rather than kept as "not done", so to the owner it moves to its new
+     * time instead of leaving a twin behind. Its event stays in Google, which dynacal no longer keeps in step once
+     * it has ended.
+     */
     reviewBlock(id: string, outcome: ReviewOutcome): ReviewBlockResult {
       const block = db.select().from(blocks).where(eq(blocks.id, id)).get();
       if (!block) return { ok: false, notFound: true };
@@ -1329,10 +1345,14 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         const error = validateWorkedMinutes(outcome.workedMinutes, block);
         if (error) return { ok: false, errors: { workedMinutes: error } };
       }
-      db.update(blocks)
-        .set({ review: outcome.review, workedMinutes: outcome.review === "partial" ? outcome.workedMinutes : null })
-        .where(eq(blocks.id, id))
-        .run();
+      if (outcome.review === "not-done") {
+        db.delete(blocks).where(eq(blocks.id, id)).run();
+      } else {
+        db.update(blocks)
+          .set({ review: outcome.review, workedMinutes: outcome.review === "partial" ? outcome.workedMinutes : null })
+          .where(eq(blocks.id, id))
+          .run();
+      }
       recalculateAutomatically();
       return { ok: true };
     },
