@@ -31,12 +31,15 @@ async function start(child: ChildProcess): Promise<void> {
 }
 
 /** One process, database, fake services and browser context per browser test. */
+/** The owner's time zone in every browser test: the browser, the server process and the seeded Settings agree. */
+const TIME_ZONE = "Europe/London";
+
 export async function withApp(browser: Browser, run: (page: Page, fixture: { calendarWrites: () => Promise<string> }) => Promise<void>) {
   const build = process.env.DYNACAL_TEST_BUILD;
   if (!build) throw new Error("Test build was not prepared");
   const port = await freePort();
   const origin = `http://127.0.0.1:${port}`;
-  const context = await browser.newContext({ baseURL: origin, timezoneId: "Europe/London" });
+  const context = await browser.newContext({ baseURL: origin, timezoneId: TIME_ZONE });
   const unexpectedRequests: string[] = [];
   await context.route("**/*", async (route) => {
     const url = route.request().url();
@@ -45,7 +48,8 @@ export async function withApp(browser: Browser, run: (page: Page, fixture: { cal
   });
   const child = spawn(process.execPath, ["server.js"], {
     cwd: join(build, ".next/standalone"),
-    env: { PATH: process.env.PATH, HOME: build, TMPDIR: realpathSync(tmpdir()), NODE_ENV: "production", HOSTNAME: "127.0.0.1", PORT: String(port) },
+    // TZ matches the browser context and the seeded Settings, so nothing on the server depends on the host's zone.
+    env: { PATH: process.env.PATH, HOME: build, TMPDIR: realpathSync(tmpdir()), NODE_ENV: "production", HOSTNAME: "127.0.0.1", PORT: String(port), TZ: TIME_ZONE },
     stdio: ["ignore", "pipe", "pipe", "pipe"],
   });
   const directoryPromise = new Promise<string>((ok, fail) => {
