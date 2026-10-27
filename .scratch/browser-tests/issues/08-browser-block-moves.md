@@ -4,8 +4,12 @@
 
 **Blocked by:** 07: Isolated browser test: create and complete a Task.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] A desktop Block move is performed and its resulting time verified.
-- [ ] A phone-width Block move is performed and its resulting time verified.
-- [ ] Each scenario has independent fixture data and fake calendar state.
+- [x] A desktop Block move is performed and its resulting time verified.
+- [x] A phone-width Block move is performed and its resulting time verified.
+- [x] Each scenario has independent fixture data and fake calendar state.
+
+## Comments
+
+- Browser tests cover a desktop drag and a phone sheet move, each in an independent test app, and verify the Pinned Block time after reload. Both tests passed.
