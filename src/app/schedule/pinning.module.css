@@ -262,15 +262,6 @@
   padding-right: 16px;
 }
 
-/* On one line the time follows the title, so the whole row keeps clear of the check instead. */
-.hasCheck:global(.compact) {
-  padding-right: 22px;
-}
-
-.hasCheck:global(.compact) :global(.block-title) {
-  padding-right: 0;
-}
-
 .markDone {
   justify-self: start;
   font-size: var(--text-body);

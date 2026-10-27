@@ -70,7 +70,10 @@ export interface CalendarEvent {
 type View = "day" | "week";
 
 const HOUR_PX = 48;
-/** Below this height a Block or Event can't fit its title above its time, so they share one line instead. */
+/**
+ * Below this height a Block or Event can't fit its title above its time, so it shows only its title: the grid
+ * position, the tooltip and the details label still give the time.
+ */
 const TWO_LINE_PX = 36;
 
 /** Long enough for a landing's longest part, the drop's flash (--rise). */
@@ -678,20 +681,23 @@ export function Calendar({
                   event,
                   `${event.title}, ${formatMinutes(top)}–${formatMinutes(bottom)} (Event${eventNotes(event)})`,
                 );
+                const compact = px(bottom) - px(top) < TWO_LINE_PX;
                 return (
                   <div
                     key={`${event.id}-${day}`}
                     {...props}
-                    className={`event ${props.className}${px(bottom) - px(top) < TWO_LINE_PX ? " compact" : ""}`}
+                    className={`event ${props.className}${compact ? " compact" : ""}`}
                     style={{ top: px(top), height: px(bottom) - px(top) }}
                   >
                     <span className="block-title">
                       {eventMarks(event)}
                       {event.title}
                     </span>
-                    <span className="block-time">
-                      {formatMinutes(top)}–{formatMinutes(bottom)}
-                    </span>
+                    {!compact && (
+                      <span className="block-time">
+                        {formatMinutes(top)}–{formatMinutes(bottom)}
+                      </span>
+                    )}
                   </div>
                 );
               })}
@@ -703,6 +709,7 @@ export function Calendar({
                 const overEvent = eventsByDay.get(day)!.some((p) => p.top < bottom && p.bottom > top);
                 const glide = glideOrder.get(block.displayKey);
                 const landed = landing?.id === block.id ? landing.kind : null;
+                const compact = px(bottom) - px(top) < TWO_LINE_PX;
                 const classes = [
                   "block",
                   overEvent && detailStyles.besideEvent,
@@ -713,7 +720,7 @@ export function Calendar({
                   landed && styles[landed],
                   glide !== undefined && styles.glide,
                   completedTasks.has(block.taskId) && styles.done,
-                  px(bottom) - px(top) < TWO_LINE_PX && "compact",
+                  compact && "compact",
                 ].filter(Boolean);
                 // Only a Block's first part carries its name: a name must be unique on the page.
                 const first = toZoned(new Date(block.start), timeZone).date === day;
@@ -750,9 +757,11 @@ export function Calendar({
                         {block.pinned && <PinMark />}
                         {block.taskTitle}
                       </span>
-                      <span className="block-time">
-                        {formatMinutes(top)}–{formatMinutes(bottom)}
-                      </span>
+                      {!compact && (
+                        <span className="block-time">
+                          {formatMinutes(top)}–{formatMinutes(bottom)}
+                        </span>
+                      )}
                       {!ended && online && <BlockCheck block={block} done={completedTasks.has(block.taskId)} onError={showError} />}
                       {!ended && <span className={`${styles.handle} ${styles.handleBottom}`} data-handle="end" />}
                     </div>
