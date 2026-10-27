@@ -4,8 +4,12 @@
 
 **Blocked by:** 07: Isolated browser test: create and complete a Task.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] The test waits for service-worker installation, control and caching before going offline.
-- [ ] A previously loaded home page remains readable and mutation controls are disabled.
-- [ ] An uncached navigation displays the offline fallback, with a fresh browser context to prevent cache leakage.
+- [x] The test waits for service-worker installation, control and caching before going offline.
+- [x] A previously loaded home page remains readable and mutation controls are disabled.
+- [x] An uncached navigation displays the offline fallback, with a fresh browser context to prevent cache leakage.
+
+## Comments
+
+- Chromium verifies the saved Task and disabled add/complete controls after an offline reload, and the fallback on an uncached Settings navigation. The isolated browser test and typecheck passed.
