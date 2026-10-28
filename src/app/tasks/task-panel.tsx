@@ -120,7 +120,7 @@ export function TaskPanel({
         offline={!online}
         focusWhenEmpty={empty}
         act={act}
-        onFullForm={(initial) => openTask({ taskId: null, initial })}
+        onFullForm={(initial, onAdded) => openTask({ taskId: null, initial, onAdded })}
       />
 
       {shown.length === 0 && (

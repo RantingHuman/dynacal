@@ -7,7 +7,7 @@ import type { TaskResult } from "@/core/tasks";
 import { deferred, taskItem } from "../testing/fixtures";
 import { renderGuarded } from "../testing/render";
 import { completeTask, createTask, reopenTask } from "./actions";
-import { TaskEditorProvider } from "./task-editor-slot";
+import { TaskEditorProvider, TaskEditorSlot } from "./task-editor-slot";
 import { TaskPanel } from "./task-panel";
 
 vi.mock("./actions", () => ({
@@ -77,6 +77,49 @@ describe("adding a Task from the one-line add", () => {
       expect(taskList().queryByText("Board memo")).toBeNull();
       expect(line).toHaveProperty("value", "Board memo");
     });
+  });
+});
+
+describe("adding a Task through the full form", () => {
+  beforeEach(() => vi.mocked(createTask).mockReset());
+
+  function renderWithEditor() {
+    return renderGuarded(
+      <TaskEditorProvider>
+        <TaskPanel tasks={[]} flags={{}} timeZone="Europe/London" />
+        <TaskEditorSlot>
+          <p>The calendar</p>
+        </TaskEditorSlot>
+      </TaskEditorProvider>,
+    );
+  }
+
+  it("clears the add line once the Task it started is saved", async () => {
+    const adding = deferred<TaskResult>();
+    vi.mocked(createTask).mockReturnValue(adding.promise);
+    renderWithEditor();
+    const line = screen.getByRole("textbox", { name: /add a task/i });
+    await userEvent.type(line, "Pack for Vegas 1h");
+
+    await userEvent.click(screen.getByRole("button", { name: "Full form" }));
+    await userEvent.click(screen.getByRole("button", { name: "Add Task" }));
+
+    expect(createTask).toHaveBeenCalledWith(expect.objectContaining({ title: "Pack for Vegas", estimatedMinutes: 60 }));
+    expect(line).toHaveProperty("value", "");
+    adding.resolve({ ok: true, task: taskItem({ title: "Pack for Vegas" }) });
+    await waitFor(() => expect(createTask).toHaveReturned());
+  });
+
+  it("keeps the add line's text when the full form is cancelled", async () => {
+    renderWithEditor();
+    const line = screen.getByRole("textbox", { name: /add a task/i });
+    await userEvent.type(line, "Pack for Vegas 1h");
+
+    await userEvent.click(screen.getByRole("button", { name: "Full form" }));
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(createTask).not.toHaveBeenCalled();
+    expect(line).toHaveProperty("value", "Pack for Vegas 1h");
   });
 });
 

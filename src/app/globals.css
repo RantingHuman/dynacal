@@ -249,10 +249,11 @@ a.button {
 /*
  * On a touch screen, fields are at least 16px: iPhone Safari zooms in on a smaller field when it takes focus, and
  * doesn't zoom back out, leaving the page wider than the screen. `1em` is the text around the field, which most
- * fields take on, so larger fields keep their size. Important, as fields set `font` in many places.
+ * fields take on. Important, as fields set `font` in many places; a field set larger than its surroundings (the
+ * Task title, the add line) is marked `data-large-text` to keep its own size.
  */
 @media (pointer: coarse) {
-  input:not([type="checkbox"]),
+  input:not([type="checkbox"], [data-large-text]),
   select,
   textarea {
     font-size: max(16px, 1em) !important;

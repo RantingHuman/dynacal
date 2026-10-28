@@ -14,7 +14,8 @@ export const TASK_LINE_ID = "task-line-add";
 /**
  * One line at the top of the Tasks column that adds a Task: "Board memo 2h by fri". A preview shows what was
  * understood, solid for what was picked out and dashed for defaults. Enter adds it straight to the list (it's
- * taken out again, and the line put back, if the server refuses); "Full form" opens the editor.
+ * taken out again, and the line put back, if the server refuses); "Full form" opens the editor, and the line
+ * clears once the Task is added there.
  */
 export function TaskLineAdd({
   today,
@@ -26,7 +27,8 @@ export function TaskLineAdd({
   today: string;
   offline: boolean;
   act: ActOnTasks;
-  onFullForm: (input: TaskInput) => void;
+  /** Opens the editor on what the line understood; `onAdded` clears the line once that Task is added. */
+  onFullForm: (input: TaskInput, onAdded: () => void) => void;
   focusWhenEmpty?: boolean;
 }) {
   const [text, setText] = useState("");
@@ -84,6 +86,7 @@ export function TaskLineAdd({
           aria-describedby="task-line-preview"
           disabled={offline || !interactive}
           autoComplete="off"
+          data-large-text
         />
       </div>
       {text ? (
@@ -96,7 +99,15 @@ export function TaskLineAdd({
           {input.earliestStart && <span data-found>from {whenWords(input.earliestStart, today)}</span>}
           {picked("priority") && <span data-found>{PRIORITY_LABELS[input.priority]}</span>}
           {input.dontSplit && <span data-found>one Block</span>}
-          <button type="button" className="link" onClick={() => onFullForm(input)}>
+          <button
+            type="button"
+            className="link"
+            onClick={() => {
+              const sent = text;
+              // Cleared only if it still holds what was handed over, not something typed since.
+              onFullForm(input, () => setText((current) => (current === sent ? "" : current)));
+            }}
+          >
             Full form
           </button>
         </p>

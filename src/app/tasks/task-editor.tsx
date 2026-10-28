@@ -37,6 +37,7 @@ export function TaskEditor({
   act,
   onClose,
   onSaved,
+  onAdded,
 }: {
   /** The Task being edited, or null for a new one. */
   task: TaskListItem | null;
@@ -48,6 +49,8 @@ export function TaskEditor({
   onClose: () => void;
   /** An existing Task was saved: its row sweeps a highlighter and says so. */
   onSaved: (taskId: string) => void;
+  /** A new Task was added. */
+  onAdded?: () => void;
 }) {
   const [input, setInput] = useState<TaskInput>(initial);
   const [errors, setErrors] = useState<TaskErrors>({});
@@ -75,6 +78,7 @@ export function TaskEditor({
     onClose();
     // The saved row sweeps a highlighter and says "Saved"; a new Task's row arrives with its own sweep.
     if (task) onSaved(task.id);
+    else onAdded?.();
     const change = task
       ? ({ kind: "update", id: task.id, input } as const)
       : ({ kind: "add", id: `pending-${Date.now()}`, input } as const);
@@ -106,6 +110,7 @@ export function TaskEditor({
       <form onSubmit={save} aria-label={task ? "Edit Task" : "New Task"}>
         <input
           className={styles.title}
+          data-large-text
           value={input.title}
           placeholder="What needs doing?"
           aria-label="Title"

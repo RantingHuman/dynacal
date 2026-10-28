@@ -13,6 +13,8 @@ import editorStyles from "./task-editor.module.css";
 export interface OpenTask {
   taskId: string | null;
   initial: TaskInput;
+  /** For a new Task: called once it's added, e.g. to clear the add line it was started from. */
+  onAdded?: () => void;
 }
 
 /**
@@ -124,6 +126,7 @@ export function TaskEditorSlot({ children }: { children: ReactNode }) {
           act={column.act}
           onClose={close}
           onSaved={markSaved}
+          onAdded={open.onAdded}
         />
       )}
       {/* Shown again, it fades back in: a hidden element's animation restarts when it's shown. */}

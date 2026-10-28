@@ -35,6 +35,8 @@ test("keeps every field at 16px or more on a phone, so Safari doesn't zoom in", 
 
     await page.getByRole("button", { name: /^Write a report/ }).click();
     expect(await expectFieldsAtLeast16px(page, "the Task editor")).toBeGreaterThan(0);
+    // The title is larger already, and stays so.
+    expect(parseFloat(await page.getByRole("textbox", { name: "Title" }).evaluate((el) => getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(34);
     await page.getByRole("button", { name: "← Back to the week" }).click();
 
     await page.getByRole("tab", { name: "Schedule" }).click();
