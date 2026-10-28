@@ -18,10 +18,10 @@ jobs:
     name: Typecheck and tests
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v7.0.1
       # Uses the pnpm version pinned in package.json's packageManager field.
-      - uses: pnpm/action-setup@v4.1.0
-      - uses: actions/setup-node@v4.4.0
+      - uses: pnpm/action-setup@v6.1.0
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: 24
           cache: pnpm
@@ -34,9 +34,9 @@ jobs:
     needs: checks
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4.2.2
-      - uses: pnpm/action-setup@v4.1.0
-      - uses: actions/setup-node@v4.4.0
+      - uses: actions/checkout@v7.0.1
+      - uses: pnpm/action-setup@v6.1.0
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: 24
           cache: pnpm
@@ -47,7 +47,7 @@ jobs:
       - run: pnpm test:browser
       - name: Keep traces of failed browser tests
         if: failure()
-        uses: actions/upload-artifact@v4.6.2
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: playwright-results
           path: test-results/
