@@ -854,6 +854,18 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     });
   }
 
+  /** When a Task's next Block starts, counting one in progress; null if it has none (it's Unscheduled). */
+  function nextStart(taskId: string): Date | null {
+    const next = db
+      .select({ start: blocks.start })
+      .from(blocks)
+      .where(and(eq(blocks.taskId, taskId), gt(blocks.end, clock.now())))
+      .orderBy(blocks.start)
+      .limit(1)
+      .get();
+    return next?.start ?? null;
+  }
+
   function recalculate(): RecalculateResult {
     const result = recalculateSchedule();
     // Commands stay synchronous, so the write to Google runs in the background. A failed write is retried
@@ -1326,7 +1338,8 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     },
 
     /**
-     * Answers a past Block's Check-in. Finished completes its Task, as ticking it does. A Block that hasn't ended
+     * Answers a past Block's Check-in. Finished completes its Task, as ticking it does. Didn't start removes the
+     * Block, leaving no twin, so the Recalculation places the Task at its next free time, which it returns. A Block that hasn't ended
      * is refused; one that's gone, or whose Check-in was already answered (or its Task completed), isn't found.
      */
     checkIn(blockId: string, answer: CheckInAnswer): CheckInResult {
@@ -1344,6 +1357,10 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         case "finished":
           finishTask(found.block.taskId);
           break;
+        case "didnt-start":
+          db.delete(blocks).where(eq(blocks.id, blockId)).run();
+          recalculateAutomatically();
+          return { ok: true, nextStart: nextStart(found.block.taskId) };
       }
       recalculateAutomatically();
       return { ok: true };

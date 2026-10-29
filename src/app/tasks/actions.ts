@@ -61,7 +61,10 @@ export async function allowSplitting(id: string): Promise<CompleteTaskResult> {
   return result;
 }
 
-const checkInAnswerSchema = z.object({ answer: z.literal("finished") });
+const checkInAnswerSchema = z.union([
+  z.object({ answer: z.literal("finished") }),
+  z.object({ answer: z.literal("didnt-start") }),
+]);
 
 export async function checkIn(blockId: string, answer: unknown): Promise<CheckInResult> {
   await requireOwner();

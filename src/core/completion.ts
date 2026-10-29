@@ -11,10 +11,14 @@ import { formatDuration } from "./tasks";
  */
 export type BlockReview = "done" | "not-done" | "partial" | "finished";
 
-/** The answer to a Check-in: so far, that the Task is finished. */
-export type CheckInAnswer = { answer: "finished" };
+/** The answer to a Check-in: that the Task is finished, or that it didn't start (so it moves to its next free time). */
+export type CheckInAnswer = { answer: "finished" } | { answer: "didnt-start" };
 
-export type CheckInResult = { ok: true } | { ok: false; notFound: true } | { ok: false; errors: { block: string } };
+/** After Didn't start, `nextStart` is where the Task went: its next start, or null if it's now Unscheduled. */
+export type CheckInResult =
+  | { ok: true; nextStart?: Date | null }
+  | { ok: false; notFound: true }
+  | { ok: false; errors: { block: string } };
 
 /** What the owner says about a past Block: done, didn't do it, or did part of it (with the minutes worked). */
 export type ReviewOutcome = { review: "done" } | { review: "not-done" } | { review: "partial"; workedMinutes: number };

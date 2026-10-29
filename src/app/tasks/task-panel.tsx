@@ -14,7 +14,7 @@ import { allowSplitting, checkIn } from "./actions";
 import { CheckInSheet } from "./check-in-sheet";
 import { CompleteTaskButton } from "./complete-task-button";
 import { useCompletion } from "./completion";
-import { deadlineWords, spanWords, todayIn } from "./day-words";
+import { deadlineWords, movedWords, spanWords, todayIn } from "./day-words";
 import { FLAG_LABELS } from "./flags";
 import { useTaskEditor, type ActOnTasks } from "./task-editor-slot";
 import { TASK_LINE_ID, TaskLineAdd } from "./task-line-add";
@@ -82,11 +82,17 @@ export function TaskPanel({
   );
   const [, startTransition] = useTransition();
   const [toast, setToast] = useState<string | null>(null);
-  const clearToast = useCallback(() => setToast(null), []);
+  // Information, such as where Didn't start moved a Task, shows when there's no error to show.
+  const [notice, setNotice] = useState<string | null>(null);
+  const clearToast = useCallback(() => {
+    setToast(null);
+    setNotice(null);
+  }, []);
   const act: ActOnTasks = useCallback((change, perform) => {
     setToast(null);
+    setNotice(null);
     startTransition(async () => {
-      showChange(change);
+      if (change) showChange(change);
       let reason: string | null;
       try {
         reason = await perform();
@@ -114,6 +120,20 @@ export function TaskPanel({
     act({ kind: "complete", id: task.id }, async () => {
       const result = await checkIn(blockId, { answer: "finished" });
       if (result.ok) return null;
+      if ("notFound" in result) return `“${task.title}” was deleted or changed elsewhere.`;
+      return result.errors.block;
+    });
+  }
+
+  /** Answers a Check-in Didn't start: the row waits for the server's list, then a toast says where the Task went. */
+  function didntStart(task: TaskListItem) {
+    const [{ blockId }] = task.checkIns;
+    act(null, async () => {
+      const result = await checkIn(blockId, { answer: "didnt-start" });
+      if (result.ok) {
+        setNotice(movedWords(result.nextStart ?? null, todayIn(timeZone), zone));
+        return null;
+      }
       if ("notFound" in result) return `“${task.title}” was deleted or changed elsewhere.`;
       return result.errors.block;
     });
@@ -280,10 +300,11 @@ export function TaskPanel({
           checkIn={checkingInTask.checkIns[0]}
           timeZone={zone}
           onFinished={() => finish(checkingInTask)}
+          onDidntStart={() => didntStart(checkingInTask)}
           onClose={() => setCheckingIn(null)}
         />
       )}
-      <Toast message={toast} onDone={clearToast} />
+      <Toast message={toast ?? notice} tone={toast ? "error" : "info"} onDone={clearToast} />
     </section>
   );
 }
