@@ -1075,7 +1075,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       if (dynacal !== null && calendarIds.includes(dynacal)) {
         return {
           ok: false,
-          errors: { busyCalendars: "The dynacal calendar holds your Blocks, so it can't be a Busy Calendar." },
+          errors: { busyCalendars: "The dynacal calendar holds your Tasks, so it can't be a Busy Calendar." },
         };
       }
       if (!calendarIds.every((id) => known.has(id))) {

@@ -16,10 +16,10 @@ function renderSettings() {
   renderGuarded(<SettingsProse initial={initial} calendar={{ status: "unreachable" }} />);
 }
 
-/** The editor that opens under the "Never split a Task into Blocks shorter than …" sentence. */
+/** The editor that opens under the "Never split a Task into pieces shorter than …" sentence. */
 async function openMinimumBlockLength() {
   await userEvent.click(screen.getByRole("button", { name: "30 minutes" }));
-  return within(screen.getByRole("group", { name: "Minimum Block Length" }));
+  return within(screen.getByRole("group", { name: "Shortest split piece" }));
 }
 
 describe("Settings save as you go", () => {
@@ -44,12 +44,12 @@ describe("Settings save as you go", () => {
     renderSettings();
     const editor = await openMinimumBlockLength();
 
-    const field = editor.getByRole("spinbutton", { name: "Minimum Block Length" });
+    const field = editor.getByRole("spinbutton", { name: "Shortest split piece" });
     await userEvent.clear(field);
     await userEvent.type(field, "20");
     await userEvent.click(screen.getByRole("switch", { name: "Count free Events" }));
 
-    expect(editor.getByRole("alert").textContent).toBe("Minimum Block Length must be a multiple of 15 minutes, at least 15.");
+    expect(editor.getByRole("alert").textContent).toBe("Shortest split piece must be a multiple of 15 minutes, at least 15.");
     expect(editor.getByRole("button", { name: "Done" })).toHaveProperty("disabled", true);
     await waitFor(() => expect(saveSettings).toHaveBeenCalled());
     for (const [sent] of vi.mocked(saveSettings).mock.calls) {
@@ -60,7 +60,7 @@ describe("Settings save as you go", () => {
   it("puts back the last saved value with Undo", async () => {
     renderSettings();
     const editor = await openMinimumBlockLength();
-    const field = editor.getByRole("spinbutton", { name: "Minimum Block Length" });
+    const field = editor.getByRole("spinbutton", { name: "Shortest split piece" });
     await userEvent.clear(field);
     await userEvent.type(field, "20");
 

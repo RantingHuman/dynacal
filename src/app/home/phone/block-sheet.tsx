@@ -56,7 +56,7 @@ export function BlockSheet({
 
   return (
     <LabelFrame className={styles.sheet} labelledBy="block-sheet-heading">
-      <span className={styles.kind}>{block.pinned ? "Pinned Block" : "Block"}</span>
+      <span className={styles.kind}>{block.pinned ? "Pinned Task" : "Task"}</span>
       <LabelTitle id="block-sheet-heading">{block.taskTitle}</LabelTitle>
       <LabelTime>{spanLabel(block, timeZone)}</LabelTime>
       <BlockConflictNote conflicts={conflicts} />
@@ -130,8 +130,8 @@ export function BlockSheet({
       )}
       <LabelNote>
         {block.pinned
-          ? "Recalculation plans around this Block instead of moving it."
-          : "A moved Block is pinned, so Recalculation plans around it."}
+          ? "Recalculation plans around this time instead of moving it."
+          : "Moving it pins it, so Recalculation plans around it."}
       </LabelNote>
       <div className={styles.sheetButtons}>
         {block.pinned && (

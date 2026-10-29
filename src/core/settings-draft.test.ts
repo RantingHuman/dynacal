@@ -60,7 +60,7 @@ describe("saving Settings as you go", () => {
       save: { ...saved, countFreeEvents: true },
       held: {
         timeZone: "“Mars/Olympus_Mons” isn't a time zone dynacal recognises.",
-        minimumBlockMinutes: "Minimum Block Length must be a multiple of 15 minutes, at least 15.",
+        minimumBlockMinutes: "Shortest split piece must be a multiple of 15 minutes, at least 15.",
         reminderLeadMinutes: "Reminder lead time must be a whole number of minutes from 0 to 1440.",
       },
     });

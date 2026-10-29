@@ -27,7 +27,7 @@ export function ErrorScreen({
       }
     : {
         headline: { before: "", emphasis: "Something went wrong.", after: "" },
-        standfirst: ["dynacal hit an error it didn't expect. Your Tasks and Blocks are safe."],
+        standfirst: ["dynacal hit an error it didn't expect. Your Tasks and their times are safe."],
       };
   return (
     <div className={homeStyles.page}>

@@ -207,6 +207,14 @@ describe("the week the summary describes", () => {
     expect(app.commands.getWeekSummary()).toMatchObject({ weekOf: "2026-01-05", nextWeek: false, blocks: 1 });
   });
 
+  it("counts a Task split over several days once, for the headline", () => {
+    const app = appInLondon();
+    createTask(app, { title: "Report", estimatedMinutes: 10 * 60, splittable: true });
+    createTask(app, { title: "Slides" });
+
+    expect(app.commands.getWeekSummary()).toMatchObject({ blocks: 3, tasks: 2 });
+  });
+
   it("is 'nothing scheduled this week' when every Block is later, and says which comes next", () => {
     const app = appInLondon();
     createTask(app, { title: "Budget", earliestStart: { date: "2026-01-14", time: null } });

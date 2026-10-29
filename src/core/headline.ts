@@ -42,7 +42,7 @@ function count(n: number): string {
   return n < NUMBER_WORDS.length ? NUMBER_WORDS[n] : String(n);
 }
 
-/** "one Block", "two Blocks", "12 Blocks". */
+/** "one Task", "two Tasks", "12 Tasks". */
 function plural(n: number, one: string, many = `${one}s`): string {
   return `${count(n)} ${n === 1 ? one : many}`;
 }
@@ -86,7 +86,7 @@ type Parts = [before: string, emphasis: string, after?: string];
 /** The two headline variants for the winning state. */
 function headlineVariants(summary: WeekSummary): [Parts, Parts] {
   const { counts } = summary;
-  const blocks = capitalise(plural(summary.blocks, "Block"));
+  const tasks = capitalise(plural(summary.tasks, "Task"));
   switch (summary.state) {
     case "no-time-zone":
       return [["Your week is ", "waiting on a time zone."], ["", "One setting", " stands between you and a Schedule."]];
@@ -97,37 +97,37 @@ function headlineVariants(summary: WeekSummary): [Parts, Parts] {
     case "overdue": {
       const n = counts.overdue;
       return [
-        [`${blocks}, `, `${plural(n, "Task")} overdue.`],
+        [`${tasks}, `, `${plural(n, "Task")} overdue.`],
         ["", capitalise(plural(n, "Task")), ` past ${either(n, "its", "their")} deadline.`],
       ];
     }
     case "at-risk": {
       const n = counts["at-risk"];
       return [
-        [`${blocks}, `, `${plural(n, "deadline")} at risk.`],
+        [`${tasks}, `, `${plural(n, "deadline")} at risk.`],
         ["", capitalise(plural(n, "deadline")), ` won't fit.`],
       ];
     }
     case "conflict": {
       const n = counts.conflict;
       return [
-        [`${blocks}, `, plural(n, "Conflict"), " to settle."],
+        [`${tasks}, `, plural(n, "Conflict"), " to settle."],
         n === 1
-          ? ["", "A Pinned Block", " overlaps an Event."]
-          : ["", capitalise(plural(n, "Pinned Block")), " overlap Events."],
+          ? ["", "A pinned time", " overlaps an Event."]
+          : ["", capitalise(plural(n, "pinned time")), " overlap Events."],
       ];
     }
     case "unscheduled": {
       const n = counts.unscheduled;
       return [
-        [`${blocks}, `, `${plural(n, "Task")} without a home.`],
+        [`${tasks}, `, `${plural(n, "Task")} without a home.`],
         ["", capitalise(plural(n, "Task")), ` ${either(n, "doesn't", "don't")} fit anywhere yet.`],
       ];
     }
     case "check-in": {
       const n = counts["check-in"];
       return [
-        [`${blocks} ahead, `, `${plural(n, "Task")} to check in.`],
+        [`${tasks} ahead, `, `${plural(n, "Task")} to check in.`],
         ["", capitalise(plural(n, "Task")), " to check in."],
       ];
     }
@@ -136,7 +136,7 @@ function headlineVariants(summary: WeekSummary): [Parts, Parts] {
     case "nothing-this-week":
       return [["", "A quiet week."], ["", "Nothing on", " this week."]];
     case "everything-fits":
-      return [[`${blocks}, `, "everything fits."], [`${blocks}, `, "all on time."]];
+      return [[`${tasks}, `, "everything fits."], [`${tasks}, `, "all on time."]];
   }
 }
 
@@ -146,7 +146,7 @@ function leadSentences(summary: WeekSummary, today: string): Prose {
   switch (summary.state) {
     case "no-time-zone":
       return [
-        "dynacal can't place Blocks until it knows where you are. ",
+        "dynacal can't plan your Tasks until it knows where you are. ",
         { text: "Set your time zone in Settings", href: SETTINGS_HREF },
         ".",
       ];
@@ -171,8 +171,8 @@ function leadSentences(summary: WeekSummary, today: string): Prose {
         : [`${capitalise(plural(counts["at-risk"], "Task"))} need more time than their deadlines allow.`];
     case "conflict":
       return named
-        ? [`${named.taskTitle}'s Pinned Block overlaps ${named.eventTitle}. Only you can choose which gives way.`]
-        : [`${capitalise(plural(counts.conflict, "Pinned Block"))} overlap Events. Only you can choose which gives way.`];
+        ? [`${named.taskTitle}'s pinned time overlaps ${named.eventTitle}. Only you can choose which gives way.`]
+        : [`${capitalise(plural(counts.conflict, "pinned time"))} overlap Events. Only you can choose which gives way.`];
     case "unscheduled":
       return named
         ? [`There's no room for ${named.taskTitle} in ${HORIZON}. Free up Working Hours or move its deadline.`]
@@ -191,7 +191,7 @@ function leadSentences(summary: WeekSummary, today: string): Prose {
     case "nothing-this-week":
       return [
         summary.nextBlock
-          ? `Your next Block is ${summary.nextBlock.taskTitle} on ${formatDay(summary.nextBlock.date)}.`
+          ? `Next up is ${summary.nextBlock.taskTitle} on ${formatDay(summary.nextBlock.date)}.`
           : `Nothing is planned in ${HORIZON}.`,
       ];
     case "everything-fits": {
@@ -252,7 +252,7 @@ export function writeHeadline(summary: WeekSummary, today: string): Headline {
   const variants = headlineVariants(summary);
   let [before, emphasis, after = ""] = variants[daysSinceEpoch(today) % 2];
   if (summary.nextWeek) {
-    // "Next week: three Blocks, …", keeping Google's capital.
+    // "Next week: three Tasks, …", keeping Google's capital.
     const opening = before || emphasis;
     const lowered = opening.startsWith("Google") ? opening : opening.charAt(0).toLowerCase() + opening.slice(1);
     if (before) before = `Next week: ${lowered}`;

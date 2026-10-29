@@ -84,6 +84,8 @@ export interface WeekSummary {
   nextWeek: boolean;
   /** Blocks that haven't ended, up to the end of the week described. */
   blocks: number;
+  /** The Tasks those Blocks belong to: what the headline counts. */
+  tasks: number;
   /** The first Block after the week described, for "nothing scheduled this week". */
   nextBlock: { taskTitle: string; date: string } | null;
   /** The longest stretch inside Working Hours left in the week without a Block or busy Event, if it's two hours or more. */
@@ -96,7 +98,7 @@ export interface WeekSummaryInput {
   workingHours: WorkingHours;
   connection: GoogleConnectionView;
   /** Every Block, in time order. */
-  blocks: { taskTitle: string; start: Date; end: Date }[];
+  blocks: { taskId: string; taskTitle: string; start: Date; end: Date }[];
   /** Events that count as busy time. */
   busy: Interval[];
   /** Every Task, complete or not, with when its oldest time waiting for a Check-in started (null if none waits). */
@@ -123,7 +125,8 @@ export function summariseWeek(input: WeekSummaryInput): WeekSummary {
   const weekOf = nextWeek ? addDays(thisMonday, 7) : thisMonday;
   const weekEnd = fromZoned({ date: addDays(weekOf, 7), minutes: 0 }, timeZone);
   const ahead = input.blocks.filter((b) => b.end > now);
-  const blocks = ahead.filter((b) => b.start < weekEnd).length;
+  const thisWeek = ahead.filter((b) => b.start < weekEnd);
+  const blocks = thisWeek.length;
   const later = ahead.find((b) => b.start >= weekEnd);
 
   const open = input.tasks.filter((t) => !t.completed);
@@ -164,6 +167,7 @@ export function summariseWeek(input: WeekSummaryInput): WeekSummary {
     weekOf,
     nextWeek,
     blocks,
+    tasks: new Set(thisWeek.map((b) => b.taskId)).size,
     nextBlock: later ? { taskTitle: later.taskTitle, date: toZoned(later.start, timeZone).date } : null,
     freeStretch:
       input.timeZone === null ? null : longestFreeStretch(hoursLeft(weekOf), [...input.busy, ...ahead], timeZone),

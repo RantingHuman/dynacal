@@ -7,7 +7,7 @@ import styles from "./toast.module.css";
 const INFO_MS = 2200;
 
 /**
- * A message that slides up from the bottom of the screen with a small overshoot. Information ("3 Blocks moved")
+ * A message that slides up from the bottom of the screen with a small overshoot. Information ("Moved 3 Tasks")
  * is ink and goes away by itself; an error (why a move was refused) is in the accent and stays until dismissed.
  * It keeps its last words while it slides away, so the exit is seen.
  */

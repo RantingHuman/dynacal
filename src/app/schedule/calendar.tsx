@@ -103,6 +103,7 @@ type DragMode = "move" | "start" | "end";
 
 interface Drag {
   blockId: string;
+  taskTitle: string;
   mode: DragMode;
   pointerId: number;
   x: number;
@@ -296,7 +297,7 @@ export function Calendar({
     const handle = (e.target as HTMLElement).dataset.handle as DragMode | undefined;
     const mode: DragMode = start < now ? "end" : (handle ?? "move");
     e.preventDefault();
-    drag.current = { blockId: block.id, mode, pointerId: e.pointerId, x: e.clientX, y: e.clientY, day, start, end, moved: false, to: { start, end } };
+    drag.current = { blockId: block.id, taskTitle: block.taskTitle, mode, pointerId: e.pointerId, x: e.clientX, y: e.clientY, day, start, end, moved: false, to: { start, end } };
     // Followed on the window, so the drag carries on wherever the pointer goes and whatever is redrawn under it.
     const onMove = (e: PointerEvent) => dragHandlers.current.continueDrag(e);
     const onUp = (e: PointerEvent) => {
@@ -368,7 +369,7 @@ export function Calendar({
     startMoving(async () => {
       // A refused move springs back (the preview goes) with a small shake, and says why in the toast. One that
       // lands boings (a drop) or settles (a resize) and says where it's pinned.
-      const message = moveError(await moveBlock(d.blockId, to));
+      const message = moveError(await moveBlock(d.blockId, to), d.taskTitle);
       setPreview(null);
       if (message) {
         setLanding({ id: d.blockId, kind: "refused" });
@@ -753,7 +754,7 @@ export function Calendar({
                 ].filter(Boolean);
                 // Only a Block's first part carries its name: a name must be unique on the page.
                 const first = toZoned(new Date(block.start), timeZone).date === day;
-                const label = `${block.taskTitle}, ${formatMinutes(top)}–${formatMinutes(bottom)}${block.pinned ? ", Pinned Block" : ""}${conflict ? ", Conflict" : ""}`;
+                const label = `${block.taskTitle}, ${formatMinutes(top)}–${formatMinutes(bottom)}${block.pinned ? ", Pinned" : ""}${conflict ? ", Conflict" : ""}`;
                 return (
                   <ViewTransition
                     key={`${block.displayKey}-${day}`}

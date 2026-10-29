@@ -83,7 +83,7 @@ describe("the dynacal calendar", () => {
 
     expect(await app.commands.setBusyCalendars(["work", dynacal.id])).toEqual({
       ok: false,
-      errors: { busyCalendars: "The dynacal calendar holds your Blocks, so it can't be a Busy Calendar." },
+      errors: { busyCalendars: "The dynacal calendar holds your Tasks, so it can't be a Busy Calendar." },
     });
   });
 

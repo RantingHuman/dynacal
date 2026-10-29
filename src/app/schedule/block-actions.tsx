@@ -14,11 +14,11 @@ export function minutesOf(time: string): number {
   return h * 60 + m;
 }
 
-/** The message to show for a refused move. */
-export function moveError(result: MoveBlockResult): string | null {
+/** The message to show for a refused move of one of the Task `title`'s times. */
+export function moveError(result: MoveBlockResult, title: string): string | null {
   if (result.ok) return null;
-  if ("notFound" in result) return "This Block no longer exists. It may have been replaced by a Recalculation.";
-  return result.errors.block ?? result.errors.start ?? result.errors.end ?? "Couldn't move this Block.";
+  if ("notFound" in result) return `Couldn't move “${title}”: its time changed elsewhere.`;
+  return result.errors.block ?? result.errors.start ?? result.errors.end ?? `Couldn't move “${title}”.`;
 }
 
 /**
@@ -36,7 +36,10 @@ export function useBlockActions(block: CalendarBlock, onClose: () => void) {
   function move(to: { start: Date; end: Date }, onMoved: () => void) {
     setError(null);
     startTransition(async () => {
-      const message = moveError(await moveBlock(block.id, { start: to.start.toISOString(), end: to.end.toISOString() }));
+      const message = moveError(
+        await moveBlock(block.id, { start: to.start.toISOString(), end: to.end.toISOString() }),
+        block.taskTitle,
+      );
       setError(message);
       if (!message) onMoved();
     });
@@ -47,7 +50,7 @@ export function useBlockActions(block: CalendarBlock, onClose: () => void) {
     startTransition(async () => {
       const result = await unpinBlock(block.id);
       if (result.ok) onClose();
-      else setError("This Block no longer exists.");
+      else setError(`Couldn't unpin “${block.taskTitle}”: its time changed elsewhere.`);
     });
   }
 
@@ -76,7 +79,7 @@ export function BlockConflictNote({ conflicts, advice = false }: { conflicts: Ca
   if (conflicts.length === 0) return null;
   return (
     <LabelNote alert>
-      Conflict: this Pinned Block overlaps {conflicts.map((c) => c.title).join(", ")}.
+      Conflict: this pinned time overlaps {conflicts.map((c) => c.title).join(", ")}.
       {advice && " dynacal won’t move it; move it, shorten it or unpin it, or change the Event in your calendar."}
     </LabelNote>
   );

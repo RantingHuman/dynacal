@@ -20,9 +20,17 @@ export interface Recalculation {
   gliding: string[];
 }
 
+/** "Moved “Pack for vegas”" or "Moved 3 Tasks": the Tasks whose times moved (by display key), or null if none did. */
+function movedMessage(movedKeys: string[], blocks: CalendarBlock[]): string | null {
+  const byKey = new Map(blocks.map((b) => [b.displayKey, b]));
+  const titles = new Map(movedKeys.map((key) => byKey.get(key)!).map((b) => [b.taskId, b.taskTitle]));
+  if (titles.size === 0) return null;
+  return titles.size === 1 ? `Moved “${[...titles.values()][0]}”` : `Moved ${titles.size} Tasks`;
+}
+
 /**
- * Recalculating from a button. While it runs nothing else is said; as it finishes, `announce` gets "3 Blocks
- * moved" (or nothing, if none did), and `gliding` lists the moved Blocks until they've had time to glide. It runs
+ * Recalculating from a button. While it runs nothing else is said; as it finishes, `announce` gets "Moved 3
+ * Tasks" (or nothing, if none did), and `gliding` lists the moved Blocks until they've had time to glide. It runs
  * in a Transition of type "recalculate", which is what lets the calendar's Blocks glide (see `Calendar`).
  */
 export function useRecalculate(blocks: CalendarBlock[], announce: (message: string | null) => void): Recalculation {
@@ -31,13 +39,15 @@ export function useRecalculate(blocks: CalendarBlock[], announce: (message: stri
   const [glideFrom, setGlideFrom] = useState<CalendarBlock[] | null>(null);
 
   const finished = !pending && glideFrom !== null;
-  const movedCount = finished ? movedBlocks(glideFrom, blocks).length : 0;
+  const moved = finished ? movedBlocks(glideFrom, blocks) : [];
+  const movedCount = moved.length;
+  const message = movedMessage(moved, blocks);
   useEffect(() => {
     if (!finished) return;
-    if (movedCount > 0) announce(`${movedCount} ${movedCount === 1 ? "Block" : "Blocks"} moved`);
+    if (message) announce(message);
     const timer = setTimeout(() => setGlideFrom(null), GLIDE_MS + movedCount * STAGGER_MS);
     return () => clearTimeout(timer);
-  }, [finished, movedCount, announce]);
+  }, [finished, movedCount, message, announce]);
 
   function run() {
     setGlideFrom(blocks);

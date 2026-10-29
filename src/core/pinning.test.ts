@@ -131,7 +131,7 @@ describe("a Block that has started", () => {
 
     expect(app.commands.moveBlock(blockOf(app, "Report").id, { start: at("09:45"), end: at("10:00") })).toEqual({
       ok: false,
-      errors: { start: "This Block has started, so only its end can change." },
+      errors: { start: "This time has started, so only its end can change." },
     });
   });
 
@@ -142,7 +142,7 @@ describe("a Block that has started", () => {
 
     expect(app.commands.moveBlock(blockOf(app, "Report").id, { start: at("11:00"), end: at("12:00") })).toEqual({
       ok: false,
-      errors: { block: "This Block has already ended, so it can't be moved." },
+      errors: { block: "This time has already ended, so it can't be moved." },
     });
   });
 });

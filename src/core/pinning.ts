@@ -25,11 +25,11 @@ interface MoveContext {
  */
 export function validateBlockTime(to: { start: Date; end: Date }, context: MoveContext): MoveBlockErrors | null {
   const { now, horizonEnd, horizonDays, current } = context;
-  if (current.end <= now) return { block: "This Block has already ended, so it can't be moved." };
+  if (current.end <= now) return { block: "This time has already ended, so it can't be moved." };
   const started = current.start < now;
   const errors: MoveBlockErrors = {};
   if (started && to.start.getTime() !== current.start.getTime()) {
-    errors.start = "This Block has started, so only its end can change.";
+    errors.start = "This time has started, so only its end can change.";
   } else if (to.start.getTime() % GRID_MS !== 0) {
     errors.start = "Choose a start on a 15-minute step.";
   } else if (!started && to.start < now) {

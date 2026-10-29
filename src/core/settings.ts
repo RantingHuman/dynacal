@@ -119,7 +119,7 @@ export function validateSettings(settings: Settings): SettingsErrors | null {
   }
   const { minimumBlockMinutes, reminderLeadMinutes } = settings;
   if (!Number.isInteger(minimumBlockMinutes / GRID_MINUTES) || minimumBlockMinutes < GRID_MINUTES) {
-    errors.minimumBlockMinutes = "Minimum Block Length must be a multiple of 15 minutes, at least 15.";
+    errors.minimumBlockMinutes = "Shortest split piece must be a multiple of 15 minutes, at least 15.";
   }
   if (!Number.isInteger(reminderLeadMinutes) || reminderLeadMinutes < 0 || reminderLeadMinutes > DAY_MINUTES) {
     errors.reminderLeadMinutes = "Reminder lead time must be a whole number of minutes from 0 to 1440.";

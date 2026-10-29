@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { checkInHref, RECONNECT_HREF, SETTINGS_HREF, writeHeadline, type Headline } from "./headline";
-import type { WeekSummary } from "./week-summary";
+import { WEEK_STATES, type WeekSummary } from "./week-summary";
 
 // 5 January 2026 is a Monday. Days alternate between the two headline variants: the 5th reads A, the 6th B.
 const A_DAY = "2026-01-05";
@@ -18,6 +18,7 @@ function summary(overrides: Partial<WeekSummary> = {}): WeekSummary {
     weekOf: "2026-01-05",
     nextWeek: false,
     blocks: 10,
+    tasks: 10,
     nextBlock: null,
     freeStretch: null,
     ...overrides,
@@ -36,27 +37,27 @@ function standfirstText({ standfirst }: Headline): string {
 
 describe("the headline", () => {
   it("has two variants per state, chosen by the date, so a refresh doesn't change it", () => {
-    expect(headlineText(writeHeadline(summary(), A_DAY))).toBe("10 Blocks, *everything fits.*");
-    expect(headlineText(writeHeadline(summary(), A_DAY))).toBe("10 Blocks, *everything fits.*");
-    expect(headlineText(writeHeadline(summary(), B_DAY))).toBe("10 Blocks, *all on time.*");
-    expect(headlineText(writeHeadline(summary(), "2026-01-07"))).toBe("10 Blocks, *everything fits.*");
+    expect(headlineText(writeHeadline(summary(), A_DAY))).toBe("10 Tasks, *everything fits.*");
+    expect(headlineText(writeHeadline(summary(), A_DAY))).toBe("10 Tasks, *everything fits.*");
+    expect(headlineText(writeHeadline(summary(), B_DAY))).toBe("10 Tasks, *all on time.*");
+    expect(headlineText(writeHeadline(summary(), "2026-01-07"))).toBe("10 Tasks, *everything fits.*");
   });
 
   it("writes one to nine as words and 10 and above as digits", () => {
-    const blocks = (n: number) => headlineText(writeHeadline(summary({ blocks: n }), A_DAY));
+    const tasks = (n: number) => headlineText(writeHeadline(summary({ tasks: n }), A_DAY));
 
-    expect(blocks(1)).toBe("One Block, *everything fits.*");
-    expect(blocks(3)).toBe("Three Blocks, *everything fits.*");
-    expect(blocks(9)).toBe("Nine Blocks, *everything fits.*");
-    expect(blocks(12)).toBe("12 Blocks, *everything fits.*");
+    expect(tasks(1)).toBe("One Task, *everything fits.*");
+    expect(tasks(3)).toBe("Three Tasks, *everything fits.*");
+    expect(tasks(9)).toBe("Nine Tasks, *everything fits.*");
+    expect(tasks(12)).toBe("12 Tasks, *everything fits.*");
   });
 
   it("gets plurals right", () => {
     const overdue = (n: number, day: string) =>
-      headlineText(writeHeadline(summary({ state: "overdue", blocks: 4, counts: { ...summary().counts, overdue: n } }), day));
+      headlineText(writeHeadline(summary({ state: "overdue", tasks: 4, counts: { ...summary().counts, overdue: n } }), day));
 
-    expect(overdue(1, A_DAY)).toBe("Four Blocks, *one Task overdue.*");
-    expect(overdue(2, A_DAY)).toBe("Four Blocks, *two Tasks overdue.*");
+    expect(overdue(1, A_DAY)).toBe("Four Tasks, *one Task overdue.*");
+    expect(overdue(2, A_DAY)).toBe("Four Tasks, *two Tasks overdue.*");
     expect(overdue(1, B_DAY)).toBe("*One Task* past its deadline.");
     expect(overdue(11, B_DAY)).toBe("*11 Tasks* past their deadline.");
   });
@@ -71,13 +72,13 @@ describe("the headline", () => {
       A_DAY,
     );
 
-    expect(headlineText(atRisk)).toBe("10 Blocks, *one deadline at risk.*");
+    expect(headlineText(atRisk)).toBe("10 Tasks, *one deadline at risk.*");
     expect(standfirstText(atRisk)).toBe("Board memo needs more time than its deadline allows.");
   });
 
   it("speaks of next week once the summary has rolled over", () => {
-    expect(headlineText(writeHeadline(summary({ nextWeek: true, blocks: 3 }), A_DAY))).toBe(
-      "Next week: three Blocks, *everything fits.*",
+    expect(headlineText(writeHeadline(summary({ nextWeek: true, tasks: 3 }), A_DAY))).toBe(
+      "Next week: three Tasks, *everything fits.*",
     );
     expect(headlineText(writeHeadline(summary({ nextWeek: true, state: "nothing-this-week" }), A_DAY))).toBe(
       "Next week: *a quiet week.*",
@@ -117,15 +118,15 @@ describe("the standfirst", () => {
       A_DAY,
     );
 
-    expect(headlineText(conflict)).toBe("10 Blocks, *one Conflict* to settle.");
+    expect(headlineText(conflict)).toBe("10 Tasks, *one Conflict* to settle.");
     expect(standfirstText(conflict)).toBe(
-      "Report's Pinned Block overlaps Stand-up. Only you can choose which gives way.",
+      "Report's pinned time overlaps Stand-up. Only you can choose which gives way.",
     );
   });
 
   it("links the fixes for a missing time zone and a broken connection", () => {
     expect(standfirstText(writeHeadline(summary({ state: "no-time-zone" }), A_DAY))).toBe(
-      `dynacal can't place Blocks until it knows where you are. [Set your time zone in Settings](${SETTINGS_HREF}).`,
+      `dynacal can't plan your Tasks until it knows where you are. [Set your time zone in Settings](${SETTINGS_HREF}).`,
     );
     expect(
       standfirstText(writeHeadline(summary({ state: "connection-broken", email: "owner@example.com" }), A_DAY)),
@@ -155,12 +156,12 @@ describe("the standfirst", () => {
   it("counts Tasks to check in, and links the oldest Check-in", () => {
     const checkIns = (n: number, day: string, named: WeekSummary["named"] = null) =>
       writeHeadline(
-        summary({ state: "check-in", blocks: 4, counts: { ...summary().counts, "check-in": n }, named, firstCheckIn: "task-1" }),
+        summary({ state: "check-in", tasks: 4, counts: { ...summary().counts, "check-in": n }, named, firstCheckIn: "task-1" }),
         day,
       );
 
-    expect(headlineText(checkIns(1, A_DAY))).toBe("Four Blocks ahead, *one Task to check in.*");
-    expect(headlineText(checkIns(2, A_DAY))).toBe("Four Blocks ahead, *two Tasks to check in.*");
+    expect(headlineText(checkIns(1, A_DAY))).toBe("Four Tasks ahead, *one Task to check in.*");
+    expect(headlineText(checkIns(2, A_DAY))).toBe("Four Tasks ahead, *two Tasks to check in.*");
     expect(headlineText(checkIns(1, B_DAY))).toBe("*One Task* to check in.");
     expect(headlineText(checkIns(12, B_DAY))).toBe("*12 Tasks* to check in.");
     expect(standfirstText(checkIns(1, A_DAY, { taskTitle: "Report" }))).toBe(
@@ -198,11 +199,38 @@ describe("the standfirst", () => {
 
   it("says which Block comes next in a quiet week", () => {
     const quiet = (nextBlock: WeekSummary["nextBlock"]) =>
-      standfirstText(writeHeadline(summary({ state: "nothing-this-week", blocks: 0, nextBlock }), A_DAY));
+      standfirstText(writeHeadline(summary({ state: "nothing-this-week", blocks: 0, tasks: 0, nextBlock }), A_DAY));
 
     expect(quiet({ taskTitle: "Budget", date: "2026-01-14" })).toBe(
-      "Your next Block is Budget on Wednesday 14 January.",
+      "Next up is Budget on Wednesday 14 January.",
     );
     expect(quiet(null)).toBe("Nothing is planned in the next two weeks.");
+  });
+});
+
+describe("the owner's words", () => {
+  it("never says Block, in any state, with one or many of anything", () => {
+    for (const state of WEEK_STATES) {
+      for (const n of [1, 2]) {
+        for (const day of [A_DAY, B_DAY]) {
+          for (const nextWeek of [false, true]) {
+            const headline = writeHeadline(
+              summary({
+                state,
+                nextWeek,
+                secondary: ["no-time-zone", "connection-broken", "overdue", "at-risk", "conflict", "unscheduled", "check-in"],
+                counts: { overdue: n, "at-risk": n, conflict: n, unscheduled: n, "check-in": n },
+                named: n === 1 ? { taskTitle: "Report", eventTitle: "Stand-up", deadline: "2026-01-02" } : null,
+                tasks: n,
+                nextBlock: { taskTitle: "Budget", date: "2026-01-14" },
+                email: "owner@example.com",
+              }),
+              day,
+            );
+            expect(`${headlineText(headline)} ${standfirstText(headline)}`).not.toMatch(/\bblocks?\b/i);
+          }
+        }
+      }
+    }
   });
 });

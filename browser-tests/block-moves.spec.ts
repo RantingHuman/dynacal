@@ -34,7 +34,7 @@ test("drags a Block on desktop and keeps the new time after reload", async ({ br
     await page.mouse.up();
     await expect(page.getByText("Pinned at 09:30")).toBeVisible();
     await page.reload();
-    await expect(page.getByRole("button", { name: /Write a report, 09:30–10:30, Pinned Block/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Write a report, 09:30–10:30, Pinned/ })).toBeVisible();
   });
 });
 
@@ -47,8 +47,8 @@ test("moves a Block from the phone sheet and keeps the new time after reload", a
     await page.getByRole("tab", { name: "Schedule" }).click();
     await page.getByRole("button", { name: /Write a report, 09:00, 1h/ }).click();
     await page.getByRole("button", { name: "+15m" }).click();
-    await expect(page.getByRole("button", { name: /Write a report, 09:15, 1h, Pinned Block/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Write a report, 09:15, 1h, Pinned/ })).toBeVisible();
     await page.reload();
-    await expect(page.getByRole("button", { name: /Write a report, 09:15, 1h, Pinned Block/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Write a report, 09:15, 1h, Pinned/ })).toBeVisible();
   });
 });

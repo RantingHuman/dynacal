@@ -164,7 +164,7 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
               const pinned = isBlock && item.block.pinned;
               const free = !isBlock && !item.event.countsAsBusy;
               const waiting = isBlock && checkIns.waiting.has(id);
-              const notes = [pinned && "Pinned Block", free && "Free", conflict && "Conflict", waiting && "Finished?"].filter(Boolean);
+              const notes = [pinned && "Pinned", free && "Free", conflict && "Conflict", waiting && "Finished?"].filter(Boolean);
               return (
                 <div key={`${isBlock ? item.block.displayKey : id}-${date}`} className={styles.row}>
                   {isBlock && !past ? (
@@ -235,10 +235,10 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
         )}
 
         {openBlock && ended(openBlock) && !checkingIn && (
-          <FloatingLabel kind="Block" labelledBy="ended-block-heading" onClose={close}>
+          <FloatingLabel kind="Task" labelledBy="ended-block-heading" onClose={close}>
             <LabelTitle id="ended-block-heading">{openBlock.taskTitle}</LabelTitle>
             <LabelTime>{spanLabel(openBlock, timeZone)}</LabelTime>
-            <LabelNote>This Block has ended, so it can’t be moved.</LabelNote>
+            <LabelNote>This time has ended, so it can’t be moved.</LabelNote>
           </FloatingLabel>
         )}
 

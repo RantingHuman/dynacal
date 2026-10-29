@@ -76,7 +76,7 @@ describe("desktop Block label", () => {
     vi.mocked(unpinBlock).mockResolvedValue({ ok: false, notFound: true });
     const close = renderBlock({ pinned: true });
     await userEvent.click(screen.getByRole("button", { name: "Unpin" }));
-    expect((await screen.findByRole("alert")).textContent).toBe("This Block no longer exists.");
+    expect((await screen.findByRole("alert")).textContent).toBe("Couldn't unpin “Write Q4 planning doc”: its time changed elsewhere.");
     expect(close).not.toHaveBeenCalled();
   });
 

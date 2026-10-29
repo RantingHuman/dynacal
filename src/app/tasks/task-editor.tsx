@@ -195,7 +195,7 @@ export function TaskEditor({
 
           {task && timeZone && !task.completedAt && (
             <>
-              <dt title="You deleted these Blocks in Google, so this Task stays out of these times">Declined Times</dt>
+              <dt title="You deleted these times in Google, so this Task stays out of them">Declined Times</dt>
               <dd>
                 {task.declinedTimes.length === 0 ? (
                   <span className="muted">None</span>

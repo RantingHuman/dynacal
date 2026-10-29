@@ -206,6 +206,12 @@
   color: var(--accent);
 }
 
+/* A line under an editor's field saying what the value is for. */
+.editorHint {
+  color: var(--soft);
+  font: var(--text-meta) / 1.5 var(--font-sans);
+}
+
 /* Fields inside an editor: a single underline. */
 .field {
   padding: 3px 6px;

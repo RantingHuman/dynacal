@@ -104,6 +104,26 @@ describe("the Block sheet on a phone", () => {
     await waitFor(() => expect(screen.getByText("That would overlap Lunch with Sam.")).toBeTruthy());
   });
 
+  it("names the Task when its time has gone before the move lands", async () => {
+    vi.mocked(moveBlock).mockResolvedValue({ ok: false, notFound: true });
+    renderSheet();
+
+    await userEvent.click(screen.getByRole("button", { name: "+15m" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe("Couldn't move “Write Q4 planning doc”: its time changed elsewhere."),
+    );
+  });
+
+  it("names the Task when a move is refused without a reason", async () => {
+    vi.mocked(moveBlock).mockResolvedValue({ ok: false, errors: {} });
+    renderSheet();
+
+    await userEvent.click(screen.getByRole("button", { name: "+15m" }));
+
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("Couldn't move “Write Q4 planning doc”."));
+  });
+
   it("offers Unpin only for a Pinned Block", () => {
     renderSheet();
     expect(screen.queryByRole("button", { name: "Unpin" })).toBeNull();
@@ -125,7 +145,7 @@ describe("the Block sheet on a phone", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Unpin" }));
 
-    await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("This Block no longer exists."));
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("Couldn't unpin “Write Q4 planning doc”: its time changed elsewhere."));
     expect(onClose).not.toHaveBeenCalled();
   });
 

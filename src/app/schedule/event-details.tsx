@@ -83,7 +83,7 @@ export function EventDetails({
           </>
         )}
         <dt>dynacal</dt>
-        <dd>{event.countsAsBusy ? "Counts as busy" : "Doesn’t count as busy, so Blocks may be placed over it"}</dd>
+        <dd>{event.countsAsBusy ? "Counts as busy" : "Doesn’t count as busy, so Tasks may be planned over it"}</dd>
         <dt>Why</dt>
         <dd>{why}</dd>
       </dl>

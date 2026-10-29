@@ -150,7 +150,7 @@ describe("settings", () => {
     for (const bad of [0, 20, -15, 7.5]) {
       expect(commands.updateSettings({ minimumBlockMinutes: bad })).toEqual({
         ok: false,
-        errors: { minimumBlockMinutes: "Minimum Block Length must be a multiple of 15 minutes, at least 15." },
+        errors: { minimumBlockMinutes: "Shortest split piece must be a multiple of 15 minutes, at least 15." },
       });
     }
     expect(commands.getSettings().minimumBlockMinutes).toBe(45);

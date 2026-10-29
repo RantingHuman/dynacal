@@ -45,7 +45,7 @@ export function BlockEditor({
   }
 
   return (
-    <FloatingLabel kind={block.pinned ? "Pinned Block" : "Block"} labelledBy="block-editor-heading" onClose={onClose}>
+    <FloatingLabel kind={block.pinned ? "Pinned Task" : "Task"} labelledBy="block-editor-heading" onClose={onClose}>
       <LabelTitle id="block-editor-heading">{block.taskTitle}</LabelTitle>
       <LabelTime>{spanLabel(block, timeZone)}</LabelTime>
       <BlockConflictNote conflicts={conflicts} advice />
@@ -96,8 +96,8 @@ export function BlockEditor({
       <LabelNote>
         Drag to move · drag an edge to resize · or set the time here.{" "}
         {block.pinned
-          ? "Recalculation plans around this Block instead of moving it."
-          : "A moved Block is pinned, so Recalculation plans around it."}
+          ? "Recalculation plans around this time instead of moving it."
+          : "Moving it pins it, so Recalculation plans around it."}
       </LabelNote>
     </FloatingLabel>
   );

@@ -100,24 +100,27 @@ export function SettingsProse({
         <WeekSentences settings={draft} saved={saved} held={held} onChange={update} open={open} onOpen={setOpen} />
       </p>
 
-      <h2 className={styles.kicker}>Your Blocks</h2>
+      <h2 className={styles.kicker}>Your Tasks</h2>
       <p className={styles.prose}>
-        Never split a Task into Blocks shorter than{" "}
+        Never split a Task into pieces shorter than{" "}
         <Value
-          label="Minimum Block Length"
+          label="Shortest split piece"
           open={open === "minimum"}
           onOpenChange={toggleOpen("minimum")}
           held={held?.minimumBlockMinutes}
           onUndo={() => update({ minimumBlockMinutes: saved.minimumBlockMinutes })}
           editor={
-            <MinutesEditor
-              label="Minimum Block Length"
-              value={minimum}
-              onChange={(minimumBlockMinutes) => update({ minimumBlockMinutes })}
-              min={15}
-              step={15}
-              unit="minutes"
-            />
+            <>
+              <MinutesEditor
+                label="Shortest split piece"
+                value={minimum}
+                onChange={(minimumBlockMinutes) => update({ minimumBlockMinutes })}
+                min={15}
+                step={15}
+                unit="minutes"
+              />
+              <span className={styles.editorHint}>Only Tasks that can be split are cut into pieces.</span>
+            </>
           }
         >
           {Number.isFinite(minimum) ? `${minimum} minutes` : "… minutes"}
@@ -143,7 +146,7 @@ export function SettingsProse({
         >
           {!Number.isFinite(lead) ? "… minutes before" : lead === 0 ? "as" : `${lead} ${lead === 1 ? "minute" : "minutes"} before`}
         </Value>{" "}
-        each Block starts.
+        each Task starts.
       </p>
 
       <h2 className={styles.kicker}>Which Events count as busy</h2>
@@ -152,7 +155,7 @@ export function SettingsProse({
         <FlipValue label="Count free Events" on={draft.countFreeEvents} onFlip={() => update({ countFreeEvents: !draft.countFreeEvents })}>
           {draft.countFreeEvents ? "do" : "don't"}
         </FlipValue>{" "}
-        block my time. All-day Events{" "}
+        take up my time. All-day Events{" "}
         <FlipValue label="Count all-day Events" on={draft.countAllDayEvents} onFlip={() => update({ countAllDayEvents: !draft.countAllDayEvents })}>
           {draft.countAllDayEvents ? "do" : "don't"}
         </FlipValue>
@@ -168,7 +171,7 @@ export function SettingsProse({
 }
 
 /**
- * "dynacal reads owner's Google Calendar (reconnect) and keeps your Blocks in its own calendar there, called dynacal.
+ * "dynacal reads owner's Google Calendar (reconnect) and puts your Tasks in its own calendar there, called dynacal.
  * Events on my primary calendar and Work are busy time." Busy Calendars save as you go too.
  */
 function YourCalendar({
@@ -214,7 +217,7 @@ function YourCalendar({
   return (
     <p className={styles.prose}>
       dynacal reads <strong>{view.email}</strong>&rsquo;s Google Calendar (
-      <a href={connectHref("settings")}>reconnect</a>) and keeps your Blocks in its own calendar there, called{" "}
+      <a href={connectHref("settings")}>reconnect</a>) and puts your Tasks in its own calendar there, called{" "}
       <em>dynacal</em>. Events on{" "}
       <BusyCalendarsValue
         calendars={view.calendars}
