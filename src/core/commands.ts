@@ -521,8 +521,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     if (calendarId === null) return;
     const now = clock.now();
     const { reminderLeadMinutes } = getSettings();
-    // Events that have ended will never change again.
-    db.delete(blockEvents).where(lte(blockEvents.end, now)).run();
+    await settleEndedBlockEvents(calendarId, now);
     const wantedBlocks = db
       .select({
         taskId: blocks.taskId,
@@ -548,7 +547,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       .from(blockEvents)
       .where(eq(blockEvents.calendarId, calendarId))
       .all()
-      .filter((e) => e.start >= now || resizable.has(e.taskId));
+      .filter((e) => e.start >= now || (e.end > now && resizable.has(e.taskId)));
     const writes = planBlockEventWrites(wanted, written);
 
     const record = (eventId: string, event: WantedBlockEvent) =>
@@ -602,6 +601,27 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       } else {
         forget(written.eventId);
       }
+    }
+  }
+
+  /**
+   * Ended events never change again, but each stays linked to its Block while that Block waits for a Check-in.
+   * Didn't start removes the Block, so its event is deleted from Google; any other answer leaves the event as a
+   * record and dynacal stops tracking it.
+   */
+  async function settleEndedBlockEvents(calendarId: string, now: Date): Promise<void> {
+    const ended = db
+      .select()
+      .from(blockEvents)
+      .where(and(eq(blockEvents.calendarId, calendarId), lte(blockEvents.end, now)))
+      .all();
+    for (const record of ended) {
+      const block = blockFor(record);
+      const task = db.select({ completedAt: tasks.completedAt }).from(tasks).where(eq(tasks.id, record.taskId)).get();
+      const waiting = block && block.end <= now && awaitsCheckIn(block) && task?.completedAt === null;
+      if (waiting) continue;
+      if (!block) await calendar.deleteDynacalCalendarEvent(calendarId, record.eventId);
+      forgetBlockEvent(calendarId, record.eventId);
     }
   }
 
