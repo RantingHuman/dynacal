@@ -15,8 +15,8 @@ const MORE_TIME = [15, 30, 60, 120];
 /**
  * A Task's Check-in, opened from "Finished? ›" on its row: the Task and the past time it asks about, with large
  * buttons to answer. Finished completes the Task (through `onFinished`); More time opens chips for how much more it
- * needs, which becomes its Remaining Duration (through `onMoreTime`); Didn't start moves it to its next free time
- * (through `onDidntStart`). Each closes the sheet. Offline it can be read but not answered. It opens and closes like the floating label, and Escape closes it.
+ * needs, which becomes its Remaining Duration (through `onMoreTime`), with a Splittable Task's planned time already
+ * chosen; Didn't start moves it to its next free time (through `onDidntStart`). Each closes the sheet. Offline it can be read but not answered. It opens and closes like the floating label, and Escape closes it.
  */
 export function CheckInSheet({
   title,
@@ -75,6 +75,7 @@ export function CheckInSheet({
       </div>
       {moreTime && online && (
         <MoreTimeChips
+          planned={checkIn.plannedMinutes}
           onPick={(minutes) => {
             onMoreTime(minutes);
             close();
@@ -88,14 +89,27 @@ export function CheckInSheet({
   );
 }
 
-/** How much more the Task needs: a chip answers at once; Other… takes any 15-minute step, in minutes. */
-function MoreTimeChips({ onPick }: { onPick: (minutes: number) => void }) {
+/**
+ * How much more the Task needs: a chip answers at once; Other… takes any 15-minute step, in minutes. On a piece of a
+ * Splittable Task, the time still planned comes first, already chosen, so staying on track is one tap.
+ */
+function MoreTimeChips({ planned, onPick }: { planned?: number; onPick: (minutes: number) => void }) {
   const [other, setOther] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   return (
     <>
       <div className={styles.chips} role="group" aria-label="More time">
-        {MORE_TIME.map((minutes) => (
+        {planned !== undefined && (
+          <button
+            type="button"
+            className={`${styles.chip} ${styles.planned}`}
+            aria-pressed={other === null}
+            onClick={() => onPick(planned)}
+          >
+            {formatDuration(planned)} planned
+          </button>
+        )}
+        {MORE_TIME.filter((minutes) => minutes !== planned).map((minutes) => (
           <button key={minutes} type="button" className={styles.chip} onClick={() => onPick(minutes)}>
             {formatDuration(minutes)}
           </button>

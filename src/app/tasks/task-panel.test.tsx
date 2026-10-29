@@ -406,6 +406,69 @@ describe("a Task waiting for a Check-in", () => {
       expect(chips().getAllByRole("button").map((b) => b.textContent)).toEqual(["15m", "30m", "1h", "2h", "Other…"]);
     });
 
+    describe("on a piece of a Splittable Task", () => {
+      const piece = () => {
+        const task = single();
+        task.splittable = true;
+        task.checkIns[0].plannedMinutes = 180;
+        return task;
+      };
+
+      it("opens with the time still planned already chosen", async () => {
+        renderPanel([piece()]);
+
+        await openMoreTime();
+
+        const planned = chips().getByRole("button", { name: "3h planned" });
+        expect(planned.getAttribute("aria-pressed")).toBe("true");
+        expect(chips().getAllByRole("button").map((b) => b.textContent)).toEqual([
+          "3h planned",
+          "15m",
+          "30m",
+          "1h",
+          "2h",
+          "Other…",
+        ]);
+      });
+
+      it("confirms it in one tap", async () => {
+        vi.mocked(checkIn).mockResolvedValue({ ok: true });
+        renderPanel([piece()]);
+        await openMoreTime();
+
+        await userEvent.click(chips().getByRole("button", { name: "3h planned" }));
+
+        expect(checkIn).toHaveBeenCalledWith("block-1", { answer: "more-time", minutes: 180 });
+        await waitFor(() => expect(screen.queryByRole("complementary", { name: "Pack for vegas" })).toBeNull());
+      });
+
+      it("labels a chip of the same amount, rather than offering it twice", async () => {
+        const task = piece();
+        task.checkIns[0].plannedMinutes = 60;
+        renderPanel([task]);
+
+        await openMoreTime();
+
+        expect(chips().getAllByRole("button").map((b) => b.textContent)).toEqual([
+          "1h planned",
+          "15m",
+          "30m",
+          "2h",
+          "Other…",
+        ]);
+      });
+
+      it("takes another amount instead, to replan the rest", async () => {
+        vi.mocked(checkIn).mockResolvedValue({ ok: true });
+        renderPanel([piece()]);
+        await openMoreTime();
+
+        await userEvent.click(chips().getByRole("button", { name: "1h" }));
+
+        expect(checkIn).toHaveBeenCalledWith("block-1", { answer: "more-time", minutes: 60 });
+      });
+    });
+
     it("makes the amount picked the time left at once, and closes", async () => {
       const answering = deferred<{ ok: true }>();
       vi.mocked(checkIn).mockReturnValue(answering.promise);
