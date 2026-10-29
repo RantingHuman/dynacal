@@ -129,6 +129,25 @@ describe("a past time's event in Google", () => {
     expect(app.calendar.blockEventsOn(dynacal)).toEqual([["Write report", at("09:00"), at("10:00"), 10]]);
   });
 
+  it("stays as a record after More time, beside the event for the time added, and dynacal leaves it alone", async () => {
+    const app = appInLondon();
+    const dynacal = await connect(app);
+    const task = await pastBlockInGoogle(app);
+
+    app.commands.checkIn(checkInOf(app, task.id).blockId, { answer: "more-time", minutes: 30 });
+    await app.commands.writeBlocksToGoogle();
+
+    expect(app.calendar.blockEventsOn(dynacal)).toEqual([
+      ["Write report", at("09:00"), at("10:00"), 10],
+      ["Write report", at("10:15"), at("10:45"), 10],
+    ]);
+
+    app.commands.deleteTask(task.id);
+    await app.commands.writeBlocksToGoogle();
+
+    expect(app.calendar.blockEventsOn(dynacal)).toEqual([["Write report", at("09:00"), at("10:00"), 10]]);
+  });
+
   it("ignores the owner's edits in Google, so the Check-in still waits", async () => {
     const app = appInLondon();
     const dynacal = await connect(app);
