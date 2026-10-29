@@ -90,7 +90,8 @@ describe("completing a Task", () => {
     const { commands, clock } = appInLondon();
     const report = createTask(commands, { title: "Report", estimatedMinutes: 60 });
     at(clock, "2026-01-05T10:00:00Z");
-    // A second session on the same Task, after the first Block has passed.
+    // A second session on the same Task, after the first Block has passed (and been answered for).
+    commands.reviewBlock(onlyUnreviewedBlock(commands).id, { review: "done" });
     commands.updateTask(report.id, { ...oneHour, title: "Report", estimatedMinutes: 180 });
     createTask(commands, { title: "Email" });
     at(clock, "2026-01-05T10:40:00Z");

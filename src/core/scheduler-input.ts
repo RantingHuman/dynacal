@@ -1,4 +1,4 @@
-import { remainingMinutes } from "./completion";
+import { awaitsCheckIn, remainingMinutes } from "./completion";
 import type { blocks, tasks } from "./db/schema";
 import { resolveDeadline, resolveEarliestStart, type SchedulerTask } from "./scheduler";
 import type { WorkingHours } from "./settings";
@@ -47,9 +47,13 @@ export function schedulerTasks({
   for (const b of inProgress) {
     elapsedMs.set(b.taskId, (elapsedMs.get(b.taskId) ?? 0) + now.getTime() - b.start.getTime());
   }
+  // A Task waiting for a Check-in holds: nothing more is placed for it until the owner answers.
+  const waiting = new Set(pastBlocks.filter(awaitsCheckIn).map((b) => b.taskId));
   return taskRows.map((row) => ({
     id: row.id,
-    remainingMinutes: remaining(row.id, row.estimatedMinutes) - (elapsedMs.get(row.id) ?? 0) / MINUTE_MS,
+    remainingMinutes: waiting.has(row.id)
+      ? 0
+      : remaining(row.id, row.estimatedMinutes) - (elapsedMs.get(row.id) ?? 0) / MINUTE_MS,
     deadline:
       row.deadlineDate === null
         ? null

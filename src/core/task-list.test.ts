@@ -61,6 +61,18 @@ describe("an optimistic change to the Task list", () => {
     expect(shown[1].completedAt).not.toBeNull();
   });
 
+  it("answers a completed Task's waiting Check-ins, as the server will", () => {
+    const app = appWithTasks({ title: "Pack for vegas" });
+    app.commands.updateSettings({ timeZone: "Europe/London" });
+    app.clock.set(new Date("2026-01-05T10:05:00Z"));
+    const before = app.commands.listTasks();
+    expect(before[0].checkIns).toHaveLength(1);
+
+    const shown = applyTaskChange(before, { kind: "complete", id: before[0].id }, new Date());
+
+    expect(shown[0].checkIns).toEqual([]);
+  });
+
   it("moves a reopened Task back up among the open ones, where the list will have it", () => {
     const app = appWithTasks(
       { title: "Board memo", deadline: { date: "2026-01-09", time: null } },
