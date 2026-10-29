@@ -14,6 +14,7 @@ import type { Clock } from "./clock";
 import { connectionProblem, unlessRefused, watchConnectionHealth } from "./connection-health";
 import {
   awaitsCheckIn,
+  checkInViews,
   validateMoreTimeMinutes,
   type CheckInAnswer,
   type CheckInResult,
@@ -277,6 +278,12 @@ export interface CheckInView {
   blockId: string;
   start: Date;
   end: Date;
+  /**
+   * For a piece of a Splittable Task, the time still planned after it: the Remaining Duration less this piece and
+   * the earlier ones still waiting. More time offers it first, so being on track takes one tap. Absent when nothing
+   * more is planned, and for a one-piece Task.
+   */
+  plannedMinutes?: number;
 }
 
 /** A Declined Time: Recalculation keeps its Task out of it until it passes or the owner clears it. */
@@ -1232,9 +1239,10 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
           remainingMinutes: row.estimatedMinutes,
           completedAt: row.completedAt,
           declinedTimes: declined.filter((d) => d.taskId === row.id).map(({ id, start, end }) => ({ id, start, end })),
-          checkIns: row.completedAt
-            ? []
-            : waiting.filter((b) => b.taskId === row.id).map(({ id, start, end }) => ({ blockId: id, start, end })),
+          checkIns: row.completedAt ? [] : checkInViews(
+                row,
+                waiting.filter((b) => b.taskId === row.id).map(({ id, start, end }) => ({ blockId: id, start, end })),
+              ),
           createdAt: row.createdAt,
         }))
         .sort((a, b) => Number(a.completedAt !== null) - Number(b.completedAt !== null) || compareTasks(a, b))

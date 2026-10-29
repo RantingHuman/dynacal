@@ -1,4 +1,5 @@
-import { GRID_MINUTES } from "./time";
+import { GRID_MINUTES, MINUTE_MS } from "./time";
+import type { CheckInView } from "./commands";
 
 /**
  * Completing Tasks and Check-ins.
@@ -36,3 +37,21 @@ export function awaitsCheckIn(block: { review: BlockReview | null }): boolean {
   return block.review === null;
 }
 
+export function blockMinutes(block: { start: Date; end: Date }): number {
+  return (block.end.getTime() - block.start.getTime()) / MINUTE_MS;
+}
+
+/**
+ * A Task's waiting past times, oldest first, as its Check-ins. A Splittable Task's carry the time still planned after
+ * each: its Remaining Duration less that time and the earlier ones still waiting.
+ */
+export function checkInViews(
+  task: { estimatedMinutes: number; splittable: boolean },
+  waiting: { blockId: string; start: Date; end: Date }[],
+): CheckInView[] {
+  let planned = task.estimatedMinutes;
+  return waiting.map(({ blockId, start, end }) => {
+    planned -= blockMinutes({ start, end });
+    return { blockId, start, end, ...(task.splittable && planned > 0 && { plannedMinutes: planned }) };
+  });
+}

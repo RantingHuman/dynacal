@@ -291,6 +291,119 @@ describe("a Check-in", () => {
   });
 });
 
+describe("a Splittable Task", () => {
+  /**
+   * A three-hour Splittable Task around a 10:00–11:00 meeting on Monday: pieces at 09:00–10:00 and 11:00–13:00. The
+   * clock is then at 10:05, so the first piece waits for its Check-in.
+   */
+  function splitAroundAMeeting(commands: App["commands"], clock: App["clock"]) {
+    const meeting = commands.createDynacalEvent({
+      title: "Standup",
+      notes: "",
+      allDay: false,
+      start: new Date("2026-01-05T10:00:00Z"),
+      end: new Date("2026-01-05T11:00:00Z"),
+    });
+    if (!meeting.ok) throw new Error("create failed");
+    const task = createTask(commands, { estimatedMinutes: 180, splittable: true });
+    expect(blocks(commands)).toEqual([
+      ["Pack for vegas", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"],
+      ["Pack for vegas", "2026-01-05T11:00:00.000Z", "2026-01-05T13:00:00.000Z"],
+    ]);
+    at(clock, "2026-01-05T10:05:00Z");
+    return task;
+  }
+
+  it("is checked in after each piece, offering the time still planned", () => {
+    const { commands, clock } = appInLondon();
+    const task = splitAroundAMeeting(commands, clock);
+
+    expect(listed(commands, task.id).checkIns).toEqual([
+      {
+        blockId: expect.any(String),
+        start: new Date("2026-01-05T09:00:00Z"),
+        end: new Date("2026-01-05T10:00:00Z"),
+        plannedMinutes: 120,
+      },
+    ]);
+  });
+
+  it("offers nothing planned for its last piece", () => {
+    const { commands, clock } = appInLondon();
+    const task = splitAroundAMeeting(commands, clock);
+
+    at(clock, "2026-01-05T13:05:00Z");
+
+    expect(listed(commands, task.id).checkIns.map((c) => c.plannedMinutes)).toEqual([120, undefined]);
+  });
+
+  it("offers nothing planned for a one-piece Task", () => {
+    const { commands, clock } = appInLondon();
+    const task = createTask(commands);
+    at(clock, "2026-01-05T10:05:00Z");
+
+    expect(firstCheckIn(commands, task.id).plannedMinutes).toBeUndefined();
+  });
+
+  it("keeps its later pieces where they are while a piece waits", () => {
+    const { commands, clock } = appInLondon();
+    splitAroundAMeeting(commands, clock);
+
+    commands.recalculate();
+
+    expect(blocks(commands)).toEqual([
+      ["Pack for vegas", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"],
+      ["Pack for vegas", "2026-01-05T11:00:00.000Z", "2026-01-05T13:00:00.000Z"],
+    ]);
+  });
+
+  it("answered More time with the time planned, leaves its later pieces where they are", () => {
+    const { commands, clock } = appInLondon();
+    const task = splitAroundAMeeting(commands, clock);
+    const { blockId, plannedMinutes } = firstCheckIn(commands, task.id);
+
+    expect(commands.checkIn(blockId, { answer: "more-time", minutes: plannedMinutes! })).toEqual({ ok: true });
+
+    expect(blocks(commands)).toEqual([
+      ["Pack for vegas", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"],
+      ["Pack for vegas", "2026-01-05T11:00:00.000Z", "2026-01-05T13:00:00.000Z"],
+    ]);
+    expect(listed(commands, task.id)).toMatchObject({ remainingMinutes: 120, checkIns: [] });
+  });
+
+  it("answered More time with another amount, replans its later pieces to match", () => {
+    const { commands, clock } = appInLondon();
+    const task = splitAroundAMeeting(commands, clock);
+
+    commands.checkIn(firstCheckIn(commands, task.id).blockId, { answer: "more-time", minutes: 60 });
+
+    expect(blocks(commands)).toEqual([
+      ["Pack for vegas", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"],
+      ["Pack for vegas", "2026-01-05T11:00:00.000Z", "2026-01-05T12:00:00.000Z"],
+    ]);
+  });
+
+  it("answered Finished on a piece, is complete and its later pieces go", () => {
+    const { commands, clock } = appInLondon();
+    const task = splitAroundAMeeting(commands, clock);
+
+    commands.checkIn(firstCheckIn(commands, task.id).blockId, { answer: "finished" });
+
+    expect(listed(commands, task.id).completedAt).toEqual(new Date("2026-01-05T10:05:00Z"));
+    expect(blocks(commands)).toEqual([["Pack for vegas", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"]]);
+  });
+
+  it("answered Didn't start on a piece, moves only that piece's time, after its later pieces", () => {
+    const { commands, clock } = appInLondon();
+    const task = splitAroundAMeeting(commands, clock);
+
+    const result = commands.checkIn(firstCheckIn(commands, task.id).blockId, { answer: "didnt-start" });
+
+    expect(result).toEqual({ ok: true, nextStart: new Date("2026-01-05T11:00:00Z") });
+    expect(blocks(commands)).toEqual([["Pack for vegas", "2026-01-05T11:00:00.000Z", "2026-01-05T14:00:00.000Z"]]);
+  });
+});
+
 function scheduleOf(commands: App["commands"]) {
   const view = commands.getSchedule();
   if (view.status !== "ready") throw new Error("Schedule not ready");

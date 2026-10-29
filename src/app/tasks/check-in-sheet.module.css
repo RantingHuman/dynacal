@@ -57,6 +57,7 @@
 /* More time: pill chips sharing the width, each tall enough for a thumb. */
 .chips {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
 }
 
@@ -91,6 +92,11 @@
   border-color: var(--ink);
   background: var(--ink);
   color: var(--paper);
+}
+
+/* A Splittable Task's planned time: its own row above the amounts, chosen. */
+.planned {
+  flex-basis: 100%;
 }
 
 /* Other…: minutes, in 15-minute steps, and Set. */
