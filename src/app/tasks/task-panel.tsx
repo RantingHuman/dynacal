@@ -115,7 +115,7 @@ export function TaskPanel({
       const result = await checkIn(blockId, { answer: "finished" });
       if (result.ok) return null;
       if ("notFound" in result) return `“${task.title}” was deleted or changed elsewhere.`;
-      return result.errors.block;
+      return result.errors.block ?? null;
     });
   }
 

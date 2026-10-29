@@ -94,6 +94,57 @@ describe("answering a Check-in Finished", () => {
   });
 });
 
+describe("answering a Check-in More time", () => {
+  it("makes what's picked the Task's Remaining Duration, placed at the next free time, and keeps the past time", () => {
+    const { commands, clock } = appInLondon();
+    const task = createTask(commands);
+    at(clock, "2026-01-05T10:05:00Z");
+
+    const result = commands.checkIn(firstCheckIn(commands, task.id).blockId, { answer: "more-time", minutes: 30 });
+
+    expect(result).toEqual({ ok: true });
+    expect(listed(commands, task.id)).toMatchObject({
+      completedAt: null,
+      estimatedMinutes: 30,
+      remainingMinutes: 30,
+      checkIns: [],
+    });
+    expect(blocks(commands)).toEqual([
+      ["Pack for vegas", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"],
+      ["Pack for vegas", "2026-01-05T10:15:00.000Z", "2026-01-05T10:45:00.000Z"],
+    ]);
+  });
+
+  it("can ask for more than the Task first had, and again after that time passes", () => {
+    const { commands, clock } = appInLondon();
+    const task = createTask(commands);
+    at(clock, "2026-01-05T10:00:00Z");
+    commands.checkIn(firstCheckIn(commands, task.id).blockId, { answer: "more-time", minutes: 120 });
+    at(clock, "2026-01-05T12:00:00Z");
+
+    commands.checkIn(firstCheckIn(commands, task.id).blockId, { answer: "more-time", minutes: 45 });
+
+    expect(listed(commands, task.id)).toMatchObject({ remainingMinutes: 45, checkIns: [] });
+    expect(blocks(commands)).toEqual([
+      ["Pack for vegas", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"],
+      ["Pack for vegas", "2026-01-05T10:00:00.000Z", "2026-01-05T12:00:00.000Z"],
+      ["Pack for vegas", "2026-01-05T12:00:00.000Z", "2026-01-05T12:45:00.000Z"],
+    ]);
+  });
+
+  it.each([0, 10, 20, -15, 37.5])("refuses %s minutes, leaving the Check-in waiting", (minutes) => {
+    const { commands, clock } = appInLondon();
+    const task = createTask(commands);
+    at(clock, "2026-01-05T10:05:00Z");
+
+    const result = commands.checkIn(firstCheckIn(commands, task.id).blockId, { answer: "more-time", minutes });
+
+    expect(result).toEqual({ ok: false, errors: { minutes: "Pick at least 15 minutes, in 15-minute steps." } });
+    expect(listed(commands, task.id)).toMatchObject({ remainingMinutes: 60 });
+    expect(checkIns(commands, task.id)).toHaveLength(1);
+  });
+});
+
 describe("ticking a Task waiting for Check-ins", () => {
   it("answers them all Finished, so reopening it doesn't ask again", () => {
     const { commands, clock } = appInLondon();
@@ -110,14 +161,35 @@ describe("ticking a Task waiting for Check-ins", () => {
 });
 
 describe("while a Task waits for a Check-in", () => {
-  it("nothing more is placed for it, though it has time left", () => {
+  it("nothing more is placed for it", () => {
+    const { commands, clock } = appInLondon();
+    createTask(commands);
+    at(clock, "2026-01-05T10:00:00Z");
+
+    commands.recalculate();
+
+    expect(blocks(commands)).toEqual([["Pack for vegas", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"]]);
+  });
+
+  it("its later time stays planned, as the waiting time still counts toward it", () => {
     const { commands, clock } = appInLondon();
     twoHoursFromAPinnedFirstHour(commands);
     at(clock, "2026-01-05T10:00:00Z");
 
     commands.recalculate();
 
-    expect(blocks(commands)).toEqual([["Pack for vegas", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"]]);
+    expect(blocks(commands)).toEqual([
+      ["Pack for vegas", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"],
+      ["Pack for vegas", "2026-01-05T10:00:00.000Z", "2026-01-05T11:00:00.000Z"],
+    ]);
+  });
+
+  it("its Remaining Duration is unchanged: it never shows 0m left", () => {
+    const { commands, clock } = appInLondon();
+    const task = createTask(commands);
+    at(clock, "2026-01-05T10:00:00Z");
+
+    expect(listed(commands, task.id).remainingMinutes).toBe(60);
   });
 
   it("keeps its flags, Overdue once its deadline passes", () => {

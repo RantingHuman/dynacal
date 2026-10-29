@@ -18,6 +18,7 @@ function input(change: Partial<SchedulerInput> = {}): SchedulerInput {
     busy: [],
     pinnedBlocks: [],
     startedBlocks: [],
+    awaitingBlocks: [],
     previousSchedule: [],
     ...change,
   };
@@ -386,12 +387,12 @@ describe("scheduler", () => {
       end: new Date(`2026-01-05T${end}:00Z`),
     });
 
-    it("plans around them, and counts their future time toward the Task's Remaining Duration", () => {
+    it("plans around them, and counts them in full toward the Task's Remaining Duration", () => {
       const result = schedule(
         input({
           now: new Date("2026-01-05T09:30:00Z"),
-          // 30 minutes already worked; the started Block's last 30 and the Pinned Block's 60 cover the rest.
-          tasks: [task("a", { remainingMinutes: 90 }), task("b")],
+          // The started Block's hour, half of it gone, and the Pinned Block's hour cover the two hours.
+          tasks: [task("a", { remainingMinutes: 120 }), task("b")],
           startedBlocks: [at("a", "09:00", "10:00")],
           pinnedBlocks: [at("a", "10:30", "11:30")],
         }),
@@ -421,6 +422,48 @@ describe("scheduler", () => {
         expect(blocksOf(result), `${before}ms before the end`).toEqual([]);
         expect(result.flags, `${before}ms before the end`).toEqual({ a: null });
       }
+    });
+
+    it("places nothing more for a Task whose started Block is its whole Remaining Duration, however near its end", () => {
+      const block = at("a", "09:30", "10:30");
+      for (let before = 1; before <= 2000; before++) {
+        const result = schedule(
+          input({
+            now: new Date(block.end.getTime() - before),
+            tasks: [task("a", { remainingMinutes: 60, deadline: block.end })],
+            startedBlocks: [block],
+          }),
+        );
+
+        expect(blocksOf(result), `${before}ms before the end`).toEqual([]);
+        expect(result.flags, `${before}ms before the end`).toEqual({ a: null });
+      }
+    });
+
+    it("counts a past Block awaiting a Check-in in full, so a Task it covers holds", () => {
+      const result = schedule(
+        input({
+          now: new Date("2026-01-05T11:00:00Z"),
+          tasks: [task("a", { remainingMinutes: 60, deadline: new Date("2026-01-05T12:00:00Z") })],
+          awaitingBlocks: [at("a", "09:00", "10:00")],
+        }),
+      );
+
+      expect(blocksOf(result)).toEqual([]);
+      expect(result.flags).toEqual({ a: null });
+    });
+
+    it("places the rest of a Task a past Block awaiting a Check-in partly covers, leaving its time free", () => {
+      const result = schedule(
+        input({
+          now: new Date("2026-01-05T09:00:00Z"),
+          tasks: [task("a", { remainingMinutes: 120 })],
+          // The scheduler only counts it: it's in the past, so it takes no time from anything.
+          awaitingBlocks: [at("a", "08:00", "09:00")],
+        }),
+      );
+
+      expect(blocksOf(result)).toEqual([["a", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"]]);
     });
 
     it("places the rest of a Task partly covered by them", () => {

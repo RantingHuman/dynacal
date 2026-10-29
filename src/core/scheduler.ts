@@ -42,6 +42,8 @@ export interface SchedulerInput {
   pinnedBlocks: ScheduledBlock[];
   /** Started Blocks: past and in-progress ones that aren't pinned; planned around, never moved. */
   startedBlocks: ScheduledBlock[];
+  /** Past Blocks waiting for a Check-in: until it's answered, each counts in full toward its Task. */
+  awaitingBlocks: ScheduledBlock[];
   /** The Schedule before this Recalculation. */
   previousSchedule: ScheduledBlock[];
 }
@@ -125,6 +127,7 @@ export function schedule(input: SchedulerInput): SchedulerOutput {
     from,
     minimum: input.minimumBlockMinutes * MINUTE_MS,
     pinnedOrStarted,
+    awaiting: input.awaitingBlocks,
     free: subtract(workingSpans(input, from, to), [...input.busy, ...pinnedOrStarted]),
   };
 
@@ -165,6 +168,8 @@ interface Context {
   minimum: number;
   /** Pinned and started Blocks that haven't ended: they stay where they are, and count toward their Tasks. */
   pinnedOrStarted: ScheduledBlock[];
+  /** Past Blocks waiting for a Check-in: they count toward their Tasks too. */
+  awaiting: ScheduledBlock[];
   /** Free time before any Task is placed. */
   free: Span[];
 }
@@ -224,14 +229,16 @@ function overlapWithPrevious(placed: Placement[], previous: ScheduledBlock[]): n
 function place(ctx: Context, order: SchedulerTask[]): Placement[] {
   const free = ctx.free.map((s): Span => [s[0], s[1]]);
   return order.map((task) => {
-    const pinnedOrStarted = ctx.pinnedOrStarted.filter((b) => b.taskId === task.id);
-    const covered = pinnedOrStarted.reduce((sum, b) => sum + b.end.getTime() - Math.max(b.start.getTime(), ctx.now), 0);
+    // Each Block that counts toward the Task counts in full, an in-progress one too: the Remaining Duration is what
+    // the owner says is left, and includes them.
+    const counted = [...ctx.pinnedOrStarted, ...ctx.awaiting].filter((b) => b.taskId === task.id);
+    const covered = counted.reduce((sum, b) => sum + b.end.getTime() - b.start.getTime(), 0);
     const need = Math.max(0, remainingMs(task) - covered);
     const earliest = task.earliestStart ? roundUp(task.earliestStart.getTime()) : ctx.from;
     const available = subtract(startingFrom(free, earliest), task.declinedTimes ?? []);
     const pieces = task.splittable ? placeSplit(available, need, ctx.minimum) : placeWhole(available, need);
     for (const [start, end] of pieces) take(free, start, end);
-    const flag = flagFor(task, need, pieces, pinnedOrStarted, ctx.now);
+    const flag = flagFor(task, need, pieces, counted, ctx.now);
     return { task, pieces, flag, misses: flag === "at-risk" || (flag === "unscheduled" && task.deadline !== null) };
   });
 }
@@ -281,15 +288,15 @@ function flagFor(
   task: SchedulerTask,
   need: number,
   pieces: Span[],
-  pinnedOrStarted: ScheduledBlock[],
+  counted: ScheduledBlock[],
   now: number,
 ): TaskFlag | null {
   const deadline = task.deadline?.getTime() ?? null;
   if (deadline !== null && deadline <= now) return "overdue";
-  if (need > 0 && pieces.length === 0 && pinnedOrStarted.length === 0) return "unscheduled";
+  if (need > 0 && pieces.length === 0 && counted.length === 0) return "unscheduled";
   if (deadline !== null) {
     // Only time before the deadline counts toward meeting it, a Pinned Block's included.
-    const held = pinnedOrStarted.map((b): Span => [Math.max(b.start.getTime(), now), b.end.getTime()]);
+    const held = counted.map((b): Span => [b.start.getTime(), b.end.getTime()]);
     const beforeDeadline = [...pieces, ...held].reduce((sum, [a, b]) => sum + Math.max(0, Math.min(b, deadline) - a), 0);
     if (beforeDeadline < remainingMs(task)) return "at-risk";
   }
@@ -297,8 +304,8 @@ function flagFor(
 }
 
 /**
- * A Task's Remaining Duration in whole milliseconds. It's in fractional minutes once a Block in progress is taken
- * off, and the float error would otherwise leave a sliver to place (a 0-minute Block) as that Block ends.
+ * A Task's Remaining Duration in whole milliseconds, so a fractional number of minutes can never leave a sliver to
+ * place (a 0-minute Block).
  */
 function remainingMs(task: SchedulerTask): number {
   return Math.round(task.remainingMinutes * MINUTE_MS);

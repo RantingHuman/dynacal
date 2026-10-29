@@ -44,29 +44,25 @@ describe("Remaining Duration", () => {
     expect(remaining(commands, task.id)).toBe(90);
   });
 
-  it("counts an Unreviewed past Block as worked", () => {
+  it("doesn't count time worked: a past Block leaves it as it was", () => {
     const { commands, clock } = appInLondon();
     const task = createTask(commands, { estimatedMinutes: 60 });
 
     at(clock, "2026-01-05T10:00:00Z");
 
-    expect(remaining(commands, task.id)).toBe(0);
+    expect(remaining(commands, task.id)).toBe(60);
   });
 
-  it("adds up every past Block's review and never drops below zero", () => {
+  it("is what the owner last said: More time, then the editor", () => {
     const { commands, clock } = appInLondon();
     const task = createTask(commands, { title: "Draft", estimatedMinutes: 60 });
     at(clock, "2026-01-05T10:00:00Z");
-    commands.reviewBlock(onlyUnreviewedBlock(commands).id, { review: "partial", workedMinutes: 45 });
-    // The 15 minutes not worked are scheduled at 10:00–10:15; let that pass too.
-    at(clock, "2026-01-05T10:15:00Z");
-    expect(remaining(commands, task.id)).toBe(0);
-
-    commands.reviewBlock(onlyUnreviewedBlock(commands).id, { review: "not-done" });
+    commands.checkIn(onlyUnreviewedBlock(commands).id, { answer: "more-time", minutes: 15 });
     expect(remaining(commands, task.id)).toBe(15);
 
-    commands.updateTask(task.id, { ...oneHour, title: "Draft", estimatedMinutes: 30 });
-    expect(remaining(commands, task.id)).toBe(0);
+    commands.updateTask(task.id, { ...oneHour, title: "Draft", estimatedMinutes: 45 });
+
+    expect(remaining(commands, task.id)).toBe(45);
   });
 });
 
@@ -150,7 +146,8 @@ describe("reopening a completed Task", () => {
     const report = createTask(commands, { title: "Report", estimatedMinutes: 120 });
     const urgent = createTask(commands, { title: "Urgent", deadline: { date: "2026-01-06", time: null } });
     commands.completeTask(urgent.id);
-    // Ticked by mistake 30 minutes into its first Block: that half hour stays worked.
+    // Ticked by mistake 30 minutes into its first Block: that half hour stays as history, and the Remaining
+    // Duration is scheduled in full again.
     at(clock, "2026-01-05T09:30:00Z");
     commands.completeTask(report.id);
 
@@ -158,11 +155,11 @@ describe("reopening a completed Task", () => {
 
     expect(result).toEqual({ ok: true });
     const reopened = commands.listTasks().find((t) => t.id === report.id);
-    expect(reopened).toMatchObject({ completedAt: null, remainingMinutes: 90 });
+    expect(reopened).toMatchObject({ completedAt: null, remainingMinutes: 120 });
     expect(commands.listTasks().map((t) => t.title)).toEqual(["Report", "Urgent"]);
     expect(blocks(commands)).toEqual([
       ["Report", "2026-01-05T09:00:00.000Z", "2026-01-05T09:30:00.000Z"],
-      ["Report", "2026-01-05T09:30:00.000Z", "2026-01-05T11:00:00.000Z"],
+      ["Report", "2026-01-05T09:30:00.000Z", "2026-01-05T11:30:00.000Z"],
     ]);
   });
 
@@ -220,33 +217,19 @@ describe("reviewing a Block", () => {
     expect(blocks(commands)).toEqual([["Draft", "2026-01-05T10:15:00.000Z", "2026-01-05T11:15:00.000Z"]]);
   });
 
-  it("as \"done\" keeps its full length as worked", () => {
-    const { commands, clock } = appInLondon();
-    const task = createTask(commands, { title: "Draft", estimatedMinutes: 60 });
-    at(clock, "2026-01-05T10:00:00Z");
-
-    const result = commands.reviewBlock(onlyUnreviewedBlock(commands).id, { review: "done" });
-
-    expect(result).toEqual({ ok: true });
-    expect(remaining(commands, task.id)).toBe(0);
-    expect(commands.listUnreviewedBlocks()).toEqual([]);
-    expect(blocks(commands)).toEqual([["Draft", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"]]);
-  });
-
-  it("as \"did part of it\" adds back the time not worked", () => {
+  it.each([
+    ["done", { review: "done" }],
+    ["did part of it", { review: "partial", workedMinutes: 30 }],
+  ] as const)("as \"%s\" answers it, leaving the Remaining Duration as it was", (_, outcome) => {
     const { commands, clock } = appInLondon();
     const task = createTask(commands, { title: "Draft", estimatedMinutes: 90 });
     at(clock, "2026-01-05T10:30:00Z");
 
-    const result = commands.reviewBlock(onlyUnreviewedBlock(commands).id, { review: "partial", workedMinutes: 30 });
+    const result = commands.reviewBlock(onlyUnreviewedBlock(commands).id, outcome);
 
     expect(result).toEqual({ ok: true });
-    expect(remaining(commands, task.id)).toBe(60);
+    expect(remaining(commands, task.id)).toBe(90);
     expect(commands.listUnreviewedBlocks()).toEqual([]);
-    expect(blocks(commands)).toEqual([
-      ["Draft", "2026-01-05T09:00:00.000Z", "2026-01-05T10:30:00.000Z"],
-      ["Draft", "2026-01-05T10:30:00.000Z", "2026-01-05T11:30:00.000Z"],
-    ]);
   });
 
   it.each([
@@ -261,7 +244,7 @@ describe("reviewing a Block", () => {
     const result = commands.reviewBlock(onlyUnreviewedBlock(commands).id, { review: "partial", workedMinutes });
 
     expect(result).toEqual({ ok: false, errors: { workedMinutes: message } });
-    expect(remaining(commands, task.id)).toBe(0);
+    expect(remaining(commands, task.id)).toBe(60);
     expect(commands.listUnreviewedBlocks()).toHaveLength(1);
   });
 

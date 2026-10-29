@@ -54,15 +54,10 @@ export function applyTaskChange(tasks: TaskListItem[], change: TaskChange, now: 
   if (change.kind === "update") {
     const task = tasks.find((t) => t.id === change.id);
     if (!task) return tasks;
-    const worked = task.estimatedMinutes - task.remainingMinutes;
     return place(
       tasks.filter((t) => t !== task),
-      {
-        ...task,
-        ...change.input,
-        title: change.input.title.trim(),
-        remainingMinutes: Math.max(0, change.input.estimatedMinutes - worked),
-      },
+      // The duration the editor saves is the Task's Remaining Duration.
+      { ...task, ...change.input, title: change.input.title.trim(), remainingMinutes: change.input.estimatedMinutes },
     );
   }
   const task: TaskListItem = {

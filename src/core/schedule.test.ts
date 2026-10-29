@@ -154,19 +154,19 @@ describe("the Schedule", () => {
     ]);
   });
 
-  it("schedules what's left of a Task after its past Blocks", () => {
+  it("schedules a Task's Remaining Duration after its answered past time", () => {
     const { commands, clock } = appInLondon();
     const task = createTask(commands, { title: "Report" });
     clock.set(new Date("2026-01-05T12:00:00Z"));
     // Answered, so the Task no longer waits for a Check-in about that hour.
     const [past] = commands.listUnreviewedBlocks();
-    commands.reviewBlock(past.id, { review: "done" });
+    commands.checkIn(past.id, { answer: "more-time", minutes: 30 });
 
     commands.updateTask(task.id, { ...oneHour, title: "Report", estimatedMinutes: 90 });
 
     expect(blocks(commands)).toEqual([
       ["Report", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"],
-      ["Report", "2026-01-05T12:00:00.000Z", "2026-01-05T12:30:00.000Z"],
+      ["Report", "2026-01-05T12:00:00.000Z", "2026-01-05T13:30:00.000Z"],
     ]);
   });
 

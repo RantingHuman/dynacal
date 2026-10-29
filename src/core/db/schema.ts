@@ -28,6 +28,7 @@ export const tasks = sqliteTable("tasks", {
   id: text("id").primaryKey(),
   title: text("title").notNull(),
   notes: text("notes").notNull(),
+  /** The Task's duration, which is its Remaining Duration: the estimate, until More time or the editor changes it. */
   estimatedMinutes: integer("estimated_minutes").notNull(),
   deadlineDate: text("deadline_date"),
   deadlineTime: text("deadline_time"),
@@ -50,7 +51,10 @@ export const blocks = sqliteTable("blocks", {
     .references(() => tasks.id, { onDelete: "cascade" }),
   start: integer("start", { mode: "timestamp_ms" }).notNull(),
   end: integer("end", { mode: "timestamp_ms" }).notNull(),
-  /** The owner's review of a past Block; null while it's unreviewed. */
+  /**
+   * The owner's answer about a past Block, at its Check-in or in the review; null while it waits for a Check-in.
+   * Until then it counts toward its Task; once answered More time, it's history.
+   */
   review: text("review").$type<BlockReview>(),
   /** Minutes worked, for a "did part of it" review. */
   workedMinutes: integer("worked_minutes"),

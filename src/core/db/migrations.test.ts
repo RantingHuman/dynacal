@@ -113,4 +113,92 @@ describe("migrations", () => {
       expect(sqlite.prepare("SELECT review FROM blocks WHERE task_id = 'completed'").all()).toEqual([{ review: "done" }]);
     });
   });
+
+  describe("storing open Tasks' Remaining Duration", () => {
+    // Built as just before: past Blocks reviewed "done" or "partial" (with minutes worked), or waiting for a
+    // Check-in (a review the last migration took back included). Long past, as the migration runs on the real clock.
+    function oldTasks() {
+      const sqlite = migratedUpTo("remaining-duration");
+      const addTask = (id: string, estimatedMinutes: number, completedAt: string | null = null) =>
+        sqlite
+          .prepare(
+            `INSERT INTO tasks (id, title, notes, estimated_minutes, priority, splittable, created_at, completed_at)
+             VALUES (?, ?, '', ?, 'medium', 0, 0, ?)`,
+          )
+          .run(id, id, estimatedMinutes, completedAt && Date.parse(completedAt));
+      /** A one-hour Block on Monday 2 June 2025, starting at `hour` UTC. */
+      const addBlock = (taskId: string, hour: number, review: "done" | "partial" | null, workedMinutes?: number) => {
+        const at = (h: number) => Date.parse(`2025-06-02T${String(h).padStart(2, "0")}:00:00Z`);
+        sqlite
+          .prepare(`INSERT INTO blocks (id, task_id, start, "end", review, worked_minutes) VALUES (?, ?, ?, ?, ?, ?)`)
+          .run(`${taskId}@${hour}`, taskId, at(hour), at(hour + 1), review, workedMinutes ?? null);
+      };
+      /** Each Task's duration, and its Blocks' answers, once migrated. */
+      const migrated = () => {
+        migrate(drizzle(sqlite), { migrationsFolder });
+        const durations = sqlite.prepare("SELECT id, estimated_minutes AS minutes FROM tasks ORDER BY id").all() as {
+          id: string;
+          minutes: number;
+        }[];
+        const reviews = sqlite.prepare("SELECT id, review FROM blocks ORDER BY id").all() as {
+          id: string;
+          review: string | null;
+        }[];
+        return {
+          durations: Object.fromEntries(durations.map((t) => [t.id, t.minutes])),
+          reviews: Object.fromEntries(reviews.map((b) => [b.id, b.review])),
+        };
+      };
+      return { addTask, addBlock, migrated };
+    }
+
+    it("keeps the time the reviews left as the duration, and counts those Blocks as answered More time", () => {
+      const { addTask, addBlock, migrated } = oldTasks();
+      // Two hours, one reviewed "Done": 1h left.
+      addTask("left", 120);
+      addBlock("left", 9, "done");
+      // An hour, half of it worked: 30m left.
+      addTask("partly", 60);
+      addBlock("partly", 9, "partial", 30);
+      // Three hours: one done, one waiting. The waiting hour counts against what's left, as it did.
+      addTask("waiting", 180);
+      addBlock("waiting", 9, "done");
+      addBlock("waiting", 11, null);
+
+      expect(migrated()).toEqual({
+        durations: { left: 60, partly: 30, waiting: 120 },
+        reviews: { "left@9": "more-time", "partly@9": "more-time", "waiting@11": null, "waiting@9": "more-time" },
+      });
+    });
+
+    it("makes a Task asked about its latest time again need just that time, so it holds", () => {
+      const { addTask, addBlock, migrated } = oldTasks();
+      // Two hours, both reviewed "Done", the latest taken back to waiting.
+      addTask("report", 120);
+      addBlock("report", 9, "done");
+      addBlock("report", 11, null);
+      // Done, then partly done (30m worked) which used up the rest, taken back to waiting.
+      addTask("draft", 90);
+      addBlock("draft", 9, "done");
+      addBlock("draft", 13, null);
+
+      expect(migrated()).toEqual({
+        durations: { draft: 60, report: 60 },
+        reviews: { "draft@13": null, "draft@9": "more-time", "report@11": null, "report@9": "more-time" },
+      });
+    });
+
+    it("leaves Tasks never reviewed, and completed Tasks, as they were", () => {
+      const { addTask, addBlock, migrated } = oldTasks();
+      addTask("unreviewed", 120);
+      addBlock("unreviewed", 9, null);
+      addTask("completed", 120, "2025-06-02T10:30:00Z");
+      addBlock("completed", 9, "done");
+
+      expect(migrated()).toEqual({
+        durations: { completed: 120, unreviewed: 120 },
+        reviews: { "completed@9": "done", "unreviewed@9": null },
+      });
+    });
+  });
 });

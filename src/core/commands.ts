@@ -15,6 +15,7 @@ import { connectionProblem, unlessRefused, watchConnectionHealth } from "./conne
 import {
   awaitsCheckIn,
   suggestedWorkedMinutes,
+  validateMoreTimeMinutes,
   validateWorkedMinutes,
   type CheckInAnswer,
   type CheckInResult,
@@ -103,7 +104,7 @@ import { validateBlockTime, type MoveBlockResult, type UnpinBlockResult } from "
 import { REMINDER_GRACE_MS, dueReminders, reminderKey, reminderMessage } from "./reminders";
 import { blockEventsInGoogle, editWindow, readGoogleEdit, type BlockEventInGoogle } from "./google-edits";
 import { channelExpiry, planChannels } from "./push-channels";
-import { remainingByTask, schedulerTasks } from "./scheduler-input";
+import { schedulerTasks } from "./scheduler-input";
 import {
   findConflicts,
   schedule,
@@ -271,7 +272,7 @@ export interface UnreviewedBlockView extends BlockView {
 
 /** A Task as the Task list shows it. */
 export interface TaskListItem extends Task {
-  /** Remaining Duration, in minutes. */
+  /** Remaining Duration, in minutes: the Task's duration, as the owner last said (ADR 0006). */
   remainingMinutes: number;
   /** When the owner marked it complete, or null. */
   completedAt: Date | null;
@@ -924,18 +925,11 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         workingHours,
         minimumBlockMinutes,
         planningHorizonDays: PLANNING_HORIZON_DAYS,
-        tasks: schedulerTasks({
-          taskRows,
-          pastBlocks: pastBlocks(tx, now),
-          inProgress,
-          declined,
-          now,
-          timeZone,
-          workingHours,
-        }),
+        tasks: schedulerTasks({ taskRows, declined, timeZone, workingHours }),
         busy,
         pinnedBlocks: [...inProgress.filter((b) => b.pinned), ...pinnedAhead],
         startedBlocks: inProgress.filter((b) => !b.pinned),
+        awaitingBlocks: pastBlocks(tx, now).filter(awaitsCheckIn),
         previousSchedule,
       });
 
@@ -1198,9 +1192,9 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     /** Every Task, in Task list order (completed Tasks last), with its Remaining Duration. */
     listTasks(): TaskListItem[] {
       const now = clock.now();
-      const past = pastBlocks(db, now);
-      const remaining = remainingByTask(past);
-      const waiting = past.filter(awaitsCheckIn).sort((a, b) => a.start.getTime() - b.start.getTime());
+      const waiting = pastBlocks(db, now)
+        .filter(awaitsCheckIn)
+        .sort((a, b) => a.start.getTime() - b.start.getTime());
       const declined = db
         .select()
         .from(declinedTimes)
@@ -1213,7 +1207,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         .all()
         .map((row) => ({
           ...toTask(row),
-          remainingMinutes: remaining(row.id, row.estimatedMinutes),
+          remainingMinutes: row.estimatedMinutes,
           completedAt: row.completedAt,
           declinedTimes: declined.filter((d) => d.taskId === row.id).map(({ id, start, end }) => ({ id, start, end })),
           checkIns: row.completedAt
@@ -1326,8 +1320,10 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     },
 
     /**
-     * Answers a past Block's Check-in. Finished completes its Task, as ticking it does. A Block that hasn't ended
-     * is refused; one that's gone, or whose Check-in was already answered (or its Task completed), isn't found.
+     * Answers a past Block's Check-in. Finished completes its Task, as ticking it does. More time makes the minutes
+     * given the Task's Remaining Duration; the Block stays as history and no longer counts toward the Task. A Block
+     * that hasn't ended is refused; one that's gone, or whose Check-in was already answered (or its Task completed),
+     * isn't found.
      */
     checkIn(blockId: string, answer: CheckInAnswer): CheckInResult {
       const found = db
@@ -1344,6 +1340,15 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         case "finished":
           finishTask(found.block.taskId);
           break;
+        case "more-time": {
+          const error = validateMoreTimeMinutes(answer.minutes);
+          if (error) return { ok: false, errors: { minutes: error } };
+          db.transaction((tx) => {
+            tx.update(blocks).set({ review: "more-time" }).where(eq(blocks.id, blockId)).run();
+            tx.update(tasks).set({ estimatedMinutes: answer.minutes }).where(eq(tasks.id, found.block.taskId)).run();
+          });
+          break;
+        }
       }
       recalculateAutomatically();
       return { ok: true };
