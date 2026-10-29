@@ -336,6 +336,28 @@ describe("a Task waiting for a Check-in", () => {
     await waitFor(() => expect(checkIn).toHaveReturned());
   });
 
+  it("answered Didn't start, closes and confirms where the Task went", async () => {
+    vi.mocked(checkIn).mockResolvedValue({ ok: true, nextStart: new Date("2026-10-29T09:00:00Z") });
+    renderPanel([packing()]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Finished? ›" }));
+    await userEvent.click(within(sheet()).getByRole("button", { name: "Didn't start" }));
+
+    expect(checkIn).toHaveBeenCalledWith("block-1", { answer: "didnt-start" });
+    await waitFor(() => expect(screen.queryByRole("complementary", { name: "Pack for vegas" })).toBeNull());
+    expect(await screen.findByText("Moved to Thu 09:00")).toBeTruthy();
+  });
+
+  it("answered Didn't start, says when nothing fits and the Task is Unscheduled", async () => {
+    vi.mocked(checkIn).mockResolvedValue({ ok: true, nextStart: null });
+    renderPanel([packing()]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Finished? ›" }));
+    await userEvent.click(within(sheet()).getByRole("button", { name: "Didn't start" }));
+
+    expect(await screen.findByText("Nothing fits: Unscheduled")).toBeTruthy();
+  });
+
   it("says so, and asks again, when the Task has gone or changed elsewhere", async () => {
     vi.mocked(checkIn).mockResolvedValue({ ok: false, notFound: true });
     renderPanel([packing()]);
@@ -360,6 +382,7 @@ describe("a Task waiting for a Check-in", () => {
     const moreTime = within(sheet()).getByRole("button", { name: "More time" });
     expect(moreTime).toHaveProperty("disabled", true);
     expect(moreTime.title).toBe("Offline: this needs a connection.");
+    expect(within(sheet()).getByRole("button", { name: "Didn't start" })).toHaveProperty("disabled", true);
   });
 
   describe("answered More time", () => {

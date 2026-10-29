@@ -145,6 +145,46 @@ describe("answering a Check-in More time", () => {
   });
 });
 
+describe("answering a Check-in Didn't start", () => {
+  it("removes the past time and places the Task at its next free time, saying where", () => {
+    const { commands, clock } = appInLondon();
+    const task = createTask(commands);
+    at(clock, "2026-01-05T10:05:00Z");
+
+    const result = commands.checkIn(firstCheckIn(commands, task.id).blockId, { answer: "didnt-start" });
+
+    expect(result).toEqual({ ok: true, nextStart: new Date("2026-01-05T10:15:00Z") });
+    expect(blocks(commands)).toEqual([["Pack for vegas", "2026-01-05T10:15:00.000Z", "2026-01-05T11:15:00.000Z"]]);
+    expect(listed(commands, task.id)).toMatchObject({ completedAt: null, checkIns: [] });
+  });
+
+  it("says when nothing fits, leaving the Task Unscheduled", () => {
+    const { commands, clock } = appInLondon();
+    const task = createTask(commands);
+    at(clock, "2026-01-05T10:05:00Z");
+    // Ten hours in one piece is longer than a working day.
+    commands.updateTask(task.id, { ...oneHour, estimatedMinutes: 600 });
+
+    const result = commands.checkIn(firstCheckIn(commands, task.id).blockId, { answer: "didnt-start" });
+
+    expect(result).toEqual({ ok: true, nextStart: null });
+    expect(blocks(commands)).toEqual([]);
+    expect(commands.getSchedule()).toMatchObject({ flags: { [task.id]: "unscheduled" } });
+  });
+
+  it("keeps a Task whose deadline has passed Overdue, and still places it", () => {
+    const { commands, clock } = appInLondon();
+    const task = createTask(commands, { deadline: { date: "2026-01-05", time: "12:00" } });
+    at(clock, "2026-01-05T13:00:00Z");
+
+    const result = commands.checkIn(firstCheckIn(commands, task.id).blockId, { answer: "didnt-start" });
+
+    expect(result).toEqual({ ok: true, nextStart: new Date("2026-01-05T13:00:00Z") });
+    expect(blocks(commands)).toEqual([["Pack for vegas", "2026-01-05T13:00:00.000Z", "2026-01-05T14:00:00.000Z"]]);
+    expect(commands.getSchedule()).toMatchObject({ flags: { [task.id]: "overdue" } });
+  });
+});
+
 describe("ticking a Task waiting for Check-ins", () => {
   it("answers them all Finished, so reopening it doesn't ask again", () => {
     const { commands, clock } = appInLondon();

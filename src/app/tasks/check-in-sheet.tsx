@@ -15,8 +15,8 @@ const MORE_TIME = [15, 30, 60, 120];
 /**
  * A Task's Check-in, opened from "Finished? ›" on its row: the Task and the past time it asks about, with large
  * buttons to answer. Finished completes the Task (through `onFinished`); More time opens chips for how much more it
- * needs, which becomes its Remaining Duration (through `onMoreTime`). Either closes the sheet. Offline it can be
- * read but not answered. It opens and closes like the floating label, and Escape closes it.
+ * needs, which becomes its Remaining Duration (through `onMoreTime`); Didn't start moves it to its next free time
+ * (through `onDidntStart`). Each closes the sheet. Offline it can be read but not answered. It opens and closes like the floating label, and Escape closes it.
  */
 export function CheckInSheet({
   title,
@@ -24,6 +24,7 @@ export function CheckInSheet({
   timeZone,
   onFinished,
   onMoreTime,
+  onDidntStart,
   onClose,
 }: {
   title: string;
@@ -31,6 +32,7 @@ export function CheckInSheet({
   timeZone: string;
   onFinished: () => void;
   onMoreTime: (minutes: number) => void;
+  onDidntStart: () => void;
   onClose: () => void;
 }) {
   const close = useLabelClose(onClose);
@@ -59,6 +61,16 @@ export function CheckInSheet({
         </button>
         <button type="button" {...answer} aria-expanded={moreTime} onClick={() => setMoreTime(true)}>
           More time
+        </button>
+        <button
+          type="button"
+          {...answer}
+          onClick={() => {
+            onDidntStart();
+            close();
+          }}
+        >
+          Didn&apos;t start
         </button>
       </div>
       {moreTime && online && (

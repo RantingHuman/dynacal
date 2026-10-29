@@ -13,13 +13,14 @@ import { formatDuration } from "./tasks";
 export type BlockReview = "done" | "not-done" | "partial" | "finished" | "more-time";
 
 /**
- * The answer to a Check-in: the Task is finished, or it needs more time (how much more becomes its Remaining
- * Duration).
+ * The answer to a Check-in: the Task is finished, it needs more time (how much more becomes its Remaining
+ * Duration), or it didn't start (so it moves to its next free time).
  */
-export type CheckInAnswer = { answer: "finished" } | { answer: "more-time"; minutes: number };
+export type CheckInAnswer = { answer: "finished" } | { answer: "more-time"; minutes: number } | { answer: "didnt-start" };
 
+/** After Didn't start, `nextStart` is where the Task went: its next start, or null if it's now Unscheduled. */
 export type CheckInResult =
-  | { ok: true }
+  | { ok: true; nextStart?: Date | null }
   | { ok: false; notFound: true }
   | { ok: false; errors: { block?: string; minutes?: string } };
 

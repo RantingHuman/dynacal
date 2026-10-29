@@ -65,6 +65,7 @@ const checkInAnswerSchema = z.discriminatedUnion("answer", [
   z.object({ answer: z.literal("finished") }),
   // The command refuses minutes that aren't a 15-minute step of at least 15, with a message.
   z.object({ answer: z.literal("more-time"), minutes: z.number() }),
+  z.object({ answer: z.literal("didnt-start") }),
 ]);
 
 export async function checkIn(blockId: string, answer: unknown): Promise<CheckInResult> {

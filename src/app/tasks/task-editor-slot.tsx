@@ -19,9 +19,10 @@ export interface OpenTask {
 
 /**
  * Makes a change to the Task list: shows it straight away, then sends it with `perform`. If the server refuses,
- * the list rolls back and a toast gives the reason `perform` returns (null when it was saved).
+ * the list rolls back and a toast gives the reason `perform` returns (null when it was saved). With no change,
+ * the list waits for the server's.
  */
-export type ActOnTasks = (change: TaskChange, perform: () => Promise<string | null>) => void;
+export type ActOnTasks = (change: TaskChange | null, perform: () => Promise<string | null>) => void;
 
 /** What the Tasks column knows and the editor needs, kept current by the Tasks column. */
 export interface TaskColumnData {

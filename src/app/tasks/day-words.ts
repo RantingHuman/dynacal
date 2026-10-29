@@ -42,6 +42,13 @@ export function spanWords(span: { start: Date; end: Date }, today: string, timeZ
   return start.date === today ? times : `${dayWord(start.date, today)} ${times}`;
 }
 
+/** Where a Task went after Didn't start: e.g. "Moved to Thu 09:00", or "Nothing fits: Unscheduled" with no start. */
+export function movedWords(start: Date | null, today: string, timeZone: string): string {
+  if (!start) return "Nothing fits: Unscheduled";
+  const at = toZoned(start, timeZone);
+  return `Moved to ${dayWord(at.date, today)} ${formatMinutes(at.minutes)}`;
+}
+
 /** e.g. "due Fri" or, once it's passed, "was due Mon". */
 export function deadlineWords(deadline: DateOrDateTime, today: string): string {
   return `${deadline.date < today ? "was due" : "due"} ${whenWords(deadline, today)}`;
