@@ -127,6 +127,13 @@
       "when": 1793130762627,
       "tag": "0017_remove-not-done-blocks",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1793295323440,
+      "tag": "0018_remove-empty-blocks",
+      "breakpoints": true
     }
   ]
 }

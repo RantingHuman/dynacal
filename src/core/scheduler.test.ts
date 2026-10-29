@@ -404,6 +404,25 @@ describe("scheduler", () => {
       expect(result.flags).toEqual({ a: null, b: null });
     });
 
+    it("places nothing more for a Task whose started Block covers the rest of it, however near its end", () => {
+      // The Remaining Duration leaves out the elapsed part, in fractional minutes, as schedulerTasks works it out.
+      const block = at("a", "09:30", "10:30");
+      for (let before = 1; before <= 2000; before++) {
+        const now = new Date(block.end.getTime() - before);
+        const elapsed = (now.getTime() - block.start.getTime()) / 60_000;
+        const result = schedule(
+          input({
+            now,
+            tasks: [task("a", { remainingMinutes: 60 - elapsed, deadline: block.end })],
+            startedBlocks: [block],
+          }),
+        );
+
+        expect(blocksOf(result), `${before}ms before the end`).toEqual([]);
+        expect(result.flags, `${before}ms before the end`).toEqual({ a: null });
+      }
+    });
+
     it("places the rest of a Task partly covered by them", () => {
       const result = schedule(
         input({

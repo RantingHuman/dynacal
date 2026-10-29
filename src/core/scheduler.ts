@@ -225,7 +225,7 @@ function place(ctx: Context, order: SchedulerTask[]): Placement[] {
   return order.map((task) => {
     const pinnedOrStarted = ctx.pinnedOrStarted.filter((b) => b.taskId === task.id);
     const covered = pinnedOrStarted.reduce((sum, b) => sum + b.end.getTime() - Math.max(b.start.getTime(), ctx.now), 0);
-    const need = Math.max(0, task.remainingMinutes * MINUTE_MS - covered);
+    const need = Math.max(0, remainingMs(task) - covered);
     const earliest = task.earliestStart ? roundUp(task.earliestStart.getTime()) : ctx.from;
     const available = subtract(startingFrom(free, earliest), task.declinedTimes ?? []);
     const pieces = task.dontSplit ? placeWhole(available, need) : placeSplit(available, need, ctx.minimum);
@@ -290,9 +290,17 @@ function flagFor(
     // Only time before the deadline counts toward meeting it, a Pinned Block's included.
     const held = pinnedOrStarted.map((b): Span => [Math.max(b.start.getTime(), now), b.end.getTime()]);
     const beforeDeadline = [...pieces, ...held].reduce((sum, [a, b]) => sum + Math.max(0, Math.min(b, deadline) - a), 0);
-    if (beforeDeadline < task.remainingMinutes * MINUTE_MS) return "at-risk";
+    if (beforeDeadline < remainingMs(task)) return "at-risk";
   }
   return null;
+}
+
+/**
+ * A Task's Remaining Duration in whole milliseconds. It's in fractional minutes once a Block in progress is taken
+ * off, and the float error would otherwise leave a sliver to place (a 0-minute Block) as that Block ends.
+ */
+function remainingMs(task: SchedulerTask): number {
+  return Math.round(task.remainingMinutes * MINUTE_MS);
 }
 
 /** A Task's Priority as a number: higher means more important. */
