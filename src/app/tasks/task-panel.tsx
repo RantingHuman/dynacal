@@ -11,6 +11,7 @@ import { Squiggle } from "../states/squiggle";
 import statesStyles from "../states/states.module.css";
 import { OFFLINE_REASON, useOnline } from "../states/use-online";
 import { CompleteTaskButton } from "./complete-task-button";
+import { allowSplitting } from "./actions";
 import { useCompletion } from "./completion";
 import { deadlineWords, todayIn } from "./day-words";
 import { FLAG_LABELS } from "./flags";
@@ -25,6 +26,30 @@ function inputOf({ title, notes, estimatedMinutes, deadline, earliestStart, prio
 
 /** A Task shown before the server has added it: it can't be opened or completed yet. */
 const isPending = (task: TaskListItem) => task.id.startsWith("pending-");
+
+/**
+ * "Allow splitting" on a one-piece Task that won't fit: it becomes a Splittable Task, which the Recalculation
+ * places in pieces, clearing the flag where it now fits. The button goes at once, and comes back if refused.
+ */
+function AllowSplittingButton({ id, title, online, act }: { id: string; title: string; online: boolean; act: ActOnTasks }) {
+  return (
+    <button
+      type="button"
+      className={`link ${styles.allowSplitting}`}
+      aria-label={`Allow splitting “${title}”`}
+      disabled={!online}
+      title={online ? undefined : OFFLINE_REASON}
+      onClick={() =>
+        act({ kind: "allow-splitting", id }, async () => {
+          const result = await allowSplitting(id);
+          return result.ok ? null : `“${title}” no longer exists.`;
+        })
+      }
+    >
+      Allow splitting
+    </button>
+  );
+}
 
 /**
  * The Tasks column: a contents list of Tasks under a one-line add. Clicking a Task, or "Full form", opens the
@@ -190,6 +215,9 @@ export function TaskPanel({
                       )}
                     </span>
                   </button>
+                  {(flag === "at-risk" || flag === "unscheduled") && !task.splittable && (
+                    <AllowSplittingButton id={task.id} title={task.title} online={online} act={act} />
+                  )}
                 </li>
               </ViewTransition>
             );

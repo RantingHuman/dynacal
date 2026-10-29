@@ -3,13 +3,15 @@ import { compareTasks, type TaskInput } from "./tasks";
 
 /**
  * A change the owner has just made to the Task list, shown before the server has saved it: adding a Task (with
- * a placeholder id until the server gives it one), saving an edit, completing one, or reopening a completed one.
+ * a placeholder id until the server gives it one), saving an edit, completing one, reopening a completed one, or
+ * allowing one to split.
  */
 export type TaskChange =
   | { kind: "add"; id: string; input: TaskInput }
   | { kind: "update"; id: string; input: TaskInput }
   | { kind: "complete"; id: string }
-  | { kind: "reopen"; id: string };
+  | { kind: "reopen"; id: string }
+  | { kind: "allow-splitting"; id: string };
 
 /** Whether `a` comes before `b` in the list: open Tasks first, then in Task order. Ties keep `a` after `b`. */
 function before(a: TaskListItem, b: TaskListItem): boolean {
@@ -44,6 +46,9 @@ export function applyTaskChange(tasks: TaskListItem[], change: TaskChange, now: 
       tasks.filter((t) => t !== task),
       { ...task, completedAt: null },
     );
+  }
+  if (change.kind === "allow-splitting") {
+    return tasks.map((t) => (t.id === change.id ? { ...t, splittable: true } : t));
   }
   if (change.kind === "update") {
     const task = tasks.find((t) => t.id === change.id);

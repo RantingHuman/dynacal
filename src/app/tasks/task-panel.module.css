@@ -91,6 +91,14 @@
   font-style: italic;
 }
 
+/* "Allow splitting", at the end of a flagged row, level with the title. */
+.allowSplitting {
+  flex: none;
+  margin-top: 2px;
+  font-size: var(--text-meta);
+  white-space: nowrap;
+}
+
 .item[data-done="true"] .open {
   opacity: 0.6;
 }

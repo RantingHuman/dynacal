@@ -3,10 +3,12 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { TaskFlag } from "@/core/scheduler";
 import type { TaskResult } from "@/core/tasks";
 import { deferred, taskItem } from "../testing/fixtures";
 import { renderGuarded } from "../testing/render";
-import { completeTask, createTask, reopenTask } from "./actions";
+import { OFFLINE_REASON } from "../states/use-online";
+import { allowSplitting, completeTask, createTask, reopenTask } from "./actions";
 import { TaskEditorProvider, TaskEditorSlot } from "./task-editor-slot";
 import { TaskPanel } from "./task-panel";
 
@@ -16,13 +18,14 @@ vi.mock("./actions", () => ({
   deleteTask: vi.fn(),
   completeTask: vi.fn(),
   reopenTask: vi.fn(),
+  allowSplitting: vi.fn(),
   clearDeclinedTime: vi.fn(),
 }));
 
-function renderPanel(tasks = [taskItem({ title: "Write Q4 planning doc" })]) {
+function renderPanel(tasks = [taskItem({ title: "Write Q4 planning doc" })], flags: Record<string, TaskFlag | null> = {}) {
   return renderGuarded(
     <TaskEditorProvider>
-      <TaskPanel tasks={tasks} flags={{}} timeZone="Europe/London" />
+      <TaskPanel tasks={tasks} flags={flags} timeZone="Europe/London" />
     </TaskEditorProvider>,
   );
 }
@@ -196,6 +199,53 @@ describe("reopening a completed Task", () => {
   });
 });
 
+describe("allowing a Task that won't fit to split", () => {
+  beforeEach(() => vi.mocked(allowSplitting).mockReset());
+  const memo = taskItem({ title: "Board memo" });
+  const allow = () => screen.queryByRole("button", { name: "Allow splitting “Board memo”" });
+
+  it("is offered only on an At Risk or Unscheduled Task that is one piece", () => {
+    for (const flag of ["at-risk", "unscheduled"] as const) {
+      const { unmount } = renderPanel([memo], { [memo.id]: flag });
+      expect(allow()?.textContent).toBe("Allow splitting");
+      unmount();
+    }
+    for (const [task, flag] of [
+      [memo, null],
+      [memo, "overdue"],
+      [{ ...memo, splittable: true }, "at-risk"],
+      [{ ...memo, completedAt: new Date("2026-01-05T09:00:00Z") }, "unscheduled"],
+    ] as const) {
+      const { unmount } = renderPanel([task], { [memo.id]: flag });
+      expect(allow()).toBeNull();
+      unmount();
+    }
+  });
+
+  it("makes it splittable at once and sends it to the server", async () => {
+    const allowing = deferred<{ ok: true }>();
+    vi.mocked(allowSplitting).mockReturnValue(allowing.promise);
+    renderPanel([memo], { [memo.id]: "at-risk" });
+
+    await userEvent.click(allow()!);
+
+    expect(allow()).toBeNull();
+    expect(allowSplitting).toHaveBeenCalledWith(memo.id);
+    allowing.resolve({ ok: true });
+    await waitFor(() => expect(allowSplitting).toHaveReturned());
+  });
+
+  it("offers it again and says why when the server refuses", async () => {
+    vi.mocked(allowSplitting).mockResolvedValue({ ok: false, notFound: true });
+    renderPanel([memo], { [memo.id]: "unscheduled" });
+
+    await userEvent.click(allow()!);
+
+    await waitFor(() => expect(screen.getByText("“Board memo” no longer exists.")).toBeTruthy());
+    await waitFor(() => expect(allow()).toBeTruthy());
+  });
+});
+
 describe("offline", () => {
   beforeEach(() => Object.defineProperty(navigator, "onLine", { configurable: true, value: false }));
   afterEach(() => Object.defineProperty(navigator, "onLine", { configurable: true, value: true }));
@@ -208,5 +258,14 @@ describe("offline", () => {
     expect(screen.getByRole("button", { name: "Mark “Write Q4 planning doc” complete" })).toHaveProperty("disabled", true);
     const open = taskList().getAllByRole("button").find((b) => b.textContent?.startsWith("Write Q4 planning doc"));
     expect(open).toHaveProperty("disabled", true);
+  });
+
+  it("can't allow a Task to split, and says why", () => {
+    const memo = taskItem({ title: "Board memo" });
+    renderPanel([memo], { [memo.id]: "at-risk" });
+
+    const allow = screen.getByRole("button", { name: "Allow splitting “Board memo”" });
+    expect(allow).toHaveProperty("disabled", true);
+    expect(allow.getAttribute("title")).toBe(OFFLINE_REASON);
   });
 });

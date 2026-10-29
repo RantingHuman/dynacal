@@ -1304,6 +1304,17 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       return { ok: true };
     },
 
+    /**
+     * Makes a Task a Splittable Task, as "Allow splitting" on a one-piece Task that won't fit does, then
+     * recalculates so it's placed in pieces.
+     */
+    allowSplitting(id: string): CompleteTaskResult {
+      const row = db.update(tasks).set({ splittable: true }).where(eq(tasks.id, id)).returning().get();
+      if (!row) return { ok: false, notFound: true };
+      recalculateAutomatically();
+      return { ok: true };
+    },
+
     /** Moves or resizes a Block, which makes it a Pinned Block at its new time, then recalculates. */
     moveBlock(id: string, to: { start: Date; end: Date }): MoveBlockResult {
       const block = db.select().from(blocks).where(eq(blocks.id, id)).get();

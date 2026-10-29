@@ -230,6 +230,37 @@ describe("the Schedule", () => {
   });
 });
 
+describe("allowing a Task to split", () => {
+  it("splits a one-piece Task that wouldn't fit and places it, clearing its flag", () => {
+    const { commands } = appInLondon();
+    const memo = createTask(commands, {
+      title: "Memo",
+      estimatedMinutes: 600,
+      splittable: false,
+      deadline: { date: "2026-01-06", time: null },
+    });
+    const before = commands.getSchedule();
+    expect(before.status === "ready" && before.flags[memo.id]).not.toBe(null);
+
+    const result = commands.allowSplitting(memo.id);
+
+    expect(result).toEqual({ ok: true });
+    expect(commands.listTasks()[0]).toMatchObject({ splittable: true });
+    const view = commands.getSchedule();
+    expect(view.status === "ready" && view.flags[memo.id]).toBe(null);
+    expect(blocks(commands)).toEqual([
+      ["Memo", "2026-01-05T09:00:00.000Z", "2026-01-05T17:00:00.000Z"],
+      ["Memo", "2026-01-06T09:00:00.000Z", "2026-01-06T11:00:00.000Z"],
+    ]);
+  });
+
+  it("reports a Task that doesn't exist", () => {
+    const { commands } = appInLondon();
+
+    expect(commands.allowSplitting("no-such-task")).toEqual({ ok: false, notFound: true });
+  });
+});
+
 describe("Block display keys", () => {
   /** The Schedule's Blocks as [title, displayKey, id] triples. */
   function keyed(commands: ReturnType<typeof createTestApp>["commands"]) {

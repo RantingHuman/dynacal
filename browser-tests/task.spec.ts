@@ -34,3 +34,25 @@ test("reopens a Task ticked by mistake, schedules it again and keeps it open aft
     await expect(block).toBeVisible();
   });
 });
+
+test("splits a one-piece Task that won't fit once splitting is allowed, and keeps it after reloading", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto("/");
+    // Longer than a working day, so in one piece it fits nowhere.
+    await page.getByRole("textbox", { name: "Add a Task" }).fill("Offsite plan 10h");
+    await page.getByRole("textbox", { name: "Add a Task" }).press("Enter");
+    const row = page.getByRole("listitem").filter({ hasText: "Offsite plan" });
+    const allow = row.getByRole("button", { name: "Allow splitting “Offsite plan”" });
+    await expect(row).toContainText("Unscheduled");
+
+    await allow.click();
+
+    await expect(allow).toHaveCount(0);
+    await expect(row).not.toContainText("Unscheduled");
+    await expect(page.getByRole("button", { name: /^Offsite plan, 09:00–17:00/ })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole("button", { name: /^Offsite plan, 09:00–17:00/ })).toBeVisible();
+    await expect(allow).toHaveCount(0);
+  });
+});
