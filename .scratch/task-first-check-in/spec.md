@@ -66,7 +66,7 @@ See ADR 0006 and the glossary terms Check-in, Splittable Task, Block and Remaini
 22. As the owner, I want "Finished" to complete the Task, so that answering the question finishes it.
 23. As the owner, I want a Task I've finished this way to be reopenable from its filled tick, as now, so that a mistaken tap can be undone.
 24. As the owner, I want "More time" to offer 15m · 30m · 1h · 2h · Other…, so that I can say how much is left without typing.
-25. As the owner, I want "Other…" to let me pick any amount in 15-minute steps, so that I can say 40 minutes, 45 or 3 hours.
+25. As the owner, I want "Other…" to let me pick any amount in 15-minute steps, so that I can say 45 minutes, 1h 15m or 3 hours (dynacal plans in 15-minute steps, so 40 minutes is 45).
 26. As the owner, I want what I pick under More time to become the Task's Remaining Duration and be scheduled at the next free time, so that only what's left is planned.
 27. As the owner, I want the past time to stay on the calendar, faded, after More time, so that I can see when I worked on it.
 28. As the owner, I want the past time's Google event to stay after More time, so that Google keeps a record of the time I spent.
@@ -119,12 +119,12 @@ See ADR 0006 and the glossary terms Check-in, Splittable Task, Block and Remaini
   - A Block's review becomes its Check-in: null while awaiting, "finished", or "more-time". Didn't start deletes the Block, as Not done does now.
   - The worked-minutes column is no longer used and is dropped.
 - **Migrating open Tasks.** Each open Task's Remaining Duration is computed the old way, and then:
-  - **Some time left:** that becomes the Task's duration, and its reviewed past Blocks become "more-time".
+  - **Some time left:** that becomes the Task's duration, rounded up to a 15-minute step, and its reviewed past Blocks become "more-time".
   - **0 left, with a reviewed past Block:** its latest reviewed past Block goes back to awaiting a Check-in. Its earlier ones become "more-time", and its duration becomes that latest Block's length, so it holds and asks "Finished?".
   - **Unreviewed past Blocks:** these stay awaiting a Check-in, with no change.
   - **Completed Tasks:** untouched.
 - **Commands.** The core gains a Check-in command, taking the Block and one of:
-  - **finished:** completes the Task and drops its later unpinned Blocks;
+  - **finished:** completes the Task and drops all its later Blocks, pinned ones included (a finished Task keeps no future time);
   - **more time:** sets the Remaining Duration to the given minutes, in 15-minute steps of at least 15;
   - **didn't start:** deletes the Block and its Google event, and returns the Task's new next start for the confirmation.
 
@@ -137,7 +137,7 @@ See ADR 0006 and the glossary terms Check-in, Splittable Task, Block and Remaini
   - The Block sheet becomes the Task's sheet. When the time has passed, it shows Finished · More time · Didn't start in place of the Move chips. More time opens the 15m · 30m · 1h · 2h · Other… chips, with the planned time already chosen for a Splittable Task.
   - At Risk and Unscheduled one-piece Tasks get an "Allow splitting" button.
   - Every visible "Block" string is reworded around the Task or its time. The "Minimum Block Length" setting is relabelled (e.g. "Shortest split piece"). The glossary term stays.
-- **Headline.** The week summary's "unreviewed" state becomes Check-ins waiting, counted in Tasks, and its link opens the first one.
+- **Headline.** The week summary's "unreviewed" state becomes Check-ins waiting, counted in Tasks, and its link opens the first one. Every headline counts Tasks rather than Blocks, so none says "Block".
 - **The Task row's time-left text.** A Task waiting for a Check-in shows its past span and "Finished? ›" rather than "Xm left".
 
 ## Testing Decisions
