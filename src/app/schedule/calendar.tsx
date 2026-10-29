@@ -6,6 +6,8 @@ import { dayLabel, rangeLabel } from "@/core/day-labels";
 import { formatMinutes, type WorkingHours } from "@/core/settings";
 import { DAY_MINUTES, GRID_MINUTES, MINUTE_MS } from "@/core/time";
 import { addDays, fromZoned, toZoned, weekdayOf } from "@/core/time-zone";
+import { useScheduleCheckIns } from "../tasks/check-in-answers";
+import { CheckInSheet } from "../tasks/check-in-sheet";
 import { useCompleteTask } from "../tasks/complete-task-button";
 import { useCompletion } from "../tasks/completion";
 import { useTaskColumn } from "../tasks/task-editor-slot";
@@ -233,6 +235,10 @@ export function Calendar({
   // Tasks complete in the Task list, at once when ticked: all of a completed Task's Blocks dim together.
   const taskColumn = useTaskColumn();
   const completedTasks = new Set(taskColumn?.tasks.filter((t) => t.completedAt !== null).map((t) => t.id));
+  // A Block that has ended and waits for a Check-in asks "Finished?"; its label answers, and Didn't start's toast
+  // says where the Task went.
+  const checkIns = useScheduleCheckIns(timeZone, (text) => setToast({ text, tone: "info" }));
+  const [checkingInId, setCheckingInId] = useState<string | null>(null);
   const drag = useRef<Drag | null>(null);
   /**
    * Set when a drag ends, and cleared only once the click that follows it has been handled, so the end of a
@@ -252,6 +258,7 @@ export function Calendar({
     if (newEvent.draft === null) return;
     setEditingId(null);
     setOpenEventId(null);
+    setCheckingInId(null);
   }, [newEvent.draft]);
 
   // A landing plays once; clearing it lets the same Block play it again next time. (The flash, the longest, is 900ms.)
@@ -273,6 +280,7 @@ export function Calendar({
   const conflictingBlocks = new Set(conflicts.map((c) => c.blockId));
   const conflictingEvents = new Set(conflicts.map((c) => c.eventId));
   const editing = blocks.find((b) => b.id === editingId) ?? null;
+  const checkingIn = blocks.find((b) => b.id === checkingInId && checkIns.waiting.has(b.id)) ?? null;
   const eventsById = new Map(events.map((e) => [e.id, e]));
   const openEvent = openEventId === null ? null : (eventsById.get(openEventId) ?? null);
   const shown = blocks.map((b) =>
@@ -383,16 +391,19 @@ export function Calendar({
   function openEditor(block: CalendarBlock) {
     if (!online) return showError(OFFLINE_REASON);
     if (justDragged.current) return;
-    if (new Date(block.end).getTime() <= now) return;
+    const ended = new Date(block.end).getTime() <= now;
+    if (ended && !checkIns.waiting.has(block.id)) return;
     setToast(null);
     setOpenEventId(null);
     newEvent.close();
-    setEditingId(block.id);
+    setEditingId(ended ? null : block.id);
+    setCheckingInId(ended ? block.id : null);
   }
 
   function openEventDetails(event: CalendarEvent) {
     if (!online) return showError(OFFLINE_REASON);
     setEditingId(null);
+    setCheckingInId(null);
     newEvent.close();
     setOpenEventId(event.id);
   }
@@ -587,6 +598,19 @@ export function Calendar({
         />
       )}
 
+      {checkingIn && (
+        <CheckInSheet
+          key={checkingIn.id}
+          title={checkingIn.taskTitle}
+          checkIn={{ blockId: checkingIn.id, start: new Date(checkingIn.start), end: new Date(checkingIn.end) }}
+          timeZone={timeZone}
+          onFinished={() => checkIns.finish(checkingIn)}
+          onMoreTime={(minutes) => checkIns.moreTime(checkingIn, minutes)}
+          onDidntStart={() => checkIns.didntStart(checkingIn)}
+          onClose={() => setCheckingInId(null)}
+        />
+      )}
+
       {newEvent.draft && (
         <FloatingLabel kind="dynacal Event" labelledBy="new-event-heading" onClose={newEvent.close}>
           <LabelTitle id="new-event-heading">New Event</LabelTitle>
@@ -704,6 +728,9 @@ export function Calendar({
               {placedByDay.get(day)!.map(({ item: block, top, bottom }) => {
                 const ended = new Date(block.end).getTime() <= now;
                 const started = new Date(block.start).getTime() < now;
+                const waiting = ended && checkIns.waiting.has(block.id);
+                // A Block that hasn't ended opens its editor; one waiting for a Check-in, its Check-in.
+                const selectable = !ended || waiting;
                 const conflict = conflictingBlocks.has(block.id);
                 // A Block over an Event (one Blocks may go over, say) sits beside it, so the Event can still be selected.
                 const overEvent = eventsByDay.get(day)!.some((p) => p.top < bottom && p.bottom > top);
@@ -714,7 +741,8 @@ export function Calendar({
                   "block",
                   overEvent && detailStyles.besideEvent,
                   conflict && styles.conflict,
-                  ended ? styles.past : `${styles.movable} ${styles.hasCheck}`,
+                  ended ? !waiting && styles.past : `${styles.movable} ${styles.hasCheck}`,
+                  waiting && styles.waiting,
                   preview?.id === block.id && styles.dragging,
                   preview?.id === block.id && preview.mode === "move" && styles.lifted,
                   landed && styles[landed],
@@ -736,9 +764,11 @@ export function Calendar({
                       className={classes.join(" ")}
                       style={{ top: px(top), height: px(bottom) - px(top), ["--glide-index" as string]: glide ?? 0 }}
                       title={label}
-                      aria-label={ended ? label : `${label}. Select to change its time.`}
-                      role={ended ? undefined : "button"}
-                      tabIndex={ended ? undefined : 0}
+                      aria-label={
+                        waiting ? `${label}. Finished?` : ended ? label : `${label}. Select to change its time.`
+                      }
+                      role={selectable ? "button" : undefined}
+                      tabIndex={selectable ? 0 : undefined}
                       onPointerDown={(e) => beginDrag(e, block, day)}
                       onClick={(e) => {
                         // A Block isn't empty time, so a click (or the end of a drag) on it never adds an Event.
@@ -757,10 +787,14 @@ export function Calendar({
                         {block.pinned && <PinMark />}
                         {block.taskTitle}
                       </span>
-                      {!compact && (
-                        <span className="block-time">
-                          {formatMinutes(top)}–{formatMinutes(bottom)}
-                        </span>
+                      {waiting ? (
+                        <span className={`block-time ${styles.checkIn}`}>Finished? ›</span>
+                      ) : (
+                        !compact && (
+                          <span className="block-time">
+                            {formatMinutes(top)}–{formatMinutes(bottom)}
+                          </span>
+                        )
                       )}
                       {!ended && online && <BlockCheck block={block} done={completedTasks.has(block.taskId)} onError={showError} />}
                       {!ended && <span className={`${styles.handle} ${styles.handleBottom}`} data-handle="end" />}

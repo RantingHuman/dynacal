@@ -122,6 +122,15 @@
   opacity: 0.45;
 }
 
+/* A Block that has ended and waits for a Check-in: unfaded, asking "Finished? ›" in the accent. */
+.waiting {
+  cursor: pointer;
+}
+
+.checkIn {
+  color: var(--accent);
+}
+
 /* A Conflict: the Pinned Block and the Event it overlaps are hatched in the accent. */
 .conflict,
 .eventConflict {
