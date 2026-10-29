@@ -98,7 +98,7 @@ export function TaskLineAdd({
           </span>
           {input.earliestStart && <span data-found>from {whenWords(input.earliestStart, today)}</span>}
           {picked("priority") && <span data-found>{PRIORITY_LABELS[input.priority]}</span>}
-          {input.dontSplit && <span data-found>one Block</span>}
+          {input.splittable && <span data-found>can split</span>}
           <button
             type="button"
             className="link"
@@ -113,7 +113,7 @@ export function TaskLineAdd({
         </p>
       ) : (
         <p id="task-line-preview" className={styles.hint}>
-          Try “2h”, “by fri at 16:00”, “from mon”, “!high”, “in one go”. Enter adds it.
+          Try “2h”, “by fri at 16:00”, “from mon”, “!high”, “split”. Enter adds it.
         </p>
       )}
       {errorList.length > 0 && (

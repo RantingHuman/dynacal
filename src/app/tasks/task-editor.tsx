@@ -169,14 +169,14 @@ export function TaskEditor({
             <button
               type="button"
               role="switch"
-              aria-checked={input.dontSplit}
+              aria-checked={input.splittable}
               className={styles.switch}
-              onClick={() => update({ dontSplit: !input.dontSplit })}
+              onClick={() => update({ splittable: !input.splittable })}
             >
               <span className={styles.track} aria-hidden>
                 <span className={styles.knob} />
               </span>
-              Don’t split: one continuous Block
+              Can be split
             </button>
           </dd>
 

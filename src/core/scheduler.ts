@@ -22,7 +22,8 @@ export interface SchedulerTask {
   /** Already resolved to an instant (date-only values become the start of that day's Working Hours). */
   earliestStart: Date | null;
   priority: Priority;
-  dontSplit: boolean;
+  /** A Splittable Task may be placed in several Blocks; any other Task is placed whole, never split. */
+  splittable: boolean;
   /** Declined Times: this Task's Blocks must stay out of them, though other Tasks may use them. */
   declinedTimes?: Interval[];
 }
@@ -228,7 +229,7 @@ function place(ctx: Context, order: SchedulerTask[]): Placement[] {
     const need = Math.max(0, remainingMs(task) - covered);
     const earliest = task.earliestStart ? roundUp(task.earliestStart.getTime()) : ctx.from;
     const available = subtract(startingFrom(free, earliest), task.declinedTimes ?? []);
-    const pieces = task.dontSplit ? placeWhole(available, need) : placeSplit(available, need, ctx.minimum);
+    const pieces = task.splittable ? placeSplit(available, need, ctx.minimum) : placeWhole(available, need);
     for (const [start, end] of pieces) take(free, start, end);
     const flag = flagFor(task, need, pieces, pinnedOrStarted, ctx.now);
     return { task, pieces, flag, misses: flag === "at-risk" || (flag === "unscheduled" && task.deadline !== null) };

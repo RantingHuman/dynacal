@@ -1,5 +1,5 @@
 {
-  "id": "cb8b69c4-a247-4f2a-9b50-c2ac3d9c5a6a",
+  "id": "e7dc7e35-8cf6-4832-858d-1153948281d2",
   "prevId": "a0fa7187-b661-4582-b2e8-3d27e12d28e0",
   "version": "6",
   "dialect": "sqlite",
@@ -911,8 +911,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "dont_split": {
-          "name": "dont_split",
+        "splittable": {
+          "name": "splittable",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,

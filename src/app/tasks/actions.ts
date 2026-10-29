@@ -17,7 +17,7 @@ const taskInputSchema = z.object({
   deadline: dateOrDateTimeSchema,
   earliestStart: dateOrDateTimeSchema,
   priority: z.enum(PRIORITIES),
-  dontSplit: z.boolean(),
+  splittable: z.boolean(),
 });
 
 export async function createTask(input: unknown): Promise<TaskResult> {

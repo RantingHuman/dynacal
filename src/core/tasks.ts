@@ -29,7 +29,8 @@ export interface TaskInput {
   deadline: DateOrDateTime | null;
   earliestStart: DateOrDateTime | null;
   priority: Priority;
-  dontSplit: boolean;
+  /** A Splittable Task, which may be scheduled in several Blocks. */
+  splittable: boolean;
 }
 
 export interface Task extends TaskInput {

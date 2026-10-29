@@ -10,7 +10,7 @@ const oneHour: TaskInput = {
   deadline: null,
   earliestStart: null,
   priority: "medium",
-  dontSplit: false,
+  splittable: true,
 };
 
 function appInLondon() {

@@ -61,6 +61,22 @@ describe("the full-page Task editor", () => {
     expect(await screen.findByRole("button", { name: /^Write the annual plan/ })).toBeTruthy();
   });
 
+  it("shows whether the Task can be split, and saves the change", async () => {
+    const changed = taskItem({ id: "task-1", title: "Write planning doc", splittable: true });
+    vi.mocked(updateTask).mockResolvedValue({ ok: true, task: { ...changed, splittable: false } });
+    renderPage(changed);
+    const editor = await openEditor();
+    const canSplit = editor.getByRole("switch", { name: "Can be split" });
+    expect(canSplit.getAttribute("aria-checked")).toBe("true");
+
+    await userEvent.click(canSplit);
+    expect(canSplit.getAttribute("aria-checked")).toBe("false");
+    await userEvent.click(editor.getByRole("button", { name: "Save" }));
+
+    expect(updateTask).toHaveBeenCalledWith("task-1", expect.objectContaining({ splittable: false }));
+    await waitFor(() => expect(updateTask).toHaveReturned());
+  });
+
   it("rolls back the edit and explains a server refusal", async () => {
     vi.mocked(updateTask).mockResolvedValue({ ok: false, errors: { title: "That title is too long." } });
     renderPage();

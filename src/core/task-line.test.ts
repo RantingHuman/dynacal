@@ -14,7 +14,7 @@ describe("parseTaskLine", () => {
         deadline: null,
         earliestStart: null,
         priority: "medium",
-        dontSplit: false,
+        splittable: false,
       },
       found: [],
     });
@@ -140,21 +140,29 @@ describe("parseTaskLine", () => {
     expect(parseTaskLine("Memo !urgent", TODAY).input).toMatchObject({ title: "Memo !urgent", priority: "medium" });
   });
 
-  it.each(["Memo in one go", "Memo one block", "Memo don't split", "Memo don’t split", "Memo dont split", "Memo no split"])(
-    "reads Don't split in %j",
+  it.each(["Memo split", "Memo SPLIT"])("reads Splittable in %j", (line) => {
+    const { input, found } = parseTaskLine(line, TODAY);
+
+    expect(input.splittable).toBe(true);
+    expect(input.title).toBe("Memo");
+    expect(found).toEqual(["splittable"]);
+  });
+
+  it.each(["Memo in one go", "Memo one block", "Memo don't split", "Memo dont split", "Memo no split"])(
+    "leaves the old phrase in the title of %j",
     (line) => {
       const { input, found } = parseTaskLine(line, TODAY);
 
-      expect(input.dontSplit).toBe(true);
-      expect(input.title).toBe("Memo");
-      expect(found).toEqual(["dontSplit"]);
+      expect(input.title).toBe(line);
+      expect(input.splittable).toBe(false);
+      expect(found).toEqual([]);
     },
   );
 
   it.each([
-    "Board memo 1h30 by fri at 16:00 from mon !high in one go",
-    "!high in one go from mon Board memo by fri at 16:00 1h30",
-    "Board from mon by fri at 16:00 !high memo one block 90m",
+    "Board memo 1h30 by fri at 16:00 from mon !high split",
+    "!high split from mon Board memo by fri at 16:00 1h30",
+    "Board from mon by fri at 16:00 !high memo split 90m",
   ])("reads every field in any order: %j", (line) => {
     const { input, found } = parseTaskLine(line, TODAY);
 
@@ -165,9 +173,9 @@ describe("parseTaskLine", () => {
       deadline: { date: "2026-01-09", time: "16:00" },
       earliestStart: { date: "2026-01-12", time: null },
       priority: "high",
-      dontSplit: true,
+      splittable: true,
     });
-    expect(found).toEqual(["estimatedMinutes", "deadline", "earliestStart", "priority", "dontSplit"]);
+    expect(found).toEqual(["estimatedMinutes", "deadline", "earliestStart", "priority", "splittable"]);
   });
 
   it("reads a deadline when the title also has 'by' without a day", () => {

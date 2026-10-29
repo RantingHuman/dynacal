@@ -342,7 +342,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       earliestStartDate: input.earliestStart?.date ?? null,
       earliestStartTime: input.earliestStart?.time ?? null,
       priority: input.priority,
-      dontSplit: input.dontSplit,
+      splittable: input.splittable,
     };
   }
 
@@ -362,7 +362,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       deadline: dateOrDateTime(row.deadlineDate, row.deadlineTime),
       earliestStart: dateOrDateTime(row.earliestStartDate, row.earliestStartTime),
       priority: row.priority,
-      dontSplit: row.dontSplit,
+      splittable: row.splittable,
     };
   }
 
