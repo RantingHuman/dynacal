@@ -4,7 +4,7 @@
 
 **Blocked by:** 03, 07
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 **Size:** M · **Spec user stories:** 42, 43, 44, 45, 46, 47
 

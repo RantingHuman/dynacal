@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 **Size:** M · **Spec user stories:** 8, 9, 10, 11, 12, 13, 14, 16, 17
 
