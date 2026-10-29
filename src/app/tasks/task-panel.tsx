@@ -119,6 +119,17 @@ export function TaskPanel({
     });
   }
 
+  /** Answers a Check-in More time: the Task shows the minutes as its time left at once, and back if refused. */
+  function moreTime(task: TaskListItem, minutes: number) {
+    const [{ blockId }] = task.checkIns;
+    act({ kind: "more-time", id: task.id, blockId, minutes }, async () => {
+      const result = await checkIn(blockId, { answer: "more-time", minutes });
+      if (result.ok) return null;
+      if ("notFound" in result) return `“${task.title}” was deleted or changed elsewhere.`;
+      return result.errors.block ?? result.errors.minutes ?? null;
+    });
+  }
+
   // A first-time owner starts in the add line, on desktop.
   const empty = tasks.length === 0;
 
@@ -280,6 +291,7 @@ export function TaskPanel({
           checkIn={checkingInTask.checkIns[0]}
           timeZone={zone}
           onFinished={() => finish(checkingInTask)}
+          onMoreTime={(minutes) => moreTime(checkingInTask, minutes)}
           onClose={() => setCheckingIn(null)}
         />
       )}

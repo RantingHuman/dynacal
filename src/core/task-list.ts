@@ -3,15 +3,16 @@ import { compareTasks, type TaskInput } from "./tasks";
 
 /**
  * A change the owner has just made to the Task list, shown before the server has saved it: adding a Task (with
- * a placeholder id until the server gives it one), saving an edit, completing one, reopening a completed one, or
- * allowing one to split.
+ * a placeholder id until the server gives it one), saving an edit, completing one, reopening a completed one,
+ * allowing one to split, or answering its Check-in More time.
  */
 export type TaskChange =
   | { kind: "add"; id: string; input: TaskInput }
   | { kind: "update"; id: string; input: TaskInput }
   | { kind: "complete"; id: string }
   | { kind: "reopen"; id: string }
-  | { kind: "allow-splitting"; id: string };
+  | { kind: "allow-splitting"; id: string }
+  | { kind: "more-time"; id: string; blockId: string; minutes: number };
 
 /** Whether `a` comes before `b` in the list: open Tasks first, then in Task order. Ties keep `a` after `b`. */
 function before(a: TaskListItem, b: TaskListItem): boolean {
@@ -46,6 +47,19 @@ export function applyTaskChange(tasks: TaskListItem[], change: TaskChange, now: 
     return place(
       tasks.filter((t) => t !== task),
       { ...task, completedAt: null },
+    );
+  }
+  if (change.kind === "more-time") {
+    // The answer becomes the Task's Remaining Duration, and its next waiting Check-in (if any) is asked about.
+    return tasks.map((t) =>
+      t.id === change.id
+        ? {
+            ...t,
+            estimatedMinutes: change.minutes,
+            remainingMinutes: change.minutes,
+            checkIns: t.checkIns.filter((c) => c.blockId !== change.blockId),
+          }
+        : t,
     );
   }
   if (change.kind === "allow-splitting") {

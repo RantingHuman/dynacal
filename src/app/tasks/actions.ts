@@ -61,7 +61,11 @@ export async function allowSplitting(id: string): Promise<CompleteTaskResult> {
   return result;
 }
 
-const checkInAnswerSchema = z.object({ answer: z.literal("finished") });
+const checkInAnswerSchema = z.discriminatedUnion("answer", [
+  z.object({ answer: z.literal("finished") }),
+  // The command refuses minutes that aren't a 15-minute step of at least 15, with a message.
+  z.object({ answer: z.literal("more-time"), minutes: z.number() }),
+]);
 
 export async function checkIn(blockId: string, answer: unknown): Promise<CheckInResult> {
   await requireOwner();

@@ -357,5 +357,94 @@ describe("a Task waiting for a Check-in", () => {
     const finished = within(sheet()).getByRole("button", { name: "Finished" });
     expect(finished).toHaveProperty("disabled", true);
     expect(finished.title).toBe("Offline: this needs a connection.");
+    const moreTime = within(sheet()).getByRole("button", { name: "More time" });
+    expect(moreTime).toHaveProperty("disabled", true);
+    expect(moreTime.title).toBe("Offline: this needs a connection.");
+  });
+
+  describe("answered More time", () => {
+    const single = () => {
+      const task = packing();
+      task.checkIns = task.checkIns.slice(0, 1);
+      return task;
+    };
+    const chips = () => within(within(sheet()).getByRole("group", { name: "More time" }));
+
+    async function openMoreTime() {
+      await userEvent.click(screen.getByRole("button", { name: "Finished? ›" }));
+      await userEvent.click(within(sheet()).getByRole("button", { name: "More time" }));
+    }
+
+    it("offers 15m · 30m · 1h · 2h · Other…", async () => {
+      renderPanel([single()]);
+
+      await openMoreTime();
+
+      expect(chips().getAllByRole("button").map((b) => b.textContent)).toEqual(["15m", "30m", "1h", "2h", "Other…"]);
+    });
+
+    it("makes the amount picked the time left at once, and closes", async () => {
+      const answering = deferred<{ ok: true }>();
+      vi.mocked(checkIn).mockReturnValue(answering.promise);
+      renderPanel([single()]);
+      await openMoreTime();
+
+      await userEvent.click(chips().getByRole("button", { name: "30m" }));
+
+      expect(checkIn).toHaveBeenCalledWith("block-1", { answer: "more-time", minutes: 30 });
+      await waitFor(() => expect(screen.queryByRole("complementary", { name: "Pack for vegas" })).toBeNull());
+      expect(taskList().getByText(/30m left/)).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Finished? ›" })).toBeNull();
+      answering.resolve({ ok: true });
+      await waitFor(() => expect(checkIn).toHaveReturned());
+    });
+
+    it("asks about the next past time, if there is one", async () => {
+      const answering = deferred<{ ok: true }>();
+      vi.mocked(checkIn).mockReturnValue(answering.promise);
+      renderPanel([packing()]);
+      await openMoreTime();
+
+      await userEvent.click(chips().getByRole("button", { name: "1h" }));
+
+      expect(await taskList().findByText(/12:00–13:00 ·/)).toBeTruthy();
+      answering.resolve({ ok: true });
+      await waitFor(() => expect(checkIn).toHaveReturned());
+    });
+
+    it("takes any other 15-minute step from Other…", async () => {
+      vi.mocked(checkIn).mockResolvedValue({ ok: true });
+      renderPanel([single()]);
+      await openMoreTime();
+
+      await userEvent.click(chips().getByRole("button", { name: "Other…" }));
+      await userEvent.type(within(sheet()).getByRole("spinbutton", { name: "Minutes" }), "45");
+      await userEvent.click(within(sheet()).getByRole("button", { name: "Set" }));
+
+      expect(checkIn).toHaveBeenCalledWith("block-1", { answer: "more-time", minutes: 45 });
+    });
+
+    it.each(["40", "0", ""])("refuses %j from Other…, saying why", async (typed) => {
+      renderPanel([single()]);
+      await openMoreTime();
+
+      await userEvent.click(chips().getByRole("button", { name: "Other…" }));
+      if (typed) await userEvent.type(within(sheet()).getByRole("spinbutton", { name: "Minutes" }), typed);
+      await userEvent.click(within(sheet()).getByRole("button", { name: "Set" }));
+
+      expect(within(sheet()).getByText("Pick at least 15 minutes, in 15-minute steps.")).toBeTruthy();
+      expect(checkIn).not.toHaveBeenCalled();
+    });
+
+    it("says so, and asks again, when the Task has gone or changed elsewhere", async () => {
+      vi.mocked(checkIn).mockResolvedValue({ ok: false, notFound: true });
+      renderPanel([single()]);
+      await openMoreTime();
+
+      await userEvent.click(chips().getByRole("button", { name: "15m" }));
+
+      await waitFor(() => expect(screen.getByText("“Pack for vegas” was deleted or changed elsewhere.")).toBeTruthy());
+      expect(await screen.findByRole("button", { name: "Finished? ›" })).toBeTruthy();
+    });
   });
 });

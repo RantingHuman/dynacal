@@ -122,7 +122,7 @@ export function TaskEditor({
           <p className={styles.dek}>
             {task.completedAt
               ? "Complete"
-              : `${formatDuration(task.remainingMinutes)} of ${formatDuration(task.estimatedMinutes)} remaining`}
+              : `${formatDuration(task.remainingMinutes)} left`}
             {flag && !task.completedAt && <em> · {FLAG_LABELS[flag]}</em>}
           </p>
         )}
