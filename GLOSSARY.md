@@ -31,13 +31,21 @@ A flag on a Task for which no Block fits within the Planning Horizon.
 _Avoid_: Backlog, unplanned, inbox
 
 **Remaining Duration**:
-The estimated time a Task still needs, after subtracting time already worked in its past Blocks.
+The time a Task still needs: its estimate, until the user says at a Check-in, by answering More time, how much more it needs.
 _Avoid_: Time left, remaining estimate, balance
+
+**Splittable Task**:
+A Task the user has allowed to be scheduled in several Blocks; every other Task is scheduled in one.
+_Avoid_: Chunked task, split task
+
+**Check-in**:
+The question "Finished?" asked about a Task once its scheduled time has passed, answered Finished, More time, or Didn't start; until it's answered, the Task keeps its time and nothing is rescheduled for it.
+_Avoid_: Review, Unreviewed Block, done/partly/not done
 
 ### Time
 
 **Block**:
-A scheduled span of time assigned to exactly one Task; a split Task has several Blocks.
+A scheduled span of time for exactly one Task; a Task normally has one, and only a Splittable Task can have several. The user sees it as the Task itself, at its time, never as a separate thing.
 _Avoid_: Time block, slot, appointment, chunk
 
 **Pinned Block**:
@@ -52,12 +60,8 @@ _Avoid_: Clash, double-booking, collision
 A time the user turned down for one Task by deleting its Block in Google; Recalculation keeps that Task out of it until it passes or the user clears it, while other Tasks may still use it.
 _Avoid_: Not then, avoid, banned slot
 
-**Unreviewed Block**:
-A Block whose time has passed without the user saying whether its work was done, not done, or partly done.
-_Avoid_: Missed block, stale block, pending block
-
 **Minimum Block Length**:
-The shortest Block the scheduler may create when splitting a Task.
+The shortest Block the scheduler may create when splitting a Splittable Task.
 _Avoid_: Min chunk, minimum slot
 
 **Event**:
