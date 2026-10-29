@@ -7,6 +7,8 @@ import { formatMinutes } from "@/core/settings";
 import { formatDuration } from "@/core/tasks";
 import { addDays, toZoned } from "@/core/time-zone";
 import { OFFLINE_REASON, useOnline } from "../../states/use-online";
+import { useScheduleCheckIns } from "../../tasks/check-in-answers";
+import { CheckInSheet } from "../../tasks/check-in-sheet";
 import { CompleteTaskButton } from "../../tasks/complete-task-button";
 import { useTaskColumn } from "../../tasks/task-editor-slot";
 import type { CalendarBlock, CalendarConflict, CalendarEvent } from "../../schedule/calendar";
@@ -16,6 +18,7 @@ import { EventDetails } from "../../schedule/event-details";
 import { FloatingLabel, LabelNote, LabelTime, LabelTitle } from "../../schedule/floating-label";
 import { useNewEvent } from "../../schedule/new-event";
 import { PinMark } from "../../schedule/pin-mark";
+import { Toast } from "../../schedule/toast";
 import { WeekHeading } from "../../schedule/week-heading";
 import { Squiggle } from "../../states/squiggle";
 import { BlockSheet } from "./block-sheet";
@@ -37,7 +40,10 @@ const WEEK_LIST_DAYS = 7;
 
 type Item = { kind: "block"; block: CalendarBlock } | { kind: "event"; event: CalendarEvent };
 
-/** What's open over the week list: a Block (its sheet, or its label once it has ended) or an Event's label. */
+/**
+ * What's open over the week list: a Block (its sheet; once it has ended, its Check-in while it waits for one, or
+ * else its label) or an Event's label.
+ */
 type Open = { kind: "block" | "event"; id: string } | null;
 
 /** A day's heading: the date as a large numeral, then the weekday, with a squiggle under today. */
@@ -66,8 +72,10 @@ export function EmptyWeekList({ today }: { today: string }) {
 
 /**
  * The Schedule tab's week: "The week ahead" with "+ Event", the Conflict strip, then each day as a heading and
- * its Blocks and Events as lines with a time and length. Tapping a Block that hasn't ended opens the Block sheet;
- * tapping an Event, or a Block that has ended, opens its label.
+ * its Blocks and Events as lines with a time and length. Tapping a Block that hasn't ended opens the Block sheet.
+ * A Block that has ended and waits for a Check-in asks "Finished? ›" in place of its length, and tapping it opens
+ * the Check-in sheet; once answered, it fades like any other time that has passed. Tapping an Event, or another
+ * Block that has ended, opens its label.
  */
 export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, openBlockId }: PhoneScheduleData) {
   const now = new Date(horizon.start).getTime();
@@ -79,6 +87,10 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
   const online = useOnline();
   // Ticking a Block's Task goes through the Tasks tab's list, so it shows there at once and rolls back if refused.
   const act = useTaskColumn()?.act ?? null;
+  // Where Didn't start moved a Task, said here: the Tasks tab, which would say it, is hidden.
+  const [notice, setNotice] = useState<string | null>(null);
+  const clearNotice = useCallback(() => setNotice(null), []);
+  const checkIns = useScheduleCheckIns(timeZone, setNotice);
 
   // The New Event form takes the place of whatever was open.
   useEffect(() => {
@@ -96,6 +108,7 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
   const eventsById = new Map(events.map((e) => [e.id, e]));
   const ended = (item: { end: string }) => new Date(item.end).getTime() <= now;
   const openBlock = open?.kind === "block" ? (blocksById.get(open.id) ?? null) : null;
+  const checkingIn = openBlock !== null && checkIns.waiting.has(openBlock.id);
   const openEvent = open?.kind === "event" ? (eventsById.get(open.id) ?? null) : null;
 
   const days = Array.from({ length: WEEK_LIST_DAYS }, (_, i) => addDays(today, i)).filter((d) => d <= lastDay);
@@ -150,7 +163,8 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
               const conflict = isBlock ? conflictingBlocks.has(id) : conflictingEvents.has(id);
               const pinned = isBlock && item.block.pinned;
               const free = !isBlock && !item.event.countsAsBusy;
-              const notes = [pinned && "Pinned Block", free && "Free", conflict && "Conflict"].filter(Boolean);
+              const waiting = isBlock && checkIns.waiting.has(id);
+              const notes = [pinned && "Pinned Block", free && "Free", conflict && "Conflict", waiting && "Finished?"].filter(Boolean);
               return (
                 <div key={`${isBlock ? item.block.displayKey : id}-${date}`} className={styles.row}>
                   {isBlock && !past ? (
@@ -168,7 +182,8 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
                     type="button"
                     className={styles.line}
                     data-kind={item.kind}
-                    data-past={past}
+                    data-past={past && !waiting}
+                    data-waiting={waiting}
                     data-conflict={conflict}
                     data-free={free}
                     aria-label={`${title}, ${allDay ? "all day" : `${formatMinutes(minutes)}, ${formatDuration(length)}`}${notes.map((n) => `, ${n}`).join("")}`}
@@ -179,7 +194,11 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
                       {pinned && <PinMark />}
                       {title}
                     </span>
-                    <span className={styles.lineLength}>{allDay ? "" : formatDuration(length)}</span>
+                    {waiting ? (
+                      <span className={styles.lineCheckIn}>Finished? ›</span>
+                    ) : (
+                      <span className={styles.lineLength}>{allDay ? "" : formatDuration(length)}</span>
+                    )}
                   </button>
                 </div>
               );
@@ -202,7 +221,20 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
           />
         )}
 
-        {openBlock && ended(openBlock) && (
+        {openBlock && checkingIn && (
+          <CheckInSheet
+            key={openBlock.id}
+            title={openBlock.taskTitle}
+            checkIn={{ blockId: openBlock.id, start: new Date(openBlock.start), end: new Date(openBlock.end) }}
+            timeZone={timeZone}
+            onFinished={() => checkIns.finish(openBlock)}
+            onMoreTime={(minutes) => checkIns.moreTime(openBlock, minutes)}
+            onDidntStart={() => checkIns.didntStart(openBlock)}
+            onClose={close}
+          />
+        )}
+
+        {openBlock && ended(openBlock) && !checkingIn && (
           <FloatingLabel kind="Block" labelledBy="ended-block-heading" onClose={close}>
             <LabelTitle id="ended-block-heading">{openBlock.taskTitle}</LabelTitle>
             <LabelTime>{spanLabel(openBlock, timeZone)}</LabelTime>
@@ -224,6 +256,8 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
             />
           </FloatingLabel>
         )}
+
+        <Toast message={notice} tone="info" onDone={clearNotice} />
       </div>
     </>
   );

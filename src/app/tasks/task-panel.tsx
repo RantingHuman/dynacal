@@ -10,11 +10,12 @@ import { Toast } from "../schedule/toast";
 import { Squiggle } from "../states/squiggle";
 import statesStyles from "../states/states.module.css";
 import { OFFLINE_REASON, useOnline } from "../states/use-online";
-import { allowSplitting, checkIn } from "./actions";
+import { allowSplitting } from "./actions";
+import { useCheckInAnswers } from "./check-in-answers";
 import { CheckInSheet } from "./check-in-sheet";
 import { CompleteTaskButton } from "./complete-task-button";
 import { useCompletion } from "./completion";
-import { deadlineWords, movedWords, spanWords, todayIn } from "./day-words";
+import { deadlineWords, spanWords, todayIn } from "./day-words";
 import { FLAG_LABELS } from "./flags";
 import { useTaskEditor, type ActOnTasks } from "./task-editor-slot";
 import { TASK_LINE_ID, TaskLineAdd } from "./task-line-add";
@@ -73,7 +74,7 @@ export function TaskPanel({
   timeZone: string | null;
 }) {
   const { open, openTask, setColumn, saved } = useTaskEditor();
-  const { ticked, holding, tick } = useCompletion();
+  const { ticked, holding } = useCompletion();
   const [today, setToday] = useState(() => todayIn(timeZone));
   useEffect(() => setToday(todayIn(timeZone)), [timeZone, tasks]);
   const online = useOnline();
@@ -113,42 +114,8 @@ export function TaskPanel({
   const zone = timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
   const checkingInTask = shown.find((t) => t.id === checkingIn && t.checkIns.length > 0) ?? null;
 
-  /** Answers a Check-in Finished: the Task shows complete at once, as when it's ticked, and back if refused. */
-  function finish(task: TaskListItem) {
-    const [{ blockId }] = task.checkIns;
-    tick(task.id);
-    act({ kind: "complete", id: task.id }, async () => {
-      const result = await checkIn(blockId, { answer: "finished" });
-      if (result.ok) return null;
-      if ("notFound" in result) return `“${task.title}” was deleted or changed elsewhere.`;
-      return result.errors.block ?? null;
-    });
-  }
-
-  /** Answers a Check-in More time: the Task shows the minutes as its time left at once, and back if refused. */
-  function moreTime(task: TaskListItem, minutes: number) {
-    const [{ blockId }] = task.checkIns;
-    act({ kind: "more-time", id: task.id, blockId, minutes }, async () => {
-      const result = await checkIn(blockId, { answer: "more-time", minutes });
-      if (result.ok) return null;
-      if ("notFound" in result) return `“${task.title}” was deleted or changed elsewhere.`;
-      return result.errors.block ?? result.errors.minutes ?? null;
-    });
-  }
-
-  /** Answers a Check-in Didn't start: the row waits for the server's list, then a toast says where the Task went. */
-  function didntStart(task: TaskListItem) {
-    const [{ blockId }] = task.checkIns;
-    act(null, async () => {
-      const result = await checkIn(blockId, { answer: "didnt-start" });
-      if (result.ok) {
-        setNotice(movedWords(result.nextStart ?? null, todayIn(timeZone), zone));
-        return null;
-      }
-      if ("notFound" in result) return `“${task.title}” was deleted or changed elsewhere.`;
-      return result.errors.block ?? null;
-    });
-  }
+  // Answers about the Task's oldest waiting time; Didn't start's toast says where the Task went.
+  const answers = useCheckInAnswers(act, timeZone, setNotice);
 
   // A first-time owner starts in the add line, on desktop.
   const empty = tasks.length === 0;
@@ -310,9 +277,9 @@ export function TaskPanel({
           title={checkingInTask.title}
           checkIn={checkingInTask.checkIns[0]}
           timeZone={zone}
-          onFinished={() => finish(checkingInTask)}
-          onMoreTime={(minutes) => moreTime(checkingInTask, minutes)}
-          onDidntStart={() => didntStart(checkingInTask)}
+          onFinished={() => answers.finish(checkingInTask, checkingInTask.checkIns[0].blockId)}
+          onMoreTime={(minutes) => answers.moreTime(checkingInTask, checkingInTask.checkIns[0].blockId, minutes)}
+          onDidntStart={() => answers.didntStart(checkingInTask, checkingInTask.checkIns[0].blockId)}
           onClose={() => setCheckingIn(null)}
         />
       )}

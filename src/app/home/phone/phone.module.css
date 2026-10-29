@@ -196,6 +196,14 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* A past time waiting for a Check-in asks, in the accent, where its length would be. */
+.lineCheckIn {
+  color: var(--accent);
+  font-size: var(--text-meta);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 .lineTitle {
   font: 17px / 1.15 var(--font-serif);
   overflow-wrap: anywhere;
