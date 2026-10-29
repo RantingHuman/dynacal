@@ -108,7 +108,7 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
   const eventsById = new Map(events.map((e) => [e.id, e]));
   const ended = (item: { end: string }) => new Date(item.end).getTime() <= now;
   const openBlock = open?.kind === "block" ? (blocksById.get(open.id) ?? null) : null;
-  const checkingIn = openBlock !== null && checkIns.waiting.has(openBlock.id);
+  const checkingIn = openBlock === null ? undefined : checkIns.waiting.get(openBlock.id);
   const openEvent = open?.kind === "event" ? (eventsById.get(open.id) ?? null) : null;
 
   const days = Array.from({ length: WEEK_LIST_DAYS }, (_, i) => addDays(today, i)).filter((d) => d <= lastDay);
@@ -225,7 +225,7 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
           <CheckInSheet
             key={openBlock.id}
             title={openBlock.taskTitle}
-            checkIn={{ blockId: openBlock.id, start: new Date(openBlock.start), end: new Date(openBlock.end) }}
+            checkIn={checkingIn}
             timeZone={timeZone}
             onFinished={() => checkIns.finish(openBlock)}
             onMoreTime={(minutes) => checkIns.moreTime(openBlock, minutes)}

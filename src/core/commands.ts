@@ -14,13 +14,10 @@ import type { Clock } from "./clock";
 import { connectionProblem, unlessRefused, watchConnectionHealth } from "./connection-health";
 import {
   awaitsCheckIn,
-  suggestedWorkedMinutes,
+  checkInViews,
   validateMoreTimeMinutes,
-  validateWorkedMinutes,
   type CheckInAnswer,
   type CheckInResult,
-  type ReviewBlockResult,
-  type ReviewOutcome,
 } from "./completion";
 import type { Db } from "./db";
 import {
@@ -264,12 +261,6 @@ function toBlockView({ block, taskTitle }: { block: typeof blocks.$inferSelect; 
   return { id: block.id, taskId: block.taskId, taskTitle, start: block.start, end: block.end, pinned: block.pinned };
 }
 
-/** An Unreviewed Block as the review banner shows it. */
-export interface UnreviewedBlockView extends BlockView {
-  /** The prefill for "did part of it". */
-  suggestedWorkedMinutes: number;
-}
-
 /** A Task as the Task list shows it. */
 export interface TaskListItem extends Task {
   /** Remaining Duration, in minutes: the Task's duration, as the owner last said (ADR 0006). */
@@ -287,6 +278,12 @@ export interface CheckInView {
   blockId: string;
   start: Date;
   end: Date;
+  /**
+   * For a piece of a Splittable Task, the time still planned after it: the Remaining Duration less this piece and
+   * the earlier ones still waiting. More time offers it first, so being on track takes one tap. Absent when nothing
+   * more is planned, and for a one-piece Task.
+   */
+  plannedMinutes?: number;
 }
 
 /** A Declined Time: Recalculation keeps its Task out of it until it passes or the owner clears it. */
@@ -1242,9 +1239,10 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
           remainingMinutes: row.estimatedMinutes,
           completedAt: row.completedAt,
           declinedTimes: declined.filter((d) => d.taskId === row.id).map(({ id, start, end }) => ({ id, start, end })),
-          checkIns: row.completedAt
-            ? []
-            : waiting.filter((b) => b.taskId === row.id).map(({ id, start, end }) => ({ blockId: id, start, end })),
+          checkIns: row.completedAt ? [] : checkInViews(
+                row,
+                waiting.filter((b) => b.taskId === row.id).map(({ id, start, end }) => ({ blockId: id, start, end })),
+              ),
           createdAt: row.createdAt,
         }))
         .sort((a, b) => Number(a.completedAt !== null) - Number(b.completedAt !== null) || compareTasks(a, b))
@@ -1438,46 +1436,6 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       return { ok: true };
     },
 
-    /**
-     * Records whether a past Block's work happened, then recalculates so any time added back is scheduled. A Block
-     * whose work didn't happen at all is removed rather than kept as "not done", so to the owner it moves to its new
-     * time instead of leaving a twin behind. Its event stays in Google, which dynacal no longer keeps in step once
-     * it has ended.
-     */
-    reviewBlock(id: string, outcome: ReviewOutcome): ReviewBlockResult {
-      const block = db.select().from(blocks).where(eq(blocks.id, id)).get();
-      if (!block) return { ok: false, notFound: true };
-      if (block.end > clock.now()) {
-        return { ok: false, errors: { block: "This Block hasn't ended yet, so there's nothing to review." } };
-      }
-      if (outcome.review === "partial") {
-        const error = validateWorkedMinutes(outcome.workedMinutes, block);
-        if (error) return { ok: false, errors: { workedMinutes: error } };
-      }
-      if (outcome.review === "not-done") {
-        db.delete(blocks).where(eq(blocks.id, id)).run();
-      } else {
-        db.update(blocks)
-          .set({ review: outcome.review, workedMinutes: outcome.review === "partial" ? outcome.workedMinutes : null })
-          .where(eq(blocks.id, id))
-          .run();
-      }
-      recalculateAutomatically();
-      return { ok: true };
-    },
-
-    /** Past Blocks of incomplete Tasks that the owner hasn't reviewed yet, oldest first. */
-    listUnreviewedBlocks(): UnreviewedBlockView[] {
-      return db
-        .select({ block: blocks, taskTitle: tasks.title })
-        .from(blocks)
-        .innerJoin(tasks, eq(blocks.taskId, tasks.id))
-        .where(and(lte(blocks.end, clock.now()), isNull(blocks.review), isNull(tasks.completedAt)))
-        .all()
-        .sort((a, b) => a.block.start.getTime() - b.block.start.getTime())
-        .map((row) => ({ ...toBlockView(row), suggestedWorkedMinutes: suggestedWorkedMinutes(row.block) }));
-    },
-
     getSchedule(): ScheduleView {
       const current = getSettings();
       const { timeZone } = current;
@@ -1623,9 +1581,9 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         completed: t.completedAt !== null,
         flag: flags[t.id] ?? null,
         deadline: t.deadline,
+        checkInSince: t.checkIns[0]?.start ?? null,
       })),
       conflicts,
-      unreviewedBlocks: commands.listUnreviewedBlocks().length,
     });
   }
 

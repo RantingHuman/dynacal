@@ -73,6 +73,30 @@ describe("an optimistic change to the Task list", () => {
     expect(shown[0].checkIns).toEqual([]);
   });
 
+  it("answers More time on a piece, offering what's then planned at the next piece, as the server will", () => {
+    const app = createTestApp();
+    app.commands.updateSettings({ timeZone: "Europe/London" });
+    app.commands.createDynacalEvent({
+      title: "Standup",
+      notes: "",
+      allDay: false,
+      start: new Date("2026-01-05T10:00:00Z"),
+      end: new Date("2026-01-05T11:00:00Z"),
+    });
+    // Pieces at 09:00–10:00 and 11:00–13:00, both past.
+    app.commands.createTask({ ...oneHour, title: "Pack for vegas", estimatedMinutes: 180 });
+    app.clock.set(new Date("2026-01-05T13:05:00Z"));
+    const before = app.commands.listTasks();
+    const [first] = before[0].checkIns;
+    const change = { kind: "more-time", id: before[0].id, blockId: first.blockId, minutes: 180 } as const;
+
+    const shown = applyTaskChange(before, change, new Date());
+    app.commands.checkIn(first.blockId, { answer: "more-time", minutes: 180 });
+
+    expect(shown[0].checkIns).toEqual(app.commands.listTasks()[0].checkIns);
+    expect(shown[0].checkIns[0].plannedMinutes).toBe(60);
+  });
+
   it("moves a reopened Task back up among the open ones, where the list will have it", () => {
     const app = appWithTasks(
       { title: "Board memo", deadline: { date: "2026-01-09", time: null } },

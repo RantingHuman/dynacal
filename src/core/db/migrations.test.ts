@@ -201,4 +201,23 @@ describe("migrations", () => {
       });
     });
   });
+
+  it("drops the minutes worked, keeping each past Block and its answer", () => {
+    const sqlite = migratedUpTo("drop-worked-minutes");
+    sqlite
+      .prepare(
+        `INSERT INTO tasks (id, title, notes, estimated_minutes, priority, splittable, created_at, completed_at)
+         VALUES ('report', 'Report', '', 60, 'medium', 0, 0, 1)`,
+      )
+      .run();
+    sqlite
+      .prepare(`INSERT INTO blocks (id, task_id, start, "end", review, worked_minutes) VALUES ('b', 'report', 0, 3600000, 'partial', 30)`)
+      .run();
+
+    migrate(drizzle(sqlite), { migrationsFolder });
+
+    expect(sqlite.prepare("SELECT * FROM blocks").all()).toEqual([
+      { id: "b", task_id: "report", start: 0, end: 3600000, review: "partial", pinned: 0 },
+    ]);
+  });
 });

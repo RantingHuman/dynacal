@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { REVIEW_HREF, RECONNECT_HREF, SETTINGS_HREF, writeHeadline, type Headline } from "./headline";
+import { checkInHref, RECONNECT_HREF, SETTINGS_HREF, writeHeadline, type Headline } from "./headline";
 import type { WeekSummary } from "./week-summary";
 
 // 5 January 2026 is a Monday. Days alternate between the two headline variants: the 5th reads A, the 6th B.
@@ -10,8 +10,9 @@ function summary(overrides: Partial<WeekSummary> = {}): WeekSummary {
   return {
     state: "everything-fits",
     secondary: [],
-    counts: { overdue: 0, "at-risk": 0, conflict: 0, unscheduled: 0, unreviewed: 0 },
+    counts: { overdue: 0, "at-risk": 0, conflict: 0, unscheduled: 0, "check-in": 0 },
     named: null,
+    firstCheckIn: null,
     email: null,
     today: A_DAY,
     weekOf: "2026-01-05",
@@ -134,20 +135,41 @@ describe("the standfirst", () => {
     );
   });
 
-  it("adds a fixed sentence for each secondary state, with the review linked", () => {
+  it("adds a fixed sentence for each secondary state, with the oldest Check-in linked", () => {
     const overdue = writeHeadline(
       summary({
         state: "overdue",
-        secondary: ["at-risk", "unreviewed"],
-        counts: { overdue: 2, "at-risk": 1, conflict: 0, unscheduled: 0, unreviewed: 2 },
+        secondary: ["at-risk", "check-in"],
+        counts: { overdue: 2, "at-risk": 1, conflict: 0, unscheduled: 0, "check-in": 2 },
+        firstCheckIn: "task-1",
       }),
       A_DAY,
     );
 
     expect(standfirstText(overdue)).toBe(
       "Two Tasks have passed their deadlines. Finish them, move their deadlines or mark them done. " +
-        `One deadline is at risk. Two Blocks are waiting for [review](${REVIEW_HREF}).`,
+        `One deadline is at risk. Two Tasks are waiting for a [Check-in](${checkInHref("task-1")}).`,
     );
+  });
+
+  it("counts Tasks to check in, and links the oldest Check-in", () => {
+    const checkIns = (n: number, day: string, named: WeekSummary["named"] = null) =>
+      writeHeadline(
+        summary({ state: "check-in", blocks: 4, counts: { ...summary().counts, "check-in": n }, named, firstCheckIn: "task-1" }),
+        day,
+      );
+
+    expect(headlineText(checkIns(1, A_DAY))).toBe("Four Blocks ahead, *one Task to check in.*");
+    expect(headlineText(checkIns(2, A_DAY))).toBe("Four Blocks ahead, *two Tasks to check in.*");
+    expect(headlineText(checkIns(1, B_DAY))).toBe("*One Task* to check in.");
+    expect(headlineText(checkIns(12, B_DAY))).toBe("*12 Tasks* to check in.");
+    expect(standfirstText(checkIns(1, A_DAY, { taskTitle: "Report" }))).toBe(
+      `Say whether Report is finished and dynacal will plan the rest. [Check in](${checkInHref("task-1")}).`,
+    );
+    expect(standfirstText(checkIns(2, A_DAY))).toBe(
+      `Say whether each is finished and dynacal will plan the rest. [Check in](${checkInHref("task-1")}).`,
+    );
+    expect(checkInHref("task-1")).toBe("#check-in=task-1");
   });
 
   it("points out the longest free stretch when everything fits or all Tasks are done", () => {

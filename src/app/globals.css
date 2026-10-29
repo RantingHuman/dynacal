@@ -660,12 +660,6 @@ input[type="checkbox"]:disabled {
   animation: fade-out var(--fast) var(--expo) both;
 }
 
-::view-transition-group(.review-in),
-::view-transition-old(.review-out):only-child {
-  animation-duration: var(--base);
-  animation-timing-function: var(--expo);
-}
-
 @keyframes fade-out {
   to {
     opacity: 0;
@@ -676,11 +670,6 @@ input[type="checkbox"]:disabled {
   /* A new Task's row slides into the list. */
   ::view-transition-new(.task-enter):only-child {
     animation: row-in var(--slow) var(--expo) both;
-  }
-
-  /* Reviewing: the answered card fades in place while the next slides in from the right. */
-  ::view-transition-new(.review-in):only-child {
-    animation: card-in var(--base) var(--expo) both;
   }
 
   /* A deleted Task's row collapses and fades; the rows under it close up. */
@@ -694,13 +683,6 @@ input[type="checkbox"]:disabled {
   from {
     opacity: 0;
     transform: translateY(-12px);
-  }
-}
-
-@keyframes card-in {
-  from {
-    opacity: 0;
-    transform: translateX(24px);
   }
 }
 

@@ -83,10 +83,6 @@
   font-size: 16px;
 }
 
-.review:not(:empty) {
-  padding: var(--space-4) 0;
-}
-
 /* The week list: each day a heading, then its lines. */
 
 .weekList {

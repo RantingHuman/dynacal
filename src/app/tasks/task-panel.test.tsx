@@ -3,6 +3,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { checkInHref } from "@/core/headline";
 import type { TaskFlag } from "@/core/scheduler";
 import type { TaskResult } from "@/core/tasks";
 import { deferred, taskItem } from "../testing/fixtures";
@@ -302,6 +303,20 @@ describe("a Task waiting for a Check-in", () => {
     expect(taskList().queryByText(/left/)).toBeNull();
   });
 
+  it("opens the sheet from the headline's Check-in link", async () => {
+    renderGuarded(
+      <TaskEditorProvider>
+        <a href={checkInHref("pack")}>Check in</a>
+        <TaskPanel tasks={[{ ...packing(), id: "pack" }]} flags={{}} timeZone="Europe/London" />
+      </TaskEditorProvider>,
+    );
+
+    await userEvent.click(screen.getByRole("link", { name: "Check in" }));
+
+    expect(within(sheet()).getByText("Tue 27 Oct, 10:30–11:30")).toBeTruthy();
+    expect(location.hash).toBe("");
+  });
+
   it("shows the day of a past time from before today", () => {
     const task = packing();
     task.checkIns = [{ blockId: "b", start: new Date("2026-10-26T10:30:00Z"), end: new Date("2026-10-26T11:30:00Z") }];
@@ -404,6 +419,69 @@ describe("a Task waiting for a Check-in", () => {
       await openMoreTime();
 
       expect(chips().getAllByRole("button").map((b) => b.textContent)).toEqual(["15m", "30m", "1h", "2h", "Other…"]);
+    });
+
+    describe("on a piece of a Splittable Task", () => {
+      const piece = () => {
+        const task = single();
+        task.splittable = true;
+        task.checkIns[0].plannedMinutes = 180;
+        return task;
+      };
+
+      it("opens with the time still planned already chosen", async () => {
+        renderPanel([piece()]);
+
+        await openMoreTime();
+
+        const planned = chips().getByRole("button", { name: "3h planned" });
+        expect(planned.getAttribute("aria-pressed")).toBe("true");
+        expect(chips().getAllByRole("button").map((b) => b.textContent)).toEqual([
+          "3h planned",
+          "15m",
+          "30m",
+          "1h",
+          "2h",
+          "Other…",
+        ]);
+      });
+
+      it("confirms it in one tap", async () => {
+        vi.mocked(checkIn).mockResolvedValue({ ok: true });
+        renderPanel([piece()]);
+        await openMoreTime();
+
+        await userEvent.click(chips().getByRole("button", { name: "3h planned" }));
+
+        expect(checkIn).toHaveBeenCalledWith("block-1", { answer: "more-time", minutes: 180 });
+        await waitFor(() => expect(screen.queryByRole("complementary", { name: "Pack for vegas" })).toBeNull());
+      });
+
+      it("labels a chip of the same amount, rather than offering it twice", async () => {
+        const task = piece();
+        task.checkIns[0].plannedMinutes = 60;
+        renderPanel([task]);
+
+        await openMoreTime();
+
+        expect(chips().getAllByRole("button").map((b) => b.textContent)).toEqual([
+          "1h planned",
+          "15m",
+          "30m",
+          "2h",
+          "Other…",
+        ]);
+      });
+
+      it("takes another amount instead, to replan the rest", async () => {
+        vi.mocked(checkIn).mockResolvedValue({ ok: true });
+        renderPanel([piece()]);
+        await openMoreTime();
+
+        await userEvent.click(chips().getByRole("button", { name: "1h" }));
+
+        expect(checkIn).toHaveBeenCalledWith("block-1", { answer: "more-time", minutes: 60 });
+      });
     });
 
     it("makes the amount picked the time left at once, and closes", async () => {

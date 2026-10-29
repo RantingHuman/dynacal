@@ -65,7 +65,10 @@ interface ScheduledTime {
  */
 export function useScheduleCheckIns(timeZone: string, notify: (text: string) => void) {
   const column = useTaskColumn();
-  const waiting = new Set(column?.tasks.flatMap((t) => (t.completedAt ? [] : t.checkIns.map((c) => c.blockId))));
+  // Each waiting Check-in by its Block, as the Task list asks it (with a Splittable Task's planned time).
+  const waiting = new Map(
+    column?.tasks.flatMap((t) => (t.completedAt ? [] : t.checkIns.map((c) => [c.blockId, c] as const))),
+  );
   const answers = useCheckInAnswers(column?.act ?? (() => {}), timeZone, notify);
   const taskOf = (time: ScheduledTime) => ({ id: time.taskId, title: time.taskTitle });
   return {

@@ -281,6 +281,7 @@ export function Calendar({
   const conflictingEvents = new Set(conflicts.map((c) => c.eventId));
   const editing = blocks.find((b) => b.id === editingId) ?? null;
   const checkingIn = blocks.find((b) => b.id === checkingInId && checkIns.waiting.has(b.id)) ?? null;
+  const checkingInView = checkingIn && checkIns.waiting.get(checkingIn.id);
   const eventsById = new Map(events.map((e) => [e.id, e]));
   const openEvent = openEventId === null ? null : (eventsById.get(openEventId) ?? null);
   const shown = blocks.map((b) =>
@@ -598,11 +599,11 @@ export function Calendar({
         />
       )}
 
-      {checkingIn && (
+      {checkingIn && checkingInView && (
         <CheckInSheet
           key={checkingIn.id}
           title={checkingIn.taskTitle}
-          checkIn={{ blockId: checkingIn.id, start: new Date(checkingIn.start), end: new Date(checkingIn.end) }}
+          checkIn={checkingInView}
           timeZone={timeZone}
           onFinished={() => checkIns.finish(checkingIn)}
           onMoreTime={(minutes) => checkIns.moreTime(checkingIn, minutes)}
