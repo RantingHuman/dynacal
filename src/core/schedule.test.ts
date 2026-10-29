@@ -158,6 +158,9 @@ describe("the Schedule", () => {
     const { commands, clock } = appInLondon();
     const task = createTask(commands, { title: "Report" });
     clock.set(new Date("2026-01-05T12:00:00Z"));
+    // Answered, so the Task no longer waits for a Check-in about that hour.
+    const [past] = commands.listUnreviewedBlocks();
+    commands.reviewBlock(past.id, { review: "done" });
 
     commands.updateTask(task.id, { ...oneHour, title: "Report", estimatedMinutes: 90 });
 

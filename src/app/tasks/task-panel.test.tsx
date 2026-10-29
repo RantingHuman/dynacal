@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TaskResult } from "@/core/tasks";
 import { deferred, taskItem } from "../testing/fixtures";
 import { renderGuarded } from "../testing/render";
-import { completeTask, createTask, reopenTask } from "./actions";
+import { checkIn, completeTask, createTask, reopenTask } from "./actions";
 import { TaskEditorProvider, TaskEditorSlot } from "./task-editor-slot";
 import { TaskPanel } from "./task-panel";
 
@@ -17,6 +17,7 @@ vi.mock("./actions", () => ({
   completeTask: vi.fn(),
   reopenTask: vi.fn(),
   clearDeclinedTime: vi.fn(),
+  checkIn: vi.fn(),
 }));
 
 function renderPanel(tasks = [taskItem({ title: "Write Q4 planning doc" })]) {
@@ -191,5 +192,94 @@ describe("offline", () => {
     expect(screen.getByRole("button", { name: "Mark “Write Q4 planning doc” complete" })).toHaveProperty("disabled", true);
     const open = taskList().getAllByRole("button").find((b) => b.textContent?.startsWith("Write Q4 planning doc"));
     expect(open).toHaveProperty("disabled", true);
+  });
+});
+
+describe("a Task waiting for a Check-in", () => {
+  // Today is Tuesday 27 October 2026 in London (GMT, after the clocks went back); the Task was at 10:30–11:30.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-27T14:00:00Z"));
+    vi.mocked(checkIn).mockReset();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: true });
+  });
+
+  const packing = () =>
+    taskItem({
+      title: "Pack for vegas",
+      remainingMinutes: 0,
+      checkIns: [
+        { blockId: "block-1", start: new Date("2026-10-27T10:30:00Z"), end: new Date("2026-10-27T11:30:00Z") },
+        { blockId: "block-2", start: new Date("2026-10-27T12:00:00Z"), end: new Date("2026-10-27T13:00:00Z") },
+      ],
+    });
+  const sheet = () => screen.getByRole("complementary", { name: "Pack for vegas" });
+
+  it("asks “Finished?” on its row about its oldest past time, instead of the time left", () => {
+    renderPanel([packing()]);
+
+    expect(taskList().getByText(/10:30–11:30 ·/)).toBeTruthy();
+    expect(taskList().getByRole("button", { name: "Finished? ›" })).toBeTruthy();
+    expect(taskList().queryByText(/left/)).toBeNull();
+  });
+
+  it("shows the day of a past time from before today", () => {
+    const task = packing();
+    task.checkIns = [{ blockId: "b", start: new Date("2026-10-26T10:30:00Z"), end: new Date("2026-10-26T11:30:00Z") }];
+    renderPanel([task]);
+
+    expect(taskList().getByText(/yesterday 10:30–11:30 ·/)).toBeTruthy();
+  });
+
+  it("opens a sheet about the Task and its time", async () => {
+    renderPanel([packing()]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Finished? ›" }));
+
+    expect(within(sheet()).getByRole("heading", { name: "Pack for vegas" })).toBeTruthy();
+    expect(within(sheet()).getByText("Tue 27 Oct, 10:30–11:30")).toBeTruthy();
+    expect(within(sheet()).getByRole("button", { name: "Finished" })).toBeTruthy();
+  });
+
+  it("answered Finished, completes the Task at once and closes", async () => {
+    const answering = deferred<{ ok: true }>();
+    vi.mocked(checkIn).mockReturnValue(answering.promise);
+    renderPanel([packing()]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Finished? ›" }));
+    await userEvent.click(within(sheet()).getByRole("button", { name: "Finished" }));
+
+    expect(checkIn).toHaveBeenCalledWith("block-1", { answer: "finished" });
+    await waitFor(() => expect(screen.queryByRole("complementary", { name: "Pack for vegas" })).toBeNull());
+    expect(screen.getByRole("button", { name: "Mark “Pack for vegas” not complete" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Finished? ›" })).toBeNull();
+    answering.resolve({ ok: true });
+    await waitFor(() => expect(checkIn).toHaveReturned());
+  });
+
+  it("says so, and asks again, when the Task has gone or changed elsewhere", async () => {
+    vi.mocked(checkIn).mockResolvedValue({ ok: false, notFound: true });
+    renderPanel([packing()]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Finished? ›" }));
+    await userEvent.click(within(sheet()).getByRole("button", { name: "Finished" }));
+
+    await waitFor(() => expect(screen.getByText("“Pack for vegas” was deleted or changed elsewhere.")).toBeTruthy());
+    expect(screen.queryByRole("complementary", { name: "Pack for vegas" })).toBeNull();
+    expect(await screen.findByRole("button", { name: "Finished? ›" })).toBeTruthy();
+  });
+
+  it("can't be answered offline, and says why", async () => {
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: false });
+    renderPanel([packing()]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Finished? ›" }));
+
+    const finished = within(sheet()).getByRole("button", { name: "Finished" });
+    expect(finished).toHaveProperty("disabled", true);
+    expect(finished.title).toBe("Offline: this needs a connection.");
   });
 });

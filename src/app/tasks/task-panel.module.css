@@ -46,6 +46,21 @@
   border-bottom: var(--hairline) solid var(--faint);
 }
 
+/* A row whose meta line holds its own button ("Finished? ›") stacks the Task's button and that line. */
+.body {
+  flex: 1;
+  min-width: 0;
+}
+
+.body .open {
+  width: 100%;
+}
+
+.checkIn {
+  color: var(--accent);
+  font-size: inherit;
+}
+
 .open {
   flex: 1;
   min-width: 0;

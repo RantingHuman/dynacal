@@ -19,6 +19,7 @@ export function taskItem(overrides: Partial<TaskListItem> = {}): TaskListItem {
     dontSplit: false,
     completedAt: null,
     declinedTimes: [],
+    checkIns: [],
     ...overrides,
   };
 }

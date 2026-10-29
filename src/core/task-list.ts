@@ -34,7 +34,8 @@ export function applyTaskChange(tasks: TaskListItem[], change: TaskChange, now: 
     if (!task || task.completedAt) return tasks;
     return place(
       tasks.filter((t) => t !== task),
-      { ...task, completedAt: now },
+      // Completing it answers its waiting Check-ins.
+      { ...task, completedAt: now, checkIns: [] },
     );
   }
   if (change.kind === "reopen") {
@@ -66,6 +67,7 @@ export function applyTaskChange(tasks: TaskListItem[], change: TaskChange, now: 
     remainingMinutes: change.input.estimatedMinutes,
     completedAt: null,
     declinedTimes: [],
+    checkIns: [],
   };
   return place(tasks, task);
 }

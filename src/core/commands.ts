@@ -13,8 +13,11 @@ import {
 import type { Clock } from "./clock";
 import { connectionProblem, unlessRefused, watchConnectionHealth } from "./connection-health";
 import {
+  awaitsCheckIn,
   suggestedWorkedMinutes,
   validateWorkedMinutes,
+  type CheckInAnswer,
+  type CheckInResult,
   type ReviewBlockResult,
   type ReviewOutcome,
 } from "./completion";
@@ -274,6 +277,15 @@ export interface TaskListItem extends Task {
   completedAt: Date | null;
   /** Times the owner declined for this Task (by deleting its Block event in Google) that haven't passed, in time order. */
   declinedTimes: DeclinedTimeView[];
+  /** Its past Blocks waiting for a Check-in, oldest first: the order they're asked about. Empty once it's complete. */
+  checkIns: CheckInView[];
+}
+
+/** A past Block of a Task, waiting for the owner to say whether the Task is finished. */
+export interface CheckInView {
+  blockId: string;
+  start: Date;
+  end: Date;
 }
 
 /** A Declined Time: Recalculation keeps its Task out of it until it passes or the owner clears it. */
@@ -818,6 +830,30 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
    * even while the Google connection is broken, planning around the Events dynacal last saw; the write is
    * then skipped until the owner reconnects.
    */
+  /**
+   * Completes a Task, without recalculating: its future Blocks go, one in progress ends now, and its past Blocks
+   * waiting for a Check-in are answered Finished. False if there's no such Task.
+   */
+  function finishTask(id: string): boolean {
+    const now = clock.now();
+    return db.transaction((tx) => {
+      const row = tx.update(tasks).set({ completedAt: now, scheduleFlag: null }).where(eq(tasks.id, id)).returning().get();
+      if (!row) return false;
+      tx.delete(blocks)
+        .where(and(eq(blocks.taskId, id), gte(blocks.start, now)))
+        .run();
+      tx.update(blocks)
+        .set({ end: now })
+        .where(and(eq(blocks.taskId, id), lt(blocks.start, now), gt(blocks.end, now)))
+        .run();
+      tx.update(blocks)
+        .set({ review: "finished" })
+        .where(and(eq(blocks.taskId, id), lte(blocks.end, now), isNull(blocks.review)))
+        .run();
+      return true;
+    });
+  }
+
   function recalculate(): RecalculateResult {
     const result = recalculateSchedule();
     // Commands stay synchronous, so the write to Google runs in the background. A failed write is retried
@@ -1162,7 +1198,9 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     /** Every Task, in Task list order (completed Tasks last), with its Remaining Duration. */
     listTasks(): TaskListItem[] {
       const now = clock.now();
-      const remaining = remainingByTask(pastBlocks(db, now));
+      const past = pastBlocks(db, now);
+      const remaining = remainingByTask(past);
+      const waiting = past.filter(awaitsCheckIn).sort((a, b) => a.start.getTime() - b.start.getTime());
       const declined = db
         .select()
         .from(declinedTimes)
@@ -1178,6 +1216,9 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
           remainingMinutes: remaining(row.id, row.estimatedMinutes),
           completedAt: row.completedAt,
           declinedTimes: declined.filter((d) => d.taskId === row.id).map(({ id, start, end }) => ({ id, start, end })),
+          checkIns: row.completedAt
+            ? []
+            : waiting.filter((b) => b.taskId === row.id).map(({ id, start, end }) => ({ blockId: id, start, end })),
           createdAt: row.createdAt,
         }))
         .sort((a, b) => Number(a.completedAt !== null) - Number(b.completedAt !== null) || compareTasks(a, b))
@@ -1275,20 +1316,35 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     writeBlocksToGoogle: writeBlocks,
 
     /**
-     * Marks a Task complete: its future Blocks are removed and its past Blocks kept as history.
-     * The freed time goes to other Tasks.
+     * Marks a Task complete: its future Blocks are removed and its past Blocks kept as history, any waiting for a
+     * Check-in answered Finished. The freed time goes to other Tasks.
      */
     completeTask(id: string): CompleteTaskResult {
-      const now = clock.now();
-      const row = db.update(tasks).set({ completedAt: now, scheduleFlag: null }).where(eq(tasks.id, id)).returning().get();
-      if (!row) return { ok: false, notFound: true };
-      db.delete(blocks)
-        .where(and(eq(blocks.taskId, id), gte(blocks.start, now)))
-        .run();
-      db.update(blocks)
-        .set({ end: now })
-        .where(and(eq(blocks.taskId, id), lt(blocks.start, now), gt(blocks.end, now)))
-        .run();
+      if (!finishTask(id)) return { ok: false, notFound: true };
+      recalculateAutomatically();
+      return { ok: true };
+    },
+
+    /**
+     * Answers a past Block's Check-in. Finished completes its Task, as ticking it does. A Block that hasn't ended
+     * is refused; one that's gone, or whose Check-in was already answered (or its Task completed), isn't found.
+     */
+    checkIn(blockId: string, answer: CheckInAnswer): CheckInResult {
+      const found = db
+        .select({ block: blocks, completedAt: tasks.completedAt })
+        .from(blocks)
+        .innerJoin(tasks, eq(blocks.taskId, tasks.id))
+        .where(eq(blocks.id, blockId))
+        .get();
+      if (!found || found.completedAt !== null || !awaitsCheckIn(found.block)) return { ok: false, notFound: true };
+      if (found.block.end > clock.now()) {
+        return { ok: false, errors: { block: "This time hasn't ended yet, so there's nothing to check in." } };
+      }
+      switch (answer.answer) {
+        case "finished":
+          finishTask(found.block.taskId);
+          break;
+      }
       recalculateAutomatically();
       return { ok: true };
     },

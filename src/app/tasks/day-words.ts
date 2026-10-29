@@ -1,4 +1,5 @@
 import { dateParts, monthName, weekdayName as weekday } from "@/core/day-labels";
+import { formatMinutes } from "@/core/settings";
 import type { DateOrDateTime } from "@/core/tasks";
 import { addDays, toZoned } from "@/core/time-zone";
 
@@ -31,6 +32,14 @@ function dayWord(date: string, today: string): string {
 /** e.g. "Fri", "tomorrow 16:00" or "6 Nov". */
 export function whenWords({ date, time }: DateOrDateTime, today: string): string {
   return time ? `${dayWord(date, today)} ${time}` : dayWord(date, today);
+}
+
+/** A span of time, short: "10:30–11:30" today, else e.g. "yesterday 10:30–11:30" or "Mon 10:30–11:30". */
+export function spanWords(span: { start: Date; end: Date }, today: string, timeZone: string): string {
+  const start = toZoned(span.start, timeZone);
+  const end = toZoned(span.end, timeZone);
+  const times = `${formatMinutes(start.minutes)}–${formatMinutes(end.minutes)}`;
+  return start.date === today ? times : `${dayWord(start.date, today)} ${times}`;
 }
 
 /** e.g. "due Fri" or, once it's passed, "was due Mon". */

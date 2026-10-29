@@ -5,8 +5,16 @@ import { formatDuration } from "./tasks";
  * Completing Tasks and reviewing past Blocks: the pure arithmetic behind Remaining Duration.
  */
 
-/** How the owner reviewed a past Block. A Block with no review is an Unreviewed Block. */
-export type BlockReview = "done" | "not-done" | "partial";
+/**
+ * How the owner answered for a past Block: in the review (done, partial; "not-done" ones are removed), or at its
+ * Check-in ("finished"). A Block with no answer is waiting for a Check-in (an Unreviewed Block, to the review).
+ */
+export type BlockReview = "done" | "not-done" | "partial" | "finished";
+
+/** The answer to a Check-in: so far, that the Task is finished. */
+export type CheckInAnswer = { answer: "finished" };
+
+export type CheckInResult = { ok: true } | { ok: false; notFound: true } | { ok: false; errors: { block: string } };
 
 /** What the owner says about a past Block: done, didn't do it, or did part of it (with the minutes worked). */
 export type ReviewOutcome = { review: "done" } | { review: "not-done" } | { review: "partial"; workedMinutes: number };
@@ -23,6 +31,11 @@ interface ReviewableBlock {
   workedMinutes: number | null;
 }
 
+/** Whether a past Block is waiting for a Check-in: the owner hasn't answered for it, in the review or the Check-in. */
+export function awaitsCheckIn(block: { review: BlockReview | null }): boolean {
+  return block.review === null;
+}
+
 export function blockMinutes(block: { start: Date; end: Date }): number {
   return (block.end.getTime() - block.start.getTime()) / MINUTE_MS;
 }
@@ -32,6 +45,7 @@ export function workedMinutes(block: ReviewableBlock): number {
   switch (block.review) {
     case null:
     case "done":
+    case "finished":
       return blockMinutes(block);
     case "not-done":
       return 0;

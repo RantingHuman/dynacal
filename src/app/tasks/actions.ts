@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { ClearDeclinedTimeResult, CompleteTaskResult } from "@/core/commands";
+import type { CheckInResult } from "@/core/completion";
 import { PRIORITIES, type TaskResult, type UpdateTaskResult } from "@/core/tasks";
 import { getRuntime } from "@/server/runtime";
 import { requireOwner } from "@/server/session";
@@ -49,6 +50,15 @@ export async function completeTask(id: string): Promise<CompleteTaskResult> {
 export async function reopenTask(id: string): Promise<CompleteTaskResult> {
   await requireOwner();
   const result = getRuntime().commands.reopenTask(z.string().parse(id));
+  revalidatePath("/");
+  return result;
+}
+
+const checkInAnswerSchema = z.object({ answer: z.literal("finished") });
+
+export async function checkIn(blockId: string, answer: unknown): Promise<CheckInResult> {
+  await requireOwner();
+  const result = getRuntime().commands.checkIn(z.string().parse(blockId), checkInAnswerSchema.parse(answer));
   revalidatePath("/");
   return result;
 }

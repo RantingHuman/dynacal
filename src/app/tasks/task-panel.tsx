@@ -10,9 +10,11 @@ import { Toast } from "../schedule/toast";
 import { Squiggle } from "../states/squiggle";
 import statesStyles from "../states/states.module.css";
 import { OFFLINE_REASON, useOnline } from "../states/use-online";
+import { checkIn } from "./actions";
+import { CheckInSheet } from "./check-in-sheet";
 import { CompleteTaskButton } from "./complete-task-button";
 import { useCompletion } from "./completion";
-import { deadlineWords, todayIn } from "./day-words";
+import { deadlineWords, spanWords, todayIn } from "./day-words";
 import { FLAG_LABELS } from "./flags";
 import { useTaskEditor, type ActOnTasks } from "./task-editor-slot";
 import { TASK_LINE_ID, TaskLineAdd } from "./task-line-add";
@@ -47,7 +49,7 @@ export function TaskPanel({
   timeZone: string | null;
 }) {
   const { open, openTask, setColumn, saved } = useTaskEditor();
-  const { ticked, holding } = useCompletion();
+  const { ticked, holding, tick } = useCompletion();
   const [today, setToday] = useState(() => todayIn(timeZone));
   useEffect(() => setToday(todayIn(timeZone)), [timeZone, tasks]);
   const online = useOnline();
@@ -75,6 +77,23 @@ export function TaskPanel({
     () => setColumn({ tasks: shown, flags, timeZone, today, act }),
     [setColumn, shown, flags, timeZone, today, act],
   );
+
+  // The Task whose Check-in sheet is open; it asks about the Task's oldest waiting time.
+  const [checkingIn, setCheckingIn] = useState<string | null>(null);
+  const zone = timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const checkingInTask = shown.find((t) => t.id === checkingIn && t.checkIns.length > 0) ?? null;
+
+  /** Answers a Check-in Finished: the Task shows complete at once, as when it's ticked, and back if refused. */
+  function finish(task: TaskListItem) {
+    const [{ blockId }] = task.checkIns;
+    tick(task.id);
+    act({ kind: "complete", id: task.id }, async () => {
+      const result = await checkIn(blockId, { answer: "finished" });
+      if (result.ok) return null;
+      if ("notFound" in result) return `“${task.title}” was deleted or changed elsewhere.`;
+      return result.errors.block;
+    });
+  }
 
   // A first-time owner starts in the add line, on desktop.
   const empty = tasks.length === 0;
@@ -146,6 +165,43 @@ export function TaskPanel({
             // A Task being added slides in; when the server has it, it swaps in place (no exit, no second
             // entrance) and its title sweeps.
             const adding = isPending(task);
+            // A Task whose time has passed asks "Finished?" about it, instead of the time it has left.
+            const waiting = task.completedAt ? null : (task.checkIns[0] ?? null);
+            const details = (
+              <>
+                {task.deadline && ` · ${deadlineWords(task.deadline, today)}`}
+                {flag && <em className={styles.flag}> · {FLAG_LABELS[flag]}</em>}
+                {declined > 0 && ` · ${declined} Declined ${declined === 1 ? "Time" : "Times"}`}
+                {justSaved && (
+                  <span key={saved.n} className={styles.saved} role="status">
+                    {" "}
+                    · Saved
+                  </span>
+                )}
+              </>
+            );
+            const title = (
+              <span
+                // A new key replays the sweep: once on arrival, and again on each save.
+                key={timesSaved}
+                className="task-title"
+                data-sweep={timesSaved > 0 || (!adding && !loaded.has(task.id)) || undefined}
+              >
+                {task.title}
+              </span>
+            );
+            const openButton = (children: React.ReactNode) => (
+              <button
+                type="button"
+                className={styles.open}
+                disabled={!online || adding}
+                title={online ? undefined : OFFLINE_REASON}
+                aria-current={openId === task.id || undefined}
+                onClick={() => openTask({ taskId: task.id, initial: inputOf(task) })}
+              >
+                {children}
+              </button>
+            );
             return (
               <ViewTransition
                 key={task.id}
@@ -161,40 +217,44 @@ export function TaskPanel({
                     disabled={!online || adding}
                     act={act}
                   />
-                  <button
-                    type="button"
-                    className={styles.open}
-                    disabled={!online || adding}
-                    title={online ? undefined : OFFLINE_REASON}
-                    aria-current={openId === task.id || undefined}
-                    onClick={() => openTask({ taskId: task.id, initial: inputOf(task) })}
-                  >
-                    <span
-                      // A new key replays the sweep: once on arrival, and again on each save.
-                      key={timesSaved}
-                      className="task-title"
-                      data-sweep={timesSaved > 0 || (!adding && !loaded.has(task.id)) || undefined}
-                    >
-                      {task.title}
-                    </span>
-                    <span className={styles.meta}>
-                      {task.completedAt ? "Complete" : `${formatDuration(task.remainingMinutes)} left`}
-                      {task.deadline && ` · ${deadlineWords(task.deadline, today)}`}
-                      {flag && <em className={styles.flag}> · {FLAG_LABELS[flag]}</em>}
-                      {declined > 0 && ` · ${declined} Declined ${declined === 1 ? "Time" : "Times"}`}
-                      {justSaved && (
-                        <span key={saved.n} className={styles.saved} role="status">
-                          {" "}
-                          · Saved
+                  {waiting ? (
+                    // The question is its own button, so the meta line sits outside the one that opens the Task.
+                    <div className={styles.body}>
+                      {openButton(title)}
+                      <span className={styles.meta}>
+                        {spanWords(waiting, today, zone)} ·{" "}
+                        <button type="button" className={`link ${styles.checkIn}`} onClick={() => setCheckingIn(task.id)}>
+                          Finished? ›
+                        </button>
+                        {details}
+                      </span>
+                    </div>
+                  ) : (
+                    openButton(
+                      <>
+                        {title}
+                        <span className={styles.meta}>
+                          {task.completedAt ? "Complete" : `${formatDuration(task.remainingMinutes)} left`}
+                          {details}
                         </span>
-                      )}
-                    </span>
-                  </button>
+                      </>,
+                    )
+                  )}
                 </li>
               </ViewTransition>
             );
           })}
         </ol>
+      )}
+      {checkingInTask && (
+        <CheckInSheet
+          key={checkingInTask.checkIns[0].blockId}
+          title={checkingInTask.title}
+          checkIn={checkingInTask.checkIns[0]}
+          timeZone={zone}
+          onFinished={() => finish(checkingInTask)}
+          onClose={() => setCheckingIn(null)}
+        />
       )}
       <Toast message={toast} onDone={clearToast} />
     </section>
