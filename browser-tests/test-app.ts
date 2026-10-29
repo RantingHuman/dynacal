@@ -34,7 +34,17 @@ async function start(child: ChildProcess): Promise<void> {
 /** The owner's time zone in every browser test: the browser, the server process and the seeded Settings agree. */
 const TIME_ZONE = "Europe/London";
 
-export async function withApp(browser: Browser, run: (page: Page, fixture: { calendarWrites: () => Promise<string> }) => Promise<void>) {
+/**
+ * Data the test runtime seeds before the test starts. "past-times": three one-hour Tasks whose times passed this
+ * morning and wait for a Check-in (see `seedPastTimes` in test-runtime.ts).
+ */
+export type Seed = "past-times";
+
+export async function withApp(
+  browser: Browser,
+  run: (page: Page, fixture: { calendarWrites: () => Promise<string> }) => Promise<void>,
+  { seed }: { seed?: Seed } = {},
+) {
   const build = process.env.DYNACAL_TEST_BUILD;
   if (!build) throw new Error("Test build was not prepared");
   const port = await freePort();
@@ -49,7 +59,8 @@ export async function withApp(browser: Browser, run: (page: Page, fixture: { cal
   const child = spawn(process.execPath, ["server.js"], {
     cwd: join(build, ".next/standalone"),
     // TZ matches the browser context and the seeded Settings, so nothing on the server depends on the host's zone.
-    env: { PATH: process.env.PATH, HOME: build, TMPDIR: realpathSync(tmpdir()), NODE_ENV: "production", HOSTNAME: "127.0.0.1", PORT: String(port), TZ: TIME_ZONE },
+    env: { PATH: process.env.PATH, HOME: build, TMPDIR: realpathSync(tmpdir()), NODE_ENV: "production", HOSTNAME: "127.0.0.1", PORT: String(port), TZ: TIME_ZONE,
+      ...(seed ? { DYNACAL_TEST_SEED: seed } : {}) },
     stdio: ["ignore", "pipe", "pipe", "pipe"],
   });
   const directoryPromise = new Promise<string>((ok, fail) => {

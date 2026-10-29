@@ -15,6 +15,27 @@ const globalRuntime = globalThis as unknown as {
   __dynacalBrowserTest?: { dir: string; sessionFd: number; calendarFd: number };
 };
 
+/** The Tasks `seedPastTimes` adds, one hour each, in the order they were scheduled from 06:00. */
+const PAST_TIMES = ["Pack for vegas", "Print mystery machine", "Create WhatsApp group"];
+
+/**
+ * Three one-hour Tasks whose times passed this morning (06:00–09:00) and wait for a Check-in: they're added at
+ * 06:00 with the working day starting then, and the clock is back at the usual 09:00 before the day is reset.
+ */
+function seedPastTimes(commands: ReturnType<typeof createCommands>, clock: FakeClock) {
+  const usual = clock.now();
+  const { workingHours } = commands.getSettings();
+  clock.set(new Date("2026-01-05T06:00:00Z"));
+  commands.updateSettings({ workingHours: { ...workingHours, mon: [{ start: 6 * 60, end: 17 * 60 }] } });
+  for (const title of PAST_TIMES) {
+    const result = commands.createTask({ title, notes: "", estimatedMinutes: 60, deadline: null, earliestStart: null,
+      priority: "medium", splittable: false });
+    if (!result.ok) throw new Error("Could not seed past times");
+  }
+  clock.set(usual);
+  commands.updateSettings({ workingHours });
+}
+
 /** This file is substituted only into a disposable browser-test build. */
 export function getRuntime(): Runtime {
   if (globalRuntime.dynacalRuntime) return globalRuntime.dynacalRuntime;
@@ -37,6 +58,7 @@ export function getRuntime(): Runtime {
     dynacalCalendarId: "dynacal", busyCalendarsChosenAt: now }).run();
   const commands = createCommands({ db, clock, ownerEmail: "owner@example.com", calendar, pushSender: new FakePushSender() });
   commands.updateSettings({ timeZone: "Europe/London" });
+  if (process.env.DYNACAL_TEST_SEED === "past-times") seedPastTimes(commands, clock);
   const session = commands.signIn({ email: "owner@example.com", emailVerified: true });
   if (!session.ok) throw new Error("Could not seed test session");
   writeSync(sessionFd, session.sessionId);

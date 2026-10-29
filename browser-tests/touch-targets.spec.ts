@@ -52,3 +52,11 @@ test("gives the phone's small controls a 44px tap area without overlapping", asy
     await expectTappable(page.getByRole("button", { name: "Sign out" }));
   });
 });
+
+test("gives a past time's line a 44px tap area for its Check-in", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await asPhone(page);
+    await page.goto("/");
+    await expectTappable(page.getByRole("button", { name: "Pack for vegas, 06:00, 1h, Finished?" }));
+  }, { seed: "past-times" });
+});
