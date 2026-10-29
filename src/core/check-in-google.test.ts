@@ -90,6 +90,18 @@ describe("a Check-in answered Didn't start", () => {
     expect(app.calendar.blockEventsOn(dynacal)).toEqual([["Write report", at("10:15"), at("11:15"), 10]]);
   });
 
+  it("says the Task isn't placed yet while the Google connection is broken, rather than that nothing fits", async () => {
+    const app = appInLondon();
+    await connect(app);
+    const task = await pastBlockInGoogle(app);
+    app.calendar.breakConnection();
+    await app.commands.syncEvents();
+
+    const result = app.commands.checkIn(checkInOf(app, task.id).blockId, { answer: "didnt-start" });
+
+    expect(result).toEqual({ ok: true, recalculationPaused: true });
+  });
+
   it("writes nothing while Google isn't connected", async () => {
     const app = appInLondon();
     const task = createTask(app);

@@ -277,12 +277,10 @@ export function TaskPanel({
       {checkingInTask && (
         <CheckInSheet
           key={checkingInTask.checkIns[0].blockId}
-          title={checkingInTask.title}
+          task={checkingInTask}
           checkIn={checkingInTask.checkIns[0]}
           timeZone={zone}
-          onFinished={() => answers.finish(checkingInTask, checkingInTask.checkIns[0].blockId)}
-          onMoreTime={(minutes) => answers.moreTime(checkingInTask, checkingInTask.checkIns[0].blockId, minutes)}
-          onDidntStart={() => answers.didntStart(checkingInTask, checkingInTask.checkIns[0].blockId)}
+          answers={answers}
           onClose={() => setCheckingIn(null)}
         />
       )}

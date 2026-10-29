@@ -373,6 +373,17 @@ describe("a Task waiting for a Check-in", () => {
     expect(await screen.findByText("Nothing fits: Unscheduled")).toBeTruthy();
   });
 
+  it("answered Didn't start while Google needs reconnecting, says the Task isn't placed yet", async () => {
+    vi.mocked(checkIn).mockResolvedValue({ ok: true, recalculationPaused: true });
+    renderPanel([packing()]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Finished? ›" }));
+    await userEvent.click(within(sheet()).getByRole("button", { name: "Didn't start" }));
+
+    expect(await screen.findByText("Not placed yet: planning is paused until you reconnect Google")).toBeTruthy();
+    expect(screen.queryByText("Nothing fits: Unscheduled")).toBeNull();
+  });
+
   it("says so, and asks again, when the Task has gone or changed elsewhere", async () => {
     vi.mocked(checkIn).mockResolvedValue({ ok: false, notFound: true });
     renderPanel([packing()]);
@@ -513,28 +524,30 @@ describe("a Task waiting for a Check-in", () => {
       await waitFor(() => expect(checkIn).toHaveReturned());
     });
 
-    it("takes any other 15-minute step from Other…", async () => {
+    it("takes any other 15-minute step from Other…, picked as a duration", async () => {
       vi.mocked(checkIn).mockResolvedValue({ ok: true });
       renderPanel([single()]);
       await openMoreTime();
 
       await userEvent.click(chips().getByRole("button", { name: "Other…" }));
-      await userEvent.type(within(sheet()).getByRole("spinbutton", { name: "Minutes" }), "45");
+      await userEvent.selectOptions(within(sheet()).getByRole("combobox", { name: "How much more" }), "1h 15m");
       await userEvent.click(within(sheet()).getByRole("button", { name: "Set" }));
 
-      expect(checkIn).toHaveBeenCalledWith("block-1", { answer: "more-time", minutes: 45 });
+      expect(checkIn).toHaveBeenCalledWith("block-1", { answer: "more-time", minutes: 75 });
     });
 
-    it.each(["40", "0", ""])("refuses %j from Other…, saying why", async (typed) => {
+    it("offers Other… only as durations in 15-minute steps, with nothing to type", async () => {
       renderPanel([single()]);
       await openMoreTime();
 
       await userEvent.click(chips().getByRole("button", { name: "Other…" }));
-      if (typed) await userEvent.type(within(sheet()).getByRole("spinbutton", { name: "Minutes" }), typed);
-      await userEvent.click(within(sheet()).getByRole("button", { name: "Set" }));
+      const picker = within(sheet()).getByRole("combobox", { name: "How much more" });
+      const options = within(picker).getAllByRole("option").map((o) => o.textContent);
 
-      expect(within(sheet()).getByText("Pick at least 15 minutes, in 15-minute steps.")).toBeTruthy();
-      expect(checkIn).not.toHaveBeenCalled();
+      expect(options.slice(0, 6)).toEqual(["15m", "30m", "45m", "1h", "1h 15m", "1h 30m"]);
+      expect(options).toContain("3h");
+      expect(within(sheet()).queryByRole("spinbutton")).toBeNull();
+      expect(within(sheet()).queryByRole("textbox")).toBeNull();
     });
 
     it("says so, and asks again, when the Task has gone or changed elsewhere", async () => {

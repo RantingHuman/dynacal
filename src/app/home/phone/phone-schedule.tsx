@@ -224,12 +224,10 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
         {openBlock && checkingIn && (
           <CheckInSheet
             key={openBlock.id}
-            title={openBlock.taskTitle}
+            task={{ id: openBlock.taskId, title: openBlock.taskTitle }}
             checkIn={checkingIn}
             timeZone={timeZone}
-            onFinished={() => checkIns.finish(openBlock)}
-            onMoreTime={(minutes) => checkIns.moreTime(openBlock, minutes)}
-            onDidntStart={() => checkIns.didntStart(openBlock)}
+            answers={checkIns.answers}
             onClose={close}
           />
         )}

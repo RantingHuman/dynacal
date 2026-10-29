@@ -153,4 +153,23 @@ describe("the full-page Task editor", () => {
     expect(deleteTask).not.toHaveBeenCalled();
     expect(clearDeclinedTime).not.toHaveBeenCalled();
   });
+
+  it("says a Task waiting for a Check-in is waiting, as its row does, rather than the time it has left", async () => {
+    // Today is Tuesday 27 October 2026 in London; the Task was at 10:30–11:30 and has nothing left.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-27T14:00:00Z"));
+    try {
+      renderPage({
+        ...task,
+        remainingMinutes: 0,
+        checkIns: [{ blockId: "block-1", start: new Date("2026-10-27T10:30:00Z"), end: new Date("2026-10-27T11:30:00Z") }],
+      });
+      const editor = await openEditor();
+
+      expect(editor.getByText("10:30–11:30 · Finished?")).toBeTruthy();
+      expect(editor.queryByText(/left/)).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

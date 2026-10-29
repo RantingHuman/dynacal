@@ -1353,8 +1353,9 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
      * Answers a past Block's Check-in. Finished completes its Task, as ticking it does. More time makes the minutes
      * given the Task's Remaining Duration; the Block stays as history and no longer counts toward the Task. Didn't
      * start removes the Block, leaving no twin, so the Recalculation places the Task at its next free time, which it
-     * returns. A Block that hasn't ended is refused; one that's gone, or whose Check-in was already answered (or its
-     * Task completed), isn't found.
+     * returns; while the Google connection is broken, Recalculation is paused, so it says the Task isn't placed yet.
+     * A Block that hasn't ended is refused; one that's gone, or whose Check-in was already answered (or its Task
+     * completed), isn't found.
      */
     checkIn(blockId: string, answer: CheckInAnswer): CheckInResult {
       const found = db
@@ -1382,7 +1383,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         }
         case "didnt-start":
           db.delete(blocks).where(eq(blocks.id, blockId)).run();
-          recalculateAutomatically();
+          if (!recalculateAutomatically().ok) return { ok: true, recalculationPaused: true };
           return { ok: true, nextStart: nextStart(found.block.taskId) };
       }
       recalculateAutomatically();

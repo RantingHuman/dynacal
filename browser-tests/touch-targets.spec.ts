@@ -60,3 +60,22 @@ test("gives a past time's line a 44px tap area for its Check-in", async ({ brows
     await expectTappable(page.getByRole("button", { name: "Pack for vegas, 06:00, 1h, Finished?" }));
   }, { seed: "past-times" });
 });
+
+test("fits More time's Other… picker on a phone, with 44px targets and a 16px field", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await asPhone(page);
+    await page.goto("/");
+    await page.getByRole("button", { name: "Pack for vegas, 06:00, 1h, Finished?" }).click();
+    const sheet = page.getByRole("complementary", { name: "Pack for vegas" });
+    await sheet.getByRole("button", { name: "More time" }).click();
+    await sheet.getByRole("button", { name: "Other…" }).click();
+    const picker = sheet.getByRole("combobox", { name: "How much more" });
+    await picker.selectOption({ label: "3h" });
+
+    await expectTappable(picker);
+    await expectTappable(sheet.getByRole("button", { name: "Set" }));
+    expect(parseFloat(await picker.evaluate((el) => getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+    const box = await sheet.boundingBox();
+    expect(box !== null && box.x >= 0 && box.x + box.width <= 390).toBe(true);  }, { seed: "past-times" });
+});

@@ -603,12 +603,10 @@ export function Calendar({
       {checkingIn && checkingInView && (
         <CheckInSheet
           key={checkingIn.id}
-          title={checkingIn.taskTitle}
+          task={{ id: checkingIn.taskId, title: checkingIn.taskTitle }}
           checkIn={checkingInView}
           timeZone={timeZone}
-          onFinished={() => checkIns.finish(checkingIn)}
-          onMoreTime={(minutes) => checkIns.moreTime(checkingIn, minutes)}
-          onDidntStart={() => checkIns.didntStart(checkingIn)}
+          answers={checkIns.answers}
           onClose={() => setCheckingInId(null)}
         />
       )}

@@ -2,37 +2,35 @@
 
 import { useState } from "react";
 import type { CheckInView } from "@/core/commands";
-import { validateMoreTimeMinutes } from "@/core/completion";
 import { spanLabel } from "@/core/day-labels";
 import { formatDuration } from "@/core/tasks";
+import { GRID_MINUTES } from "@/core/time";
 import { LabelFrame, LabelTime, LabelTitle, useLabelClose } from "../schedule/floating-label";
 import { OFFLINE_REASON, useOnline } from "../states/use-online";
+import type { CheckInAnswers, CheckInTask } from "./check-in-answers";
 import styles from "./check-in-sheet.module.css";
 
 /** The amounts More time offers before Other…. */
 const MORE_TIME = [15, 30, 60, 120];
 
 /**
- * A Task's Check-in, opened from "Finished? ›" on its row: the Task and the past time it asks about, with large
- * buttons to answer. Finished completes the Task (through `onFinished`); More time opens chips for how much more it
- * needs, which becomes its Remaining Duration (through `onMoreTime`), with a Splittable Task's planned time already
- * chosen; Didn't start moves it to its next free time (through `onDidntStart`). Each closes the sheet. Offline it can be read but not answered. It opens and closes like the floating label, and Escape closes it.
+ * A Task's Check-in about one of its past times, opened from "Finished? ›": the Task and that time, with large
+ * buttons to answer through `answers`. Finished completes the Task; More time opens chips for how much more it needs,
+ * which becomes its Remaining Duration, with a Splittable Task's planned time already chosen; Didn't start moves it
+ * to its next free time. Each closes the sheet. Offline it can be read but not answered. It opens and closes like the
+ * floating label, and Escape closes it.
  */
 export function CheckInSheet({
-  title,
+  task,
   checkIn,
   timeZone,
-  onFinished,
-  onMoreTime,
-  onDidntStart,
+  answers,
   onClose,
 }: {
-  title: string;
+  task: CheckInTask;
   checkIn: CheckInView;
   timeZone: string;
-  onFinished: () => void;
-  onMoreTime: (minutes: number) => void;
-  onDidntStart: () => void;
+  answers: CheckInAnswers;
   onClose: () => void;
 }) {
   const close = useLabelClose(onClose);
@@ -46,14 +44,14 @@ export function CheckInSheet({
   return (
     <LabelFrame className={styles.sheet} labelledBy="check-in-heading">
       <span className={styles.kind}>Finished?</span>
-      <LabelTitle id="check-in-heading">{title}</LabelTitle>
+      <LabelTitle id="check-in-heading">{task.title}</LabelTitle>
       <LabelTime>{spanLabel(checkIn, timeZone)}</LabelTime>
       <div className={styles.answers}>
         <button
           type="button"
           {...answer}
           onClick={() => {
-            onFinished();
+            answers.finish(task, checkIn.blockId);
             close();
           }}
         >
@@ -66,7 +64,7 @@ export function CheckInSheet({
           type="button"
           {...answer}
           onClick={() => {
-            onDidntStart();
+            answers.didntStart(task, checkIn.blockId);
             close();
           }}
         >
@@ -77,7 +75,7 @@ export function CheckInSheet({
         <MoreTimeChips
           planned={checkIn.plannedMinutes}
           onPick={(minutes) => {
-            onMoreTime(minutes);
+            answers.moreTime(task, checkIn.blockId, minutes);
             close();
           }}
         />
@@ -89,13 +87,19 @@ export function CheckInSheet({
   );
 }
 
+/** What Other… offers: every 15-minute step from 15m to 12h. */
+const OTHER_TIME = Array.from({ length: (12 * 60) / GRID_MINUTES }, (_, i) => (i + 1) * GRID_MINUTES);
+
+/** What Other… starts at: the first step the chips don't offer. */
+const OTHER_START = 45;
+
 /**
- * How much more the Task needs: a chip answers at once; Other… takes any 15-minute step, in minutes. On a piece of a
- * Splittable Task, the time still planned comes first, already chosen, so staying on track is one tap.
+ * How much more the Task needs: a chip answers at once; Other… picks any 15-minute step as a duration, so there are
+ * no minutes to type. On a piece of a Splittable Task, the time still planned comes first, already chosen, so staying
+ * on track is one tap.
  */
 function MoreTimeChips({ planned, onPick }: { planned?: number; onPick: (minutes: number) => void }) {
   const [other, setOther] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
   return (
     <>
       <div className={styles.chips} role="group" aria-label="More time">
@@ -114,42 +118,35 @@ function MoreTimeChips({ planned, onPick }: { planned?: number; onPick: (minutes
             {formatDuration(minutes)}
           </button>
         ))}
-        <button type="button" className={styles.chip} aria-pressed={other !== null} onClick={() => setOther(other ?? NaN)}>
+        <button
+          type="button"
+          className={styles.chip}
+          aria-pressed={other !== null}
+          onClick={() => setOther(other ?? OTHER_START)}
+        >
           Other…
         </button>
       </div>
       {other !== null && (
         <form
           className={styles.other}
-          noValidate
           onSubmit={(e) => {
             e.preventDefault();
-            const problem = validateMoreTimeMinutes(other);
-            if (problem) setError(problem);
-            else onPick(other);
+            onPick(other);
           }}
         >
-          <input
-            type="number"
-            inputMode="numeric"
-            min={15}
-            step={15}
-            autoFocus
-            value={Number.isNaN(other) ? "" : other}
-            aria-label="Minutes"
-            aria-invalid={error !== null || undefined}
-            placeholder="minutes"
-            onChange={(e) => {
-              setOther(e.target.valueAsNumber);
-              setError(null);
-            }}
-          />
+          <select autoFocus aria-label="How much more" value={other} onChange={(e) => setOther(Number(e.target.value))}>
+            {OTHER_TIME.map((minutes) => (
+              <option key={minutes} value={minutes}>
+                {formatDuration(minutes)}
+              </option>
+            ))}
+          </select>
           <button type="submit" className="button">
             Set
           </button>
         </form>
       )}
-      {error && <p className="field-error">{error}</p>}
     </>
   );
 }

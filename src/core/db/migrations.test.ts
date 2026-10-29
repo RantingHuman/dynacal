@@ -188,6 +188,28 @@ describe("migrations", () => {
       });
     });
 
+    it("makes a Task asked about its only reviewed time again need just that time too", () => {
+      const { addTask, addBlock, migrated } = oldTasks();
+      // Half an hour, its one hour reviewed "Done", taken back to waiting: no other reviewed time.
+      addTask("once", 30);
+      addBlock("once", 9, null);
+
+      expect(migrated()).toEqual({ durations: { once: 60 }, reviews: { "once@9": null } });
+    });
+
+    it("keeps at least 15 minutes when the reviews leave less", () => {
+      const { addTask, addBlock, migrated } = oldTasks();
+      // Two hours: one done, and 55 of the next worked.
+      addTask("nearly", 120);
+      addBlock("nearly", 9, "done");
+      addBlock("nearly", 11, "partial", 55);
+
+      expect(migrated()).toEqual({
+        durations: { nearly: 15 },
+        reviews: { "nearly@11": "more-time", "nearly@9": "more-time" },
+      });
+    });
+
     it("leaves Tasks never reviewed, and completed Tasks, as they were", () => {
       const { addTask, addBlock, migrated } = oldTasks();
       addTask("unreviewed", 120);

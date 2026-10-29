@@ -18,9 +18,13 @@ export type BlockReview = "done" | "partial" | "finished" | "more-time";
  */
 export type CheckInAnswer = { answer: "finished" } | { answer: "more-time"; minutes: number } | { answer: "didnt-start" };
 
-/** After Didn't start, `nextStart` is where the Task went: its next start, or null if it's now Unscheduled. */
+/**
+ * After Didn't start, `nextStart` is where the Task went: its next start, or null if it's now Unscheduled. While
+ * Automatic Recalculation is paused (the Google connection is broken) it isn't placed at all: `recalculationPaused`.
+ */
 export type CheckInResult =
   | { ok: true; nextStart?: Date | null }
+  | { ok: true; recalculationPaused: true }
   | { ok: false; notFound: true }
   | { ok: false; errors: { block?: string; minutes?: string } };
 

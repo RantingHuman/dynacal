@@ -16,7 +16,7 @@ import {
 import { OFFLINE_REASON, useOnline } from "../states/use-online";
 import { useSlow } from "../states/use-slow";
 import { createTask, deleteTask, updateTask } from "./actions";
-import { nextSevenDays, weekdayName } from "./day-words";
+import { nextSevenDays, spanWords, weekdayName } from "./day-words";
 import { DeclinedTimes } from "./declined-times";
 import { FLAG_LABELS } from "./flags";
 import type { ActOnTasks } from "./task-editor-slot";
@@ -64,6 +64,16 @@ export function TaskEditor({
   useEffect(() => {
     section.current?.scrollIntoView({ block: "nearest" });
   }, []);
+
+  /**
+   * An open Task's time left; while one of its past times waits for a Check-in, that time and "Finished?" instead,
+   * as its row says.
+   */
+  function left(open: TaskListItem): string {
+    const [waiting] = open.checkIns;
+    if (!waiting) return `${formatDuration(open.remainingMinutes)} left`;
+    return `${spanWords(waiting, today, timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone)} · Finished?`;
+  }
 
   function update(change: Partial<TaskInput>) {
     setInput((current) => ({ ...current, ...change }));
@@ -120,9 +130,7 @@ export function TaskEditor({
         {errors.title && <p className="field-error">{errors.title}</p>}
         {task && (
           <p className={styles.dek}>
-            {task.completedAt
-              ? "Complete"
-              : `${formatDuration(task.remainingMinutes)} left`}
+            {task.completedAt ? "Complete" : left(task)}
             {flag && !task.completedAt && <em> · {FLAG_LABELS[flag]}</em>}
           </p>
         )}
