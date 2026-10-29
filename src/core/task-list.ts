@@ -1,4 +1,5 @@
 import type { TaskListItem } from "./commands";
+import { checkInViews } from "./completion";
 import { compareTasks, type TaskInput } from "./tasks";
 
 /**
@@ -57,7 +58,10 @@ export function applyTaskChange(tasks: TaskListItem[], change: TaskChange, now: 
             ...t,
             estimatedMinutes: change.minutes,
             remainingMinutes: change.minutes,
-            checkIns: t.checkIns.filter((c) => c.blockId !== change.blockId),
+            checkIns: checkInViews(
+              { ...t, estimatedMinutes: change.minutes },
+              t.checkIns.filter((c) => c.blockId !== change.blockId),
+            ),
           }
         : t,
     );
