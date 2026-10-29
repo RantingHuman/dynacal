@@ -34,7 +34,7 @@ export const tasks = sqliteTable("tasks", {
   earliestStartDate: text("earliest_start_date"),
   earliestStartTime: text("earliest_start_time"),
   priority: text("priority").notNull().$type<Priority>(),
-  dontSplit: integer("dont_split", { mode: "boolean" }).notNull(),
+  splittable: integer("splittable", { mode: "boolean" }).notNull(),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   /** Worked out by the latest Recalculation; null when the Task has no problem. */
   scheduleFlag: text("schedule_flag").$type<TaskFlag>(),

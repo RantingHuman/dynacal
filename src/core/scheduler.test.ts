@@ -30,7 +30,7 @@ function task(id: string, change: Partial<SchedulerTask> = {}): SchedulerTask {
     deadline: null,
     earliestStart: null,
     priority: "medium",
-    dontSplit: false,
+    splittable: true,
     ...change,
   };
 }
@@ -115,10 +115,10 @@ describe("scheduler", () => {
     });
   });
 
-  it("gives a don't-split Task exactly one Block, in the first gap long enough", () => {
+  it("gives a one-piece Task exactly one Block, in the first gap long enough", () => {
     const result = schedule(
       input({
-        tasks: [task("a", { remainingMinutes: 120, dontSplit: true })],
+        tasks: [task("a", { remainingMinutes: 120, splittable: false })],
         busy: [{ start: new Date("2026-01-05T10:00:00Z"), end: new Date("2026-01-05T11:00:00Z") }],
       }),
     );
@@ -258,10 +258,10 @@ describe("scheduler", () => {
       expect(result.flags).toEqual({ a: "at-risk" });
     });
 
-    it("At Risk: a don't-split Task that can only fit after its deadline", () => {
+    it("At Risk: a one-piece Task that can only fit after its deadline", () => {
       const result = schedule(
         input({
-          tasks: [task("a", { remainingMinutes: 240, dontSplit: true, deadline: new Date("2026-01-05T12:00:00Z") })],
+          tasks: [task("a", { remainingMinutes: 240, splittable: false, deadline: new Date("2026-01-05T12:00:00Z") })],
           busy: [{ start: new Date("2026-01-05T10:00:00Z"), end: new Date("2026-01-05T10:30:00Z") }],
         }),
       );
@@ -296,7 +296,7 @@ describe("scheduler", () => {
     it("Unscheduled: a Task with no room in the Planning Horizon", () => {
       const result = schedule(
         input({
-          tasks: [task("a", { remainingMinutes: 600, dontSplit: true })],
+          tasks: [task("a", { remainingMinutes: 600, splittable: false })],
         }),
       );
 
@@ -588,7 +588,7 @@ describe("scheduler", () => {
           deadline: r.next() < 0.6 ? at(r.int(-hours(48), hours(20 * 24))) : null,
           earliestStart: r.next() < 0.3 ? at(r.int(-hours(24), hours(16 * 24))) : null,
           priority: r.pick(PRIORITIES),
-          dontSplit: r.next() < 0.3,
+          splittable: r.next() >= 0.3,
         }),
       );
       const result = input({
@@ -685,7 +685,7 @@ describe("scheduler", () => {
       }
     });
 
-    it("gives each Task no more than its Remaining Duration, and a don't-split Task at most one Block", () => {
+    it("gives each Task no more than its Remaining Duration, and a one-piece Task at most one Block", () => {
       for (const seed of seeds) {
         const given = randomInput(seed);
         const blocks = schedule(given).blocks;
@@ -693,7 +693,7 @@ describe("scheduler", () => {
           const own = blocks.filter((b) => b.taskId === t.id);
           const minutes = own.reduce((sum, b) => sum + (b.end.getTime() - b.start.getTime()) / 60_000, 0);
           expect(minutes, `seed ${seed}`).toBeLessThanOrEqual(t.remainingMinutes);
-          if (t.dontSplit) expect(own.length, `seed ${seed}`).toBeLessThanOrEqual(1);
+          if (!t.splittable) expect(own.length, `seed ${seed}`).toBeLessThanOrEqual(1);
           if (t.earliestStart) {
             for (const b of own) expect(b.start.getTime(), `seed ${seed}`).toBeGreaterThanOrEqual(t.earliestStart.getTime());
           }

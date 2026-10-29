@@ -110,6 +110,23 @@ describe("adding a Task through the full form", () => {
     await waitFor(() => expect(createTask).toHaveReturned());
   });
 
+  it("starts a new Task as one piece in the full form, and adds it splittable once allowed", async () => {
+    const adding = deferred<TaskResult>();
+    vi.mocked(createTask).mockReturnValue(adding.promise);
+    renderWithEditor();
+    await userEvent.type(screen.getByRole("textbox", { name: /add a task/i }), "Pack for Vegas 1h");
+
+    await userEvent.click(screen.getByRole("button", { name: "Full form" }));
+    const canSplit = screen.getByRole("switch", { name: "Can be split" });
+    expect(canSplit.getAttribute("aria-checked")).toBe("false");
+    await userEvent.click(canSplit);
+    await userEvent.click(screen.getByRole("button", { name: "Add Task" }));
+
+    expect(createTask).toHaveBeenCalledWith(expect.objectContaining({ title: "Pack for Vegas", splittable: true }));
+    adding.resolve({ ok: true, task: taskItem({ title: "Pack for Vegas", splittable: true }) });
+    await waitFor(() => expect(createTask).toHaveReturned());
+  });
+
   it("keeps the add line's text when the full form is cancelled", async () => {
     renderWithEditor();
     const line = screen.getByRole("textbox", { name: /add a task/i });

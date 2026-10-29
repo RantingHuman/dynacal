@@ -37,7 +37,7 @@ function createTask(app: App, input: Partial<TaskInput> = {}) {
     deadline: null,
     earliestStart: null,
     priority: "medium",
-    dontSplit: false,
+    splittable: true,
     ...input,
   });
   if (!result.ok) throw new Error("create failed");

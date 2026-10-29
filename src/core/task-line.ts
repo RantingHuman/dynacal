@@ -2,16 +2,16 @@ import type { Priority, TaskInput } from "./tasks";
 import { addDays, weekdayOf } from "./time-zone";
 
 /** The fields a typed line can set; anything it doesn't mention keeps its default. */
-export type TaskLineField = "estimatedMinutes" | "deadline" | "earliestStart" | "priority" | "dontSplit";
+export type TaskLineField = "estimatedMinutes" | "deadline" | "earliestStart" | "priority" | "splittable";
 
 export interface ParsedTaskLine {
   /** The Task the line describes, with defaults for what it doesn't mention and what's left as the title. */
   input: TaskInput;
-  /** The fields picked out of the line: duration, deadline, Earliest Start, Priority, Don't split, in that order. */
+  /** The fields picked out of the line: duration, deadline, Earliest Start, Priority, Splittable, in that order. */
   found: TaskLineField[];
 }
 
-/** What a line that mentions nothing but a title becomes: 1h, no deadline, any time, Medium, splittable. */
+/** What a line that mentions nothing but a title becomes: 1h, no deadline, any time, Medium, one piece. */
 export const TASK_LINE_DEFAULTS: TaskInput = {
   title: "",
   notes: "",
@@ -19,7 +19,7 @@ export const TASK_LINE_DEFAULTS: TaskInput = {
   deadline: null,
   earliestStart: null,
   priority: "medium",
-  dontSplit: false,
+  splittable: false,
 };
 
 /**
@@ -57,7 +57,8 @@ export function parseTaskLine(text: string, today: string): ParsedTaskLine {
   take("priority", "!(low|med|medium|high|crit|critical)", ([word]) => ({
     priority: PRIORITY_WORDS[word.toLowerCase()],
   }));
-  take("dontSplit", "in\\s+one\\s+go|one\\s+block|don['’]?t\\s+split|no\\s+split", () => ({ dontSplit: true }));
+  // "split" is the one splitting word; "don't split" and "no split" stay in the title, as one piece is the default.
+  take("splittable", "(?<!(?:don['’]?t|no)\\s+)split", () => ({ splittable: true }));
 
   input.title = rest.replace(/\s+/g, " ").trim();
   return { input, found };

@@ -9,7 +9,7 @@ const minimal: TaskInput = {
   deadline: null,
   earliestStart: null,
   priority: "medium",
-  dontSplit: false,
+  splittable: false,
 };
 
 describe("Tasks", () => {
@@ -34,7 +34,7 @@ describe("Tasks", () => {
       deadline: { date: "2026-11-06", time: null },
       earliestStart: { date: "2026-11-02", time: "13:30" },
       priority: "critical",
-      dontSplit: true,
+      splittable: true,
     };
 
     commands.createTask(full);
@@ -66,7 +66,7 @@ describe("Tasks", () => {
       deadline: null,
       earliestStart: { date: "2026-11-09", time: "08:15" },
       priority: "high",
-      dontSplit: true,
+      splittable: true,
     };
 
     const result = commands.updateTask(created.task.id, edited);

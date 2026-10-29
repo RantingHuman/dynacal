@@ -59,7 +59,7 @@ export function schedulerTasks({
         ? null
         : resolveEarliestStart({ date: row.earliestStartDate, time: row.earliestStartTime }, timeZone, workingHours),
     priority: row.priority,
-    dontSplit: row.dontSplit,
+    splittable: row.splittable,
     declinedTimes: declined.filter((t) => t.taskId === row.id).map(({ start, end }) => ({ start, end })),
   }));
 }

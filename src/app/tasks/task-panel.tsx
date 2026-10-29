@@ -19,8 +19,8 @@ import { TASK_LINE_ID, TaskLineAdd } from "./task-line-add";
 import styles from "./task-panel.module.css";
 
 /** The editable fields of a Task. */
-function inputOf({ title, notes, estimatedMinutes, deadline, earliestStart, priority, dontSplit }: TaskInput): TaskInput {
-  return { title, notes, estimatedMinutes, deadline, earliestStart, priority, dontSplit };
+function inputOf({ title, notes, estimatedMinutes, deadline, earliestStart, priority, splittable }: TaskInput): TaskInput {
+  return { title, notes, estimatedMinutes, deadline, earliestStart, priority, splittable };
 }
 
 /** A Task shown before the server has added it: it can't be opened or completed yet. */

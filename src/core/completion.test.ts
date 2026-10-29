@@ -11,7 +11,7 @@ const oneHour: TaskInput = {
   deadline: null,
   earliestStart: null,
   priority: "medium",
-  dontSplit: false,
+  splittable: true,
 };
 
 type App = ReturnType<typeof createTestApp>;

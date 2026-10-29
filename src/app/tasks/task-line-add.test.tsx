@@ -22,11 +22,18 @@ it("keeps the Task line disabled in server-rendered HTML until it becomes intera
 it("previews what was parsed as the Task line is typed", async () => {
   renderGuarded(<TaskLineAdd today="2026-10-26" offline={false} act={vi.fn()} onFullForm={vi.fn()} />);
   const line = screen.getByRole("textbox", { name: "Add a Task" });
-  await userEvent.type(line, "Board memo 2h by fri !high in one go");
+  await userEvent.type(line, "Board memo 2h by fri !high split");
   expect(screen.getByText("Board memo")).toBeTruthy();
   expect(screen.getByText("2h")).toBeTruthy();
   expect(screen.getByText("due Fri")).toBeTruthy();
   expect(screen.getByText("High")).toBeTruthy();
-  expect(screen.getByText("one Block")).toBeTruthy();
+  expect(screen.getByText("can split")).toBeTruthy();
   expect(screen.getByRole("button", { name: "Full form" })).toBeTruthy();
+});
+
+it("keeps an old phrase like “in one go” in the title, and says nothing about splitting", async () => {
+  renderGuarded(<TaskLineAdd today="2026-10-26" offline={false} act={vi.fn()} onFullForm={vi.fn()} />);
+  await userEvent.type(screen.getByRole("textbox", { name: "Add a Task" }), "Board memo in one go");
+  expect(screen.getByText("Board memo in one go")).toBeTruthy();
+  expect(screen.queryByText("can split")).toBeNull();
 });

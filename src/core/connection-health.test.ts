@@ -35,7 +35,7 @@ function taskInput(input: Partial<TaskInput> = {}): TaskInput {
     deadline: null,
     earliestStart: null,
     priority: "medium",
-    dontSplit: false,
+    splittable: true,
     ...input,
   };
 }

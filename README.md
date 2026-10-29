@@ -2,7 +2,7 @@
 
 A self-hosted planner that turns your to-do list into a time-blocked schedule, fitted around what's already on your Google Calendar.
 
-You give dynacal Tasks, each with an estimated duration, a deadline and a Priority. It finds free time within your Working Hours, places Blocks for each Task (splitting long ones when it needs to), and writes them to a dedicated "dynacal" calendar in your Google account, so your Schedule shows up in any Google Calendar app. When your calendar changes, it recalculates.
+You give dynacal Tasks, each with an estimated duration, a deadline and a Priority. It finds free time within your Working Hours, places Blocks for each Task (splitting a Task only when you allow it), and writes them to a dedicated "dynacal" calendar in your Google account, so your Schedule shows up in any Google Calendar app. When your calendar changes, it recalculates.
 
 ## Features
 
