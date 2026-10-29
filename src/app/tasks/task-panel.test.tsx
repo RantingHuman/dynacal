@@ -3,6 +3,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { checkInHref } from "@/core/headline";
 import type { TaskFlag } from "@/core/scheduler";
 import type { TaskResult } from "@/core/tasks";
 import { deferred, taskItem } from "../testing/fixtures";
@@ -300,6 +301,20 @@ describe("a Task waiting for a Check-in", () => {
     expect(taskList().getByText(/10:30–11:30 ·/)).toBeTruthy();
     expect(taskList().getByRole("button", { name: "Finished? ›" })).toBeTruthy();
     expect(taskList().queryByText(/left/)).toBeNull();
+  });
+
+  it("opens the sheet from the headline's Check-in link", async () => {
+    renderGuarded(
+      <TaskEditorProvider>
+        <a href={checkInHref("pack")}>Check in</a>
+        <TaskPanel tasks={[{ ...packing(), id: "pack" }]} flags={{}} timeZone="Europe/London" />
+      </TaskEditorProvider>,
+    );
+
+    await userEvent.click(screen.getByRole("link", { name: "Check in" }));
+
+    expect(within(sheet()).getByText("Tue 27 Oct, 10:30–11:30")).toBeTruthy();
+    expect(location.hash).toBe("");
   });
 
   it("shows the day of a past time from before today", () => {

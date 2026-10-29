@@ -159,8 +159,8 @@ describe("the Schedule", () => {
     const task = createTask(commands, { title: "Report" });
     clock.set(new Date("2026-01-05T12:00:00Z"));
     // Answered, so the Task no longer waits for a Check-in about that hour.
-    const [past] = commands.listUnreviewedBlocks();
-    commands.checkIn(past.id, { answer: "more-time", minutes: 30 });
+    const [past] = commands.listTasks()[0].checkIns;
+    commands.checkIn(past.blockId, { answer: "more-time", minutes: 30 });
 
     commands.updateTask(task.id, { ...oneHour, title: "Report", estimatedMinutes: 90 });
 

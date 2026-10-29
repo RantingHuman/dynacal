@@ -196,7 +196,6 @@ describe("ticking a Task waiting for Check-ins", () => {
     commands.reopenTask(task.id);
 
     expect(listed(commands, task.id).checkIns).toEqual([]);
-    expect(commands.listUnreviewedBlocks()).toEqual([]);
   });
 });
 

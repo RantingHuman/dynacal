@@ -144,17 +144,40 @@ describe("the week summary's lesser states", () => {
     });
   });
 
-  it("counts Unreviewed Blocks, and never names a Task for them", () => {
+  it("counts Tasks waiting for a Check-in, not their past times, and gives the Task of the oldest", () => {
     const app = appInLondon();
-    createTask(app, { title: "Report", estimatedMinutes: 120 });
+    const report = createTask(app, { title: "Report", estimatedMinutes: 120 });
+    // Report's first hour, pinned at 09:00, leaves its second hour as another piece.
+    app.commands.moveBlock(blockOf(app, "Report").id, { start: at("09:00"), end: at("10:00") });
     createTask(app, { title: "Slides" });
+    app.clock.set(at("13:00"));
+
+    expect(app.commands.listTasks().find((t) => t.title === "Report")!.checkIns).toHaveLength(2);
+    expect(app.commands.getWeekSummary()).toMatchObject({
+      state: "check-in",
+      counts: { "check-in": 2 },
+      named: null,
+      firstCheckIn: report.id,
+    });
+  });
+
+  it("names the one Task waiting for a Check-in, and stops counting it once answered", () => {
+    const app = appInLondon();
+    const task = createTask(app, { title: "Report" });
     app.clock.set(at("12:00"));
 
     expect(app.commands.getWeekSummary()).toMatchObject({
-      state: "unreviewed",
-      counts: { unreviewed: 2 },
-      named: null,
+      state: "check-in",
+      counts: { "check-in": 1 },
+      named: { taskTitle: "Report" },
+      firstCheckIn: task.id,
     });
+
+    const [{ blockId }] = app.commands.listTasks()[0].checkIns;
+    app.commands.checkIn(blockId, { answer: "more-time", minutes: 30 });
+
+    expect(app.commands.getWeekSummary()).toMatchObject({ counts: { "check-in": 0 }, firstCheckIn: null });
+    expect(app.commands.getWeekSummary().state).not.toBe("check-in");
   });
 
   it("is 'all Tasks done' once every Task is complete", () => {

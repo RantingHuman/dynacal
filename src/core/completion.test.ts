@@ -57,7 +57,8 @@ describe("Remaining Duration", () => {
     const { commands, clock } = appInLondon();
     const task = createTask(commands, { title: "Draft", estimatedMinutes: 60 });
     at(clock, "2026-01-05T10:00:00Z");
-    commands.checkIn(onlyUnreviewedBlock(commands).id, { answer: "more-time", minutes: 15 });
+    const [past] = commands.listTasks().find((t) => t.id === task.id)!.checkIns;
+    commands.checkIn(past.blockId, { answer: "more-time", minutes: 15 });
     expect(remaining(commands, task.id)).toBe(15);
 
     commands.updateTask(task.id, { ...oneHour, title: "Draft", estimatedMinutes: 45 });
@@ -86,9 +87,9 @@ describe("completing a Task", () => {
     const { commands, clock } = appInLondon();
     const report = createTask(commands, { title: "Report", estimatedMinutes: 60 });
     at(clock, "2026-01-05T10:00:00Z");
-    // A second session on the same Task, after the first Block has passed (and been answered for).
-    commands.reviewBlock(onlyUnreviewedBlock(commands).id, { review: "done" });
-    commands.updateTask(report.id, { ...oneHour, title: "Report", estimatedMinutes: 180 });
+    // A second session on the same Task, after the first Block has passed and been answered More time.
+    const [past] = commands.listTasks().find((t) => t.id === report.id)!.checkIns;
+    commands.checkIn(past.blockId, { answer: "more-time", minutes: 180 });
     createTask(commands, { title: "Email" });
     at(clock, "2026-01-05T10:40:00Z");
 
@@ -99,16 +100,6 @@ describe("completing a Task", () => {
       ["Report", "2026-01-05T10:00:00.000Z", "2026-01-05T10:40:00.000Z"],
       ["Email", "2026-01-05T10:45:00.000Z", "2026-01-05T11:45:00.000Z"],
     ]);
-  });
-
-  it("leaves its past Blocks out of the Unreviewed Blocks", () => {
-    const { commands, clock } = appInLondon();
-    const task = createTask(commands, { estimatedMinutes: 60 });
-    at(clock, "2026-01-05T10:00:00Z");
-
-    commands.completeTask(task.id);
-
-    expect(commands.listUnreviewedBlocks()).toEqual([]);
   });
 
   it("moves it to the end of the Task list", () => {
@@ -170,22 +161,6 @@ describe("reopening a completed Task", () => {
   });
 });
 
-describe("Unreviewed Blocks", () => {
-  it("are the past Blocks the owner hasn't reviewed, with half the Block suggested as minutes worked", () => {
-    const { commands, clock } = appInLondon();
-    createTask(commands, { title: "Draft", estimatedMinutes: 90 });
-    createTask(commands, { title: "Later" });
-
-    expect(commands.listUnreviewedBlocks()).toEqual([]);
-
-    at(clock, "2026-01-05T10:45:00Z");
-
-    expect(
-      commands.listUnreviewedBlocks().map((b) => [b.taskTitle, b.start.toISOString(), b.end.toISOString(), b.suggestedWorkedMinutes]),
-    ).toEqual([["Draft", "2026-01-05T09:00:00.000Z", "2026-01-05T10:30:00.000Z", 45]]);
-  });
-});
-
 function scheduleBlocks(commands: App["commands"]) {
   const view = commands.getSchedule();
   if (view.status !== "ready") throw new Error(`Schedule not ready: ${view.status}`);
@@ -197,72 +172,3 @@ function blocks(commands: App["commands"]) {
   return scheduleBlocks(commands).map((b) => [b.taskTitle, b.start.toISOString(), b.end.toISOString()]);
 }
 
-function onlyUnreviewedBlock(commands: App["commands"]) {
-  const [block, ...rest] = commands.listUnreviewedBlocks();
-  if (!block || rest.length) throw new Error("expected exactly one Unreviewed Block");
-  return block;
-}
-
-describe("reviewing a Block", () => {
-  it("as \"didn't do it\" moves the Block: the past one goes and its full length is scheduled again", () => {
-    const { commands, clock } = appInLondon();
-    const task = createTask(commands, { title: "Draft", estimatedMinutes: 60 });
-    at(clock, "2026-01-05T10:10:00Z");
-
-    const result = commands.reviewBlock(onlyUnreviewedBlock(commands).id, { review: "not-done" });
-
-    expect(result).toEqual({ ok: true });
-    expect(remaining(commands, task.id)).toBe(60);
-    expect(commands.listUnreviewedBlocks()).toEqual([]);
-    expect(blocks(commands)).toEqual([["Draft", "2026-01-05T10:15:00.000Z", "2026-01-05T11:15:00.000Z"]]);
-  });
-
-  it.each([
-    ["done", { review: "done" }],
-    ["did part of it", { review: "partial", workedMinutes: 30 }],
-  ] as const)("as \"%s\" answers it, leaving the Remaining Duration as it was", (_, outcome) => {
-    const { commands, clock } = appInLondon();
-    const task = createTask(commands, { title: "Draft", estimatedMinutes: 90 });
-    at(clock, "2026-01-05T10:30:00Z");
-
-    const result = commands.reviewBlock(onlyUnreviewedBlock(commands).id, outcome);
-
-    expect(result).toEqual({ ok: true });
-    expect(remaining(commands, task.id)).toBe(90);
-    expect(commands.listUnreviewedBlocks()).toEqual([]);
-  });
-
-  it.each([
-    [20, "Enter the minutes worked in 15-minute steps."],
-    [0, "Enter at least 15 minutes, or choose \"didn't do it\"."],
-    [90, "That's the whole Block (1h) or more. Choose \"done\" instead."],
-  ])("refuses %i minutes for \"did part of it\" on a one-hour Block", (workedMinutes, message) => {
-    const { commands, clock } = appInLondon();
-    const task = createTask(commands, { estimatedMinutes: 60 });
-    at(clock, "2026-01-05T10:00:00Z");
-
-    const result = commands.reviewBlock(onlyUnreviewedBlock(commands).id, { review: "partial", workedMinutes });
-
-    expect(result).toEqual({ ok: false, errors: { workedMinutes: message } });
-    expect(remaining(commands, task.id)).toBe(60);
-    expect(commands.listUnreviewedBlocks()).toHaveLength(1);
-  });
-
-  it("refuses a Block that hasn't ended yet", () => {
-    const { commands, clock } = appInLondon();
-    createTask(commands, { estimatedMinutes: 60 });
-    at(clock, "2026-01-05T09:30:00Z");
-    const [inProgress] = scheduleBlocks(commands);
-
-    expect(commands.reviewBlock(inProgress.id, { review: "not-done" })).toEqual({
-      ok: false,
-      errors: { block: "This Block hasn't ended yet, so there's nothing to review." },
-    });
-  });
-
-  it("reports a Block that doesn't exist", () => {
-    const { commands } = appInLondon();
-
-    expect(commands.reviewBlock("no-such-block", { review: "done" })).toEqual({ ok: false, notFound: true });
-  });
-});

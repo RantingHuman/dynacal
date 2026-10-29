@@ -99,6 +99,15 @@
   align-content: start;
 }
 
+/* The Tasks column draws the rule beside the Task list. */
+.tasksColumn {
+  border-right: var(--hairline) solid var(--rule);
+}
+
+.tasksColumn > :global(.task-panel) {
+  border-right: 0;
+}
+
 @media (max-width: 48rem) {
   .page {
     padding-inline: var(--space-4);

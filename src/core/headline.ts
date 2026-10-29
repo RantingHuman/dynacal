@@ -13,8 +13,13 @@ import type { FreeStretch, WeekState, WeekSummary } from "./week-summary";
 /** Where the standfirst's fixes link to. */
 export const SETTINGS_HREF = "/settings";
 export const RECONNECT_HREF = "/api/google/connect?from=home";
-/** The Unreviewed Blocks' review, on the home page. */
-export const REVIEW_HREF = "#review";
+/** How a link to a Task's Check-in begins; the Task's id follows. */
+export const CHECK_IN_HREF = "#check-in=";
+
+/** Opens the Check-in of the Task with that id, on the home page (see `useCheckInLink`). */
+export function checkInHref(taskId: string | null): string {
+  return CHECK_IN_HREF + (taskId ?? "");
+}
 
 export interface Link {
   text: string;
@@ -119,11 +124,11 @@ function headlineVariants(summary: WeekSummary): [Parts, Parts] {
         ["", capitalise(plural(n, "Task")), ` ${either(n, "doesn't", "don't")} fit anywhere yet.`],
       ];
     }
-    case "unreviewed": {
-      const n = counts.unreviewed;
+    case "check-in": {
+      const n = counts["check-in"];
       return [
-        [`${blocks} ahead, `, `${count(n)} to look back on.`],
-        ["", "Quick check-in:", ` how did ${plural(n, "Block")} go?`],
+        [`${blocks} ahead, `, `${plural(n, "Task")} to check in.`],
+        ["", capitalise(plural(n, "Task")), " to check in."],
       ];
     }
     case "all-done":
@@ -175,8 +180,12 @@ function leadSentences(summary: WeekSummary, today: string): Prose {
             `There's no room for ${plural(counts.unscheduled, "Task")} in ${HORIZON}. ` +
               "Free up Working Hours or move their deadlines.",
           ];
-    case "unreviewed":
-      return ["Say whether the work got done and dynacal will plan the rest. ", { text: "Review them", href: REVIEW_HREF }, "."];
+    case "check-in":
+      return [
+        `Say whether ${named ? named.taskTitle : "each"} is finished and dynacal will plan the rest. `,
+        { text: "Check in", href: checkInHref(summary.firstCheckIn) },
+        ".",
+      ];
     case "all-done":
       return [freeLine(summary, today) ?? "Enjoy it, or add what's next."];
     case "nothing-this-week":
@@ -216,10 +225,10 @@ function secondarySentence(state: WeekState, summary: WeekSummary): Prose {
       return [
         `${capitalise(plural(counts.unscheduled, "Task"))} ${either(counts.unscheduled, "doesn't", "don't")} fit anywhere yet.`,
       ];
-    case "unreviewed":
+    case "check-in":
       return [
-        `${capitalise(plural(counts.unreviewed, "Block"))} ${either(counts.unreviewed, "is", "are")} waiting for `,
-        { text: "review", href: REVIEW_HREF },
+        `${capitalise(plural(counts["check-in"], "Task"))} ${either(counts["check-in"], "is", "are")} waiting for a `,
+        { text: "Check-in", href: checkInHref(summary.firstCheckIn) },
         ".",
       ];
     default:

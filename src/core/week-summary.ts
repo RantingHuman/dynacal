@@ -14,15 +14,15 @@ export const WEEK_STATES = [
   "at-risk",
   "conflict",
   "unscheduled",
-  "unreviewed",
+  "check-in",
   "all-done",
   "nothing-this-week",
   "everything-fits",
 ] as const;
 export type WeekState = (typeof WEEK_STATES)[number];
 
-/** States that are counted, each a number of Tasks (Conflicts and Unreviewed Blocks for those two). */
-export type CountedState = "overdue" | "at-risk" | "conflict" | "unscheduled" | "unreviewed";
+/** States that are counted, each a number of Tasks (Conflicts for that one). "check-in": Tasks waiting for a Check-in. */
+export type CountedState = "overdue" | "at-risk" | "conflict" | "unscheduled" | "check-in";
 
 /**
  * The states that can join the standfirst as a secondary sentence: the problems. The good-news states
@@ -35,7 +35,7 @@ const SECONDARY_STATES: readonly WeekState[] = [
   "at-risk",
   "conflict",
   "unscheduled",
-  "unreviewed",
+  "check-in",
 ];
 
 const MAX_SECONDARY = 2;
@@ -72,6 +72,8 @@ export interface WeekSummary {
   counts: Record<CountedState, number>;
   /** The Task the standfirst names: only when exactly one Task (or Conflict) is in the winning state. */
   named: NamedTask | null;
+  /** The Task of the oldest Check-in waiting, which the headline's link opens; null when none is waiting. */
+  firstCheckIn: string | null;
   /** The Google account, while the connection is broken; otherwise null. */
   email: string | null;
   /** Today's date on the owner's wall clock (UTC until they save a time zone). */
@@ -97,11 +99,17 @@ export interface WeekSummaryInput {
   blocks: { taskTitle: string; start: Date; end: Date }[];
   /** Events that count as busy time. */
   busy: Interval[];
-  /** Every Task, complete or not. */
-  tasks: { id: string; title: string; completed: boolean; flag: TaskFlag | null; deadline: DateOrDateTime | null }[];
+  /** Every Task, complete or not, with when its oldest time waiting for a Check-in started (null if none waits). */
+  tasks: {
+    id: string;
+    title: string;
+    completed: boolean;
+    flag: TaskFlag | null;
+    deadline: DateOrDateTime | null;
+    checkInSince: Date | null;
+  }[];
   /** Conflicts between Pinned Blocks and Events. */
   conflicts: { taskTitle: string; eventTitle: string }[];
-  unreviewedBlocks: number;
 }
 
 /** Summarises the week for the headline. */
@@ -120,12 +128,15 @@ export function summariseWeek(input: WeekSummaryInput): WeekSummary {
 
   const open = input.tasks.filter((t) => !t.completed);
   const flagged = (flag: TaskFlag) => open.filter((t) => t.flag === flag);
+  const checkingIn = open
+    .filter((t) => t.checkInSince !== null)
+    .sort((a, b) => a.checkInSince!.getTime() - b.checkInSince!.getTime());
   const counts: Record<CountedState, number> = {
     overdue: flagged("overdue").length,
     "at-risk": flagged("at-risk").length,
     conflict: input.conflicts.length,
     unscheduled: flagged("unscheduled").length,
-    unreviewed: input.unreviewedBlocks,
+    "check-in": checkingIn.length,
   };
   const truths: Record<WeekState, boolean> = {
     "no-time-zone": input.timeZone === null,
@@ -135,7 +146,7 @@ export function summariseWeek(input: WeekSummaryInput): WeekSummary {
     "at-risk": counts["at-risk"] > 0,
     conflict: counts.conflict > 0,
     unscheduled: counts.unscheduled > 0,
-    unreviewed: counts.unreviewed > 0,
+    "check-in": counts["check-in"] > 0,
     "all-done": input.tasks.length > 0 && open.length === 0,
     "nothing-this-week": blocks === 0,
     "everything-fits": true,
@@ -147,6 +158,7 @@ export function summariseWeek(input: WeekSummaryInput): WeekSummary {
     secondary,
     counts,
     named: namedTask(state, input, open),
+    firstCheckIn: checkingIn[0]?.id ?? null,
     email: input.connection.status === "broken" ? input.connection.email : null,
     today,
     weekOf,
@@ -213,6 +225,10 @@ function namedTask(state: WeekState, input: WeekSummaryInput, open: WeekSummaryI
     case "at-risk":
     case "unscheduled": {
       const task = only(open.filter((t) => t.flag === state));
+      return task && { taskTitle: task.title };
+    }
+    case "check-in": {
+      const task = only(open.filter((t) => t.checkInSince !== null));
       return task && { taskTitle: task.title };
     }
     case "conflict":

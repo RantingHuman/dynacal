@@ -4,7 +4,7 @@ import type { TaskListItem } from "@/core/commands";
 
 let next = 0;
 
-/** A Task as the Tasks column receives it: open, an hour long, Medium, with nothing worked yet. */
+/** A Task as the Tasks column receives it: open, an hour long, Medium, with no Check-in waiting. */
 export function taskItem(overrides: Partial<TaskListItem> = {}): TaskListItem {
   next += 1;
   return {

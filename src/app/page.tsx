@@ -3,8 +3,6 @@ import { getRuntime } from "@/server/runtime";
 import { currentSession } from "@/server/session";
 import { ForgetReminderLink } from "./reminders/forget-reminder-link";
 import { RemindersToggle } from "./reminders/reminders-toggle";
-import { ReviewBox } from "./review/review-box";
-import reviewStyles from "./review/review-box.module.css";
 import type { DynacalEvent } from "@/core/dynacal-events";
 import { toWireTiming } from "@/core/event-timing";
 import { writeHeadline } from "@/core/headline";
@@ -104,23 +102,6 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       timeZone={scheduleView.status === "ready" ? scheduleView.timeZone : null}
     />
   );
-  // The headline's review links land here.
-  const review = (
-    <div id="review">
-      {scheduleView.status === "ready" && (
-        <ReviewBox
-          timeZone={scheduleView.timeZone}
-          blocks={commands.listUnreviewedBlocks().map((b) => ({
-            id: b.id,
-            taskTitle: b.taskTitle,
-            start: b.start.toISOString(),
-            end: b.end.toISOString(),
-            suggestedWorkedMinutes: b.suggestedWorkedMinutes,
-          }))}
-        />
-      )}
-    </div>
-  );
 
   return (
     <NewEventProvider enabled={schedule !== null}>
@@ -139,7 +120,6 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
                 </>
               }
               lead={lead}
-              review={review}
               tasks={taskPanel}
               schedule={schedule}
               today={week.today}
@@ -151,11 +131,8 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             {offlineNotice}
             {lead}
             <div className={styles.spread}>
-              {/* The Tasks column: the Task list, then the Unreviewed Blocks' review. */}
-              <div className={`${styles.column} ${reviewStyles.tasksColumn}`}>
-                {taskPanel}
-                {review}
-              </div>
+              {/* The Tasks column: the Task list, where the headline's "Check in" opens its sheet. */}
+              <div className={`${styles.column} ${styles.tasksColumn}`}>{taskPanel}</div>
               {/* The calendar. Without a time zone there's no Schedule (the headline says why), just an empty week. */}
               <section className={styles.column} aria-label="Schedule">
                 <TaskEditorSlot>

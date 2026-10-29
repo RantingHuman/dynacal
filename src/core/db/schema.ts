@@ -52,12 +52,10 @@ export const blocks = sqliteTable("blocks", {
   start: integer("start", { mode: "timestamp_ms" }).notNull(),
   end: integer("end", { mode: "timestamp_ms" }).notNull(),
   /**
-   * The owner's answer about a past Block, at its Check-in or in the review; null while it waits for a Check-in.
+   * The owner's answer about a past Block, at its Check-in; null while it waits for one.
    * Until then it counts toward its Task; once answered More time, it's history.
    */
   review: text("review").$type<BlockReview>(),
-  /** Minutes worked, for a "did part of it" review. */
-  workedMinutes: integer("worked_minutes"),
   /** A Pinned Block: the owner placed it by hand, so Recalculation plans around it instead of moving it. */
   pinned: integer("pinned", { mode: "boolean" }).notNull().default(false),
 });

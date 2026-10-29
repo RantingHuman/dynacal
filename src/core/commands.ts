@@ -14,13 +14,9 @@ import type { Clock } from "./clock";
 import { connectionProblem, unlessRefused, watchConnectionHealth } from "./connection-health";
 import {
   awaitsCheckIn,
-  suggestedWorkedMinutes,
   validateMoreTimeMinutes,
-  validateWorkedMinutes,
   type CheckInAnswer,
   type CheckInResult,
-  type ReviewBlockResult,
-  type ReviewOutcome,
 } from "./completion";
 import type { Db } from "./db";
 import {
@@ -262,12 +258,6 @@ export type ScheduleView =
 /** A stored Block, with its Task's title, as the UI shows it. */
 function toBlockView({ block, taskTitle }: { block: typeof blocks.$inferSelect; taskTitle: string }): BlockView {
   return { id: block.id, taskId: block.taskId, taskTitle, start: block.start, end: block.end, pinned: block.pinned };
-}
-
-/** An Unreviewed Block as the review banner shows it. */
-export interface UnreviewedBlockView extends BlockView {
-  /** The prefill for "did part of it". */
-  suggestedWorkedMinutes: number;
 }
 
 /** A Task as the Task list shows it. */
@@ -1438,46 +1428,6 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       return { ok: true };
     },
 
-    /**
-     * Records whether a past Block's work happened, then recalculates so any time added back is scheduled. A Block
-     * whose work didn't happen at all is removed rather than kept as "not done", so to the owner it moves to its new
-     * time instead of leaving a twin behind. Its event stays in Google, which dynacal no longer keeps in step once
-     * it has ended.
-     */
-    reviewBlock(id: string, outcome: ReviewOutcome): ReviewBlockResult {
-      const block = db.select().from(blocks).where(eq(blocks.id, id)).get();
-      if (!block) return { ok: false, notFound: true };
-      if (block.end > clock.now()) {
-        return { ok: false, errors: { block: "This Block hasn't ended yet, so there's nothing to review." } };
-      }
-      if (outcome.review === "partial") {
-        const error = validateWorkedMinutes(outcome.workedMinutes, block);
-        if (error) return { ok: false, errors: { workedMinutes: error } };
-      }
-      if (outcome.review === "not-done") {
-        db.delete(blocks).where(eq(blocks.id, id)).run();
-      } else {
-        db.update(blocks)
-          .set({ review: outcome.review, workedMinutes: outcome.review === "partial" ? outcome.workedMinutes : null })
-          .where(eq(blocks.id, id))
-          .run();
-      }
-      recalculateAutomatically();
-      return { ok: true };
-    },
-
-    /** Past Blocks of incomplete Tasks that the owner hasn't reviewed yet, oldest first. */
-    listUnreviewedBlocks(): UnreviewedBlockView[] {
-      return db
-        .select({ block: blocks, taskTitle: tasks.title })
-        .from(blocks)
-        .innerJoin(tasks, eq(blocks.taskId, tasks.id))
-        .where(and(lte(blocks.end, clock.now()), isNull(blocks.review), isNull(tasks.completedAt)))
-        .all()
-        .sort((a, b) => a.block.start.getTime() - b.block.start.getTime())
-        .map((row) => ({ ...toBlockView(row), suggestedWorkedMinutes: suggestedWorkedMinutes(row.block) }));
-    },
-
     getSchedule(): ScheduleView {
       const current = getSettings();
       const { timeZone } = current;
@@ -1623,9 +1573,9 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         completed: t.completedAt !== null,
         flag: flags[t.id] ?? null,
         deadline: t.deadline,
+        checkInSince: t.checkIns[0]?.start ?? null,
       })),
       conflicts,
-      unreviewedBlocks: commands.listUnreviewedBlocks().length,
     });
   }
 

@@ -11,6 +11,7 @@ import { Squiggle } from "../states/squiggle";
 import statesStyles from "../states/states.module.css";
 import { OFFLINE_REASON, useOnline } from "../states/use-online";
 import { allowSplitting, checkIn } from "./actions";
+import { useCheckInLink } from "./check-in-link";
 import { CheckInSheet } from "./check-in-sheet";
 import { CompleteTaskButton } from "./complete-task-button";
 import { useCompletion } from "./completion";
@@ -112,6 +113,8 @@ export function TaskPanel({
   const [checkingIn, setCheckingIn] = useState<string | null>(null);
   const zone = timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
   const checkingInTask = shown.find((t) => t.id === checkingIn && t.checkIns.length > 0) ?? null;
+  // The headline's "Check in" opens the oldest waiting Check-in here.
+  useCheckInLink(setCheckingIn);
 
   /** Answers a Check-in Finished: the Task shows complete at once, as when it's ticked, and back if refused. */
   function finish(task: TaskListItem) {
