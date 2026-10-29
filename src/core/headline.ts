@@ -17,8 +17,13 @@ export const RECONNECT_HREF = "/api/google/connect?from=home";
 export const CHECK_IN_HREF = "#check-in=";
 
 /** Opens the Check-in of the Task with that id, on the home page (see `useCheckInLink`). */
-export function checkInHref(taskId: string | null): string {
-  return CHECK_IN_HREF + (taskId ?? "");
+export function checkInHref(taskId: string): string {
+  return CHECK_IN_HREF + taskId;
+}
+
+/** `text` as a link to the oldest Check-in waiting; plain text should none be waiting, so no link goes nowhere. */
+function checkInLink(text: string, summary: WeekSummary): string | Link {
+  return summary.firstCheckIn === null ? text : { text, href: checkInHref(summary.firstCheckIn) };
 }
 
 export interface Link {
@@ -183,7 +188,7 @@ function leadSentences(summary: WeekSummary, today: string): Prose {
     case "check-in":
       return [
         `Say whether ${named ? named.taskTitle : "each"} is finished and dynacal will plan the rest. `,
-        { text: "Check in", href: checkInHref(summary.firstCheckIn) },
+        checkInLink("Check in", summary),
         ".",
       ];
     case "all-done":
@@ -228,7 +233,7 @@ function secondarySentence(state: WeekState, summary: WeekSummary): Prose {
     case "check-in":
       return [
         `${capitalise(plural(counts["check-in"], "Task"))} ${either(counts["check-in"], "is", "are")} waiting for a `,
-        { text: "Check-in", href: checkInHref(summary.firstCheckIn) },
+        checkInLink("Check-in", summary),
         ".",
       ];
     default:

@@ -82,9 +82,7 @@ export interface WeekSummary {
   weekOf: string;
   /** Whether the summary has rolled over to next week. */
   nextWeek: boolean;
-  /** Blocks that haven't ended, up to the end of the week described. */
-  blocks: number;
-  /** The Tasks those Blocks belong to: what the headline counts. */
+  /** The Tasks of the Blocks that haven't ended, up to the end of the week described: what the headline counts. */
   tasks: number;
   /** The first Block after the week described, for "nothing scheduled this week". */
   nextBlock: { taskTitle: string; date: string } | null;
@@ -126,7 +124,6 @@ export function summariseWeek(input: WeekSummaryInput): WeekSummary {
   const weekEnd = fromZoned({ date: addDays(weekOf, 7), minutes: 0 }, timeZone);
   const ahead = input.blocks.filter((b) => b.end > now);
   const thisWeek = ahead.filter((b) => b.start < weekEnd);
-  const blocks = thisWeek.length;
   const later = ahead.find((b) => b.start >= weekEnd);
 
   const open = input.tasks.filter((t) => !t.completed);
@@ -151,7 +148,7 @@ export function summariseWeek(input: WeekSummaryInput): WeekSummary {
     unscheduled: counts.unscheduled > 0,
     "check-in": counts["check-in"] > 0,
     "all-done": input.tasks.length > 0 && open.length === 0,
-    "nothing-this-week": blocks === 0,
+    "nothing-this-week": thisWeek.length === 0,
     "everything-fits": true,
   };
   const state = WEEK_STATES.find((s) => truths[s])!;
@@ -160,13 +157,12 @@ export function summariseWeek(input: WeekSummaryInput): WeekSummary {
     state,
     secondary,
     counts,
-    named: namedTask(state, input, open),
+    named: namedTask(state, input, open, checkingIn),
     firstCheckIn: checkingIn[0]?.id ?? null,
     email: input.connection.status === "broken" ? input.connection.email : null,
     today,
     weekOf,
     nextWeek,
-    blocks,
     tasks: new Set(thisWeek.map((b) => b.taskId)).size,
     nextBlock: later ? { taskTitle: later.taskTitle, date: toZoned(later.start, timeZone).date } : null,
     freeStretch:
@@ -219,7 +215,16 @@ function longestFreeStretch(spans: WorkingSpan[], taken: Interval[], timeZone: s
   };
 }
 
-function namedTask(state: WeekState, input: WeekSummaryInput, open: WeekSummaryInput["tasks"]): NamedTask | null {
+/**
+ * The one Task (or Conflict) in `state`, if there's exactly one. `checkingIn` is the open Tasks waiting for a
+ * Check-in, as the summary counts them.
+ */
+function namedTask(
+  state: WeekState,
+  input: WeekSummaryInput,
+  open: WeekSummaryInput["tasks"],
+  checkingIn: WeekSummaryInput["tasks"],
+): NamedTask | null {
   const only = <T>(items: T[]): T | null => (items.length === 1 ? items[0] : null);
   switch (state) {
     case "overdue": {
@@ -232,7 +237,7 @@ function namedTask(state: WeekState, input: WeekSummaryInput, open: WeekSummaryI
       return task && { taskTitle: task.title };
     }
     case "check-in": {
-      const task = only(open.filter((t) => t.checkInSince !== null));
+      const task = only(checkingIn);
       return task && { taskTitle: task.title };
     }
     case "conflict":

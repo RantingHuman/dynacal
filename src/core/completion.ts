@@ -1,5 +1,4 @@
 import { GRID_MINUTES, MINUTE_MS } from "./time";
-import type { CheckInView } from "./commands";
 
 /**
  * Completing Tasks and Check-ins.
@@ -34,6 +33,19 @@ export function validateMoreTimeMinutes(minutes: number): string | null {
     return "Pick at least 15 minutes, in 15-minute steps.";
   }
   return null;
+}
+
+/** A past Block of a Task, waiting for the owner to say whether the Task is finished. */
+export interface CheckInView {
+  blockId: string;
+  start: Date;
+  end: Date;
+  /**
+   * For a piece of a Splittable Task, the time still planned after it: the Remaining Duration less this piece and
+   * the earlier ones still waiting. More time offers it first, so being on track takes one tap. Absent when nothing
+   * more is planned, and for a one-piece Task.
+   */
+  plannedMinutes?: number;
 }
 
 /** Whether a past Block is waiting for a Check-in: the owner hasn't answered for it. */

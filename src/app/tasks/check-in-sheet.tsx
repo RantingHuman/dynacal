@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { CheckInView } from "@/core/commands";
+import type { CheckInView } from "@/core/completion";
 import { spanLabel } from "@/core/day-labels";
 import { formatDuration } from "@/core/tasks";
 import { GRID_MINUTES } from "@/core/time";

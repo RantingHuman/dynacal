@@ -197,14 +197,14 @@ describe("the week summary's lesser states", () => {
 });
 
 describe("the week the summary describes", () => {
-  it("counts Blocks from now to the end of the week, including one under way", () => {
+  it("counts the Tasks of Blocks from now to the end of the week, including one under way", () => {
     const app = appInLondon();
     createTask(app, { title: "Report" });
     createTask(app, { title: "Slides" });
     createTask(app, { title: "Budget", earliestStart: { date: "2026-01-12", time: null } });
     app.clock.set(at("10:15"));
 
-    expect(app.commands.getWeekSummary()).toMatchObject({ weekOf: "2026-01-05", nextWeek: false, blocks: 1 });
+    expect(app.commands.getWeekSummary()).toMatchObject({ weekOf: "2026-01-05", nextWeek: false, tasks: 1 });
   });
 
   it("counts a Task split over several days once, for the headline", () => {
@@ -212,7 +212,7 @@ describe("the week the summary describes", () => {
     createTask(app, { title: "Report", estimatedMinutes: 10 * 60, splittable: true });
     createTask(app, { title: "Slides" });
 
-    expect(app.commands.getWeekSummary()).toMatchObject({ blocks: 3, tasks: 2 });
+    expect(app.commands.getWeekSummary()).toMatchObject({ tasks: 2 });
   });
 
   it("is 'nothing scheduled this week' when every Block is later, and says which comes next", () => {
@@ -221,7 +221,7 @@ describe("the week the summary describes", () => {
 
     expect(app.commands.getWeekSummary()).toMatchObject({
       state: "nothing-this-week",
-      blocks: 0,
+      tasks: 0,
       nextBlock: { taskTitle: "Budget", date: "2026-01-14" },
     });
   });
@@ -243,7 +243,7 @@ describe("the week the summary describes", () => {
       weekOf: "2026-01-12",
       nextWeek: true,
       state: "everything-fits",
-      blocks: 1,
+      tasks: 1,
     });
   });
 });

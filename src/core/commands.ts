@@ -18,6 +18,7 @@ import {
   validateMoreTimeMinutes,
   type CheckInAnswer,
   type CheckInResult,
+  type CheckInView,
 } from "./completion";
 import type { Db } from "./db";
 import {
@@ -273,19 +274,6 @@ export interface TaskListItem extends Task {
   checkIns: CheckInView[];
 }
 
-/** A past Block of a Task, waiting for the owner to say whether the Task is finished. */
-export interface CheckInView {
-  blockId: string;
-  start: Date;
-  end: Date;
-  /**
-   * For a piece of a Splittable Task, the time still planned after it: the Remaining Duration less this piece and
-   * the earlier ones still waiting. More time offers it first, so being on track takes one tap. Absent when nothing
-   * more is planned, and for a one-piece Task.
-   */
-  plannedMinutes?: number;
-}
-
 /** A Declined Time: Recalculation keeps its Task out of it until it passes or the owner clears it. */
 export interface DeclinedTimeView {
   id: number;
@@ -296,6 +284,8 @@ export interface DeclinedTimeView {
 export type ClearDeclinedTimeResult = { ok: true } | { ok: false; notFound: true };
 
 export type CompleteTaskResult = { ok: true } | { ok: false; notFound: true };
+
+export type AllowSplittingResult = { ok: true } | { ok: false; notFound: true };
 
 export type RecalculateResult = { ok: true } | { ok: false; reason: "needs-time-zone" };
 
@@ -605,19 +595,21 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
   /**
    * Ended events never change again, but each stays linked to its Block while that Block waits for a Check-in.
    * Didn't start removes the Block, so its event is deleted from Google; any other answer leaves the event as a
-   * record and dynacal stops tracking it.
+   * record and dynacal stops tracking it. (An ended event's Block has ended too: the writes before this one moved
+   * the events of Blocks still to come.)
    */
   async function settleEndedBlockEvents(calendarId: string, now: Date): Promise<void> {
     const ended = db
-      .select()
+      .select({ record: blockEvents, taskId: tasks.id, completedAt: tasks.completedAt })
       .from(blockEvents)
+      // Left: a deleted Task's events are still settled.
+      .leftJoin(tasks, eq(tasks.id, blockEvents.taskId))
       .where(and(eq(blockEvents.calendarId, calendarId), lte(blockEvents.end, now)))
       .all();
-    for (const record of ended) {
+    for (const { record, taskId, completedAt } of ended) {
+      const taskOpen = taskId !== null && completedAt === null;
       const block = blockFor(record);
-      const task = db.select({ completedAt: tasks.completedAt }).from(tasks).where(eq(tasks.id, record.taskId)).get();
-      const waiting = block && block.end <= now && awaitsCheckIn(block) && task?.completedAt === null;
-      if (waiting) continue;
+      if (block && awaitsCheckIn(block) && taskOpen) continue;
       if (!block) await calendar.deleteDynacalCalendarEvent(calendarId, record.eventId);
       forgetBlockEvent(calendarId, record.eventId);
     }
@@ -844,11 +836,6 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
   }
 
   /**
-   * The Recalculate button: regenerates the Schedule, then writes it to Google in the background. It works
-   * even while the Google connection is broken, planning around the Events dynacal last saw; the write is
-   * then skipped until the owner reconnects.
-   */
-  /**
    * Completes a Task, without recalculating: its future Blocks go, one in progress ends now, and its past Blocks
    * waiting for a Check-in are answered Finished. False if there's no such Task.
    */
@@ -884,6 +871,11 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     return next?.start ?? null;
   }
 
+  /**
+   * The Recalculate button: regenerates the Schedule, then writes it to Google in the background. It works
+   * even while the Google connection is broken, planning around the Events dynacal last saw; the write is
+   * then skipped until the owner reconnects.
+   */
   function recalculate(): RecalculateResult {
     const result = recalculateSchedule();
     // Commands stay synchronous, so the write to Google runs in the background. A failed write is retried
@@ -1405,7 +1397,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
      * Makes a Task a Splittable Task, as "Allow splitting" on a one-piece Task that won't fit does, then
      * recalculates so it's placed in pieces.
      */
-    allowSplitting(id: string): CompleteTaskResult {
+    allowSplitting(id: string): AllowSplittingResult {
       const row = db.update(tasks).set({ splittable: true }).where(eq(tasks.id, id)).returning().get();
       if (!row) return { ok: false, notFound: true };
       recalculateAutomatically();

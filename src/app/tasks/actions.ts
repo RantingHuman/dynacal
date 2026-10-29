@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import type { ClearDeclinedTimeResult, CompleteTaskResult } from "@/core/commands";
+import type { AllowSplittingResult, ClearDeclinedTimeResult, CompleteTaskResult } from "@/core/commands";
 import type { CheckInResult } from "@/core/completion";
 import { PRIORITIES, type TaskResult, type UpdateTaskResult } from "@/core/tasks";
 import { getRuntime } from "@/server/runtime";
@@ -54,7 +54,7 @@ export async function reopenTask(id: string): Promise<CompleteTaskResult> {
   return result;
 }
 
-export async function allowSplitting(id: string): Promise<CompleteTaskResult> {
+export async function allowSplitting(id: string): Promise<AllowSplittingResult> {
   await requireOwner();
   const result = getRuntime().commands.allowSplitting(z.string().parse(id));
   revalidatePath("/");

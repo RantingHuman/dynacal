@@ -17,7 +17,6 @@ function summary(overrides: Partial<WeekSummary> = {}): WeekSummary {
     today: A_DAY,
     weekOf: "2026-01-05",
     nextWeek: false,
-    blocks: 10,
     tasks: 10,
     nextBlock: null,
     freeStretch: null,
@@ -199,7 +198,7 @@ describe("the standfirst", () => {
 
   it("says which Block comes next in a quiet week", () => {
     const quiet = (nextBlock: WeekSummary["nextBlock"]) =>
-      standfirstText(writeHeadline(summary({ state: "nothing-this-week", blocks: 0, tasks: 0, nextBlock }), A_DAY));
+      standfirstText(writeHeadline(summary({ state: "nothing-this-week", tasks: 0, nextBlock }), A_DAY));
 
     expect(quiet({ taskTitle: "Budget", date: "2026-01-14" })).toBe(
       "Next up is Budget on Wednesday 14 January.",
