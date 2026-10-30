@@ -886,7 +886,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     });
   }
 
-  /** When a Task's next Block starts, counting one in progress; null if it has none (it's Unscheduled). */
+  /** When a Task's next Block starts, counting one in progress; null if it has none (it's Unscheduled or Later). */
   function nextStart(taskId: string): Date | null {
     const next = db
       .select({ start: blocks.start })

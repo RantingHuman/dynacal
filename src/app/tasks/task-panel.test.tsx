@@ -201,6 +201,20 @@ describe("reopening a completed Task", () => {
   });
 });
 
+describe("a Later Task's row", () => {
+  const photos = taskItem({ title: "Tidy photos" });
+
+  it("says Later quietly where flags show, never Unscheduled, and offers no splitting", () => {
+    renderPanel([photos], { [photos.id]: "later" });
+
+    const later = taskList().getByText("· Later", { exact: false });
+    // Flags are emphasised as alarms; Later isn't one.
+    expect(later.closest("em")).toBeNull();
+    expect(screen.queryByText(/Unscheduled/)).toBeNull();
+    expect(screen.queryByRole("button", { name: /Allow splitting/ })).toBeNull();
+  });
+});
+
 describe("allowing a Task that won't fit to split", () => {
   beforeEach(() => vi.mocked(allowSplitting).mockReset());
   const memo = taskItem({ title: "Board memo" });

@@ -294,10 +294,10 @@ describe("scheduler", () => {
       expect(result.flags).toEqual({ late: "overdue", "on time": null });
     });
 
-    it("Unscheduled: a Task with no room in the Planning Horizon", () => {
+    it("Unscheduled: a Task due within the Planning Horizon with no room there", () => {
       const result = schedule(
         input({
-          tasks: [task("a", { remainingMinutes: 600, splittable: false })],
+          tasks: [task("a", { remainingMinutes: 600, splittable: false, deadline: new Date("2026-01-09T17:00:00Z") })],
         }),
       );
 
@@ -305,13 +305,27 @@ describe("scheduler", () => {
       expect(result.flags).toEqual({ a: "unscheduled" });
     });
 
-    it("Unscheduled: a Task whose Earliest Start is beyond the Planning Horizon", () => {
+    it("Later: a Task with no room in the Planning Horizon and no deadline in it", () => {
+      const result = schedule(
+        input({
+          tasks: [
+            task("a", { remainingMinutes: 600, splittable: false }),
+            task("b", { remainingMinutes: 600, splittable: false, deadline: new Date("2026-01-20T17:00:00Z") }),
+          ],
+        }),
+      );
+
+      expect(result.blocks).toEqual([]);
+      expect(result.flags).toEqual({ a: "later", b: "later" });
+    });
+
+    it("Later: a Task whose Earliest Start is beyond the Planning Horizon", () => {
       const result = schedule(
         input({ tasks: [task("a", { earliestStart: new Date("2026-01-20T09:00:00Z") })] }),
       );
 
       expect(result.blocks).toEqual([]);
-      expect(result.flags).toEqual({ a: "unscheduled" });
+      expect(result.flags).toEqual({ a: "later" });
     });
 
     it("keeps Blocks within the Planning Horizon", () => {

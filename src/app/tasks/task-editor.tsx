@@ -18,7 +18,7 @@ import { useSlow } from "../states/use-slow";
 import { createTask, deleteTask, updateTask } from "./actions";
 import { nextSevenDays, spanWords, weekdayName } from "./day-words";
 import { DeclinedTimes } from "./declined-times";
-import { FLAG_LABELS } from "./flags";
+import { FLAG_LABELS, isAlarm } from "./flags";
 import type { ActOnTasks } from "./task-editor-slot";
 import styles from "./task-editor.module.css";
 
@@ -131,7 +131,9 @@ export function TaskEditor({
         {task && (
           <p className={styles.dek}>
             {task.completedAt ? "Complete" : left(task)}
-            {flag && !task.completedAt && <em> · {FLAG_LABELS[flag]}</em>}
+            {flag &&
+              !task.completedAt &&
+              (isAlarm(flag) ? <em> · {FLAG_LABELS[flag]}</em> : ` · ${FLAG_LABELS[flag]}`)}
           </p>
         )}
 
