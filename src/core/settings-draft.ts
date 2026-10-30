@@ -33,7 +33,10 @@ function sameSettings(a: Settings, b: Settings): boolean {
     a.minimumBlockMinutes === b.minimumBlockMinutes &&
     a.reminderLeadMinutes === b.reminderLeadMinutes &&
     a.countFreeEvents === b.countFreeEvents &&
-    a.countAllDayEvents === b.countAllDayEvents
+    a.countAllDayEvents === b.countAllDayEvents &&
+    a.taskBufferAfterMinutes === b.taskBufferAfterMinutes &&
+    a.eventBufferBeforeMinutes === b.eventBufferBeforeMinutes &&
+    a.eventBufferAfterMinutes === b.eventBufferAfterMinutes
   );
 }
 

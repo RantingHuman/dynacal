@@ -307,10 +307,24 @@
   transition-duration: var(--press);
 }
 
-.chip[aria-pressed="true"] {
+.chip[aria-pressed="true"],
+.chip[aria-checked="true"] {
   border-color: var(--accent);
   background: var(--accent);
   color: var(--on-accent);
+}
+
+/* On a touch screen, a one-line row of choices (a Buffer's lengths) is tapped through a band 44px tall. */
+@media (pointer: coarse) {
+  .chips[role="radiogroup"] > .chip {
+    position: relative;
+  }
+
+  .chips[role="radiogroup"] > .chip::after {
+    content: "";
+    position: absolute;
+    inset: min(0px, calc((100% - 44px) / 2)) 0;
+  }
 }
 
 /* The quiet "Settings saved" toast. */

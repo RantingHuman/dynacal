@@ -4,6 +4,7 @@ import type { TaskInput } from "./tasks";
 import { createTestApp } from "./testing";
 
 // The test clock starts at Monday 5 January 2026, 09:00 UTC; London is on UTC in winter.
+// Tasks pack back to back here: the Buffer after Tasks is 0 (buffers.test.ts covers Buffers).
 const grant: GoogleGrant = {
   email: "owner@example.com",
   refreshToken: "refresh-token",
@@ -21,7 +22,7 @@ function at(time: string): Date {
 async function connectedApp() {
   const app = createTestApp();
   app.calendar.addCalendar({ id: "work", name: "Work", primary: true });
-  app.commands.updateSettings({ timeZone: "Europe/London" });
+  app.commands.updateSettings({ timeZone: "Europe/London", taskBufferAfterMinutes: 0 });
   await app.commands.connectGoogle(grant);
   await app.commands.setBusyCalendars(["work"]);
   return app;

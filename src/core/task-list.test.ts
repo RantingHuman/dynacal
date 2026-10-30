@@ -75,7 +75,7 @@ describe("an optimistic change to the Task list", () => {
 
   it("answers More time on a piece, offering what's then planned at the next piece, as the server will", () => {
     const app = createTestApp();
-    app.commands.updateSettings({ timeZone: "Europe/London" });
+    app.commands.updateSettings({ timeZone: "Europe/London", taskBufferAfterMinutes: 0 });
     app.commands.createDynacalEvent({
       title: "Standup",
       notes: "",

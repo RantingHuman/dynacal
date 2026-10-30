@@ -22,6 +22,11 @@ export const settings = sqliteTable("settings", {
   countFreeEvents: integer("count_free_events", { mode: "boolean" }).notNull().default(false),
   /** Whether all-day Events count as busy time. */
   countAllDayEvents: integer("count_all_day_events", { mode: "boolean" }).notNull().default(false),
+  /** The Buffer after Tasks, in minutes. */
+  taskBufferAfterMinutes: integer("task_buffer_after_minutes").notNull().default(15),
+  /** The Buffers before and after timed busy Events, in minutes. */
+  eventBufferBeforeMinutes: integer("event_buffer_before_minutes").notNull().default(0),
+  eventBufferAfterMinutes: integer("event_buffer_after_minutes").notNull().default(0),
 });
 
 /**

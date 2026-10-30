@@ -315,6 +315,8 @@ describe("migrations", () => {
         pushSender: new FakePushSender(),
         calendar: new FakeCalendarGateway(),
       });
+      // Without the Buffer after Tasks that came later, which would push "memo" past 11:00.
+      commands.updateSettings({ taskBufferAfterMinutes: 0 });
       commands.recalculate();
 
       const view = commands.getSchedule();

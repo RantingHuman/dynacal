@@ -71,3 +71,58 @@ describe("Settings save as you go", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 });
+
+describe("the Buffer after Tasks", () => {
+  beforeEach(() => {
+    vi.mocked(saveSettings).mockReset();
+    vi.mocked(saveSettings).mockImplementation(async (settings) => ({ ok: true, settings: settings as Settings }));
+  });
+
+  it("offers 0, 15m, 30m, 45m and 1h under After Tasks, and saves the one chosen", async () => {
+    renderSettings();
+
+    await userEvent.click(screen.getByRole("button", { name: "15 minutes" }));
+    const editor = within(screen.getByRole("group", { name: "After Tasks" }));
+    expect(editor.getAllByRole("radio").map((c) => c.textContent)).toEqual(["0", "15m", "30m", "45m", "1h"]);
+    expect(editor.getByRole("radio", { name: "15m" }).getAttribute("aria-checked")).toBe("true");
+
+    await userEvent.click(editor.getByRole("radio", { name: "45m" }));
+
+    expect(screen.getByRole("button", { name: "45 minutes" })).toBeTruthy();
+    await waitFor(() => expect(saveSettings).toHaveBeenCalledWith(expect.objectContaining({ taskBufferAfterMinutes: 45 })));
+  });
+});
+
+describe("the Event Buffers", () => {
+  beforeEach(() => {
+    vi.mocked(saveSettings).mockReset();
+    vi.mocked(saveSettings).mockImplementation(async (settings) => ({ ok: true, settings: settings as Settings }));
+  });
+
+  it("offer the five choices under Before Events, starting at 0, and save the one chosen", async () => {
+    renderSettings();
+
+    await userEvent.click(screen.getByRole("button", { name: "no time before" }));
+    const editor = within(screen.getByRole("group", { name: "Before Events" }));
+    expect(editor.getAllByRole("radio").map((c) => c.textContent)).toEqual(["0", "15m", "30m", "45m", "1h"]);
+    expect(editor.getByRole("radio", { name: "0" }).getAttribute("aria-checked")).toBe("true");
+
+    await userEvent.click(editor.getByRole("radio", { name: "15m" }));
+
+    expect(screen.getByRole("button", { name: "15 minutes before" })).toBeTruthy();
+    await waitFor(() => expect(saveSettings).toHaveBeenCalledWith(expect.objectContaining({ eventBufferBeforeMinutes: 15 })));
+  });
+
+  it("offer the five choices under After Events, and save the one chosen", async () => {
+    renderSettings();
+
+    await userEvent.click(screen.getByRole("button", { name: "no time after" }));
+    const editor = within(screen.getByRole("group", { name: "After Events" }));
+    expect(editor.getAllByRole("radio").map((c) => c.textContent)).toEqual(["0", "15m", "30m", "45m", "1h"]);
+
+    await userEvent.click(editor.getByRole("radio", { name: "1h" }));
+
+    expect(screen.getByRole("button", { name: "1 hour after" })).toBeTruthy();
+    await waitFor(() => expect(saveSettings).toHaveBeenCalledWith(expect.objectContaining({ eventBufferAfterMinutes: 60 })));
+  });
+});

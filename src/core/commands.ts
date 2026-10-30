@@ -876,12 +876,16 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     );
   }
 
-  /** The time taken up by Events that count as busy, under their Busy Overrides and the owner's settings. */
+  /**
+   * The time taken up by Events that count as busy, under their Busy Overrides and the owner's settings. Timed
+   * ones carry the Event Buffers; an all-day Event never does, so it can't push Tasks into the days either side.
+   */
   function busyTime(current: Settings, timeZone: string) {
     const overrides = readBusyOverrides();
+    const buffers = { before: current.eventBufferBeforeMinutes, after: current.eventBufferAfterMinutes };
     return allEvents()
       .filter((e) => countsAsBusy(e, current, overrides.get(eventKey(eventRef(e))) ?? null))
-      .map((e) => eventInterval(e, timeZone));
+      .map((e) => (e.allDay ? eventInterval(e, timeZone) : { ...eventInterval(e, timeZone), buffers }));
   }
 
   /**
@@ -962,7 +966,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
    */
   function recalculateSchedule(): RecalculateResult {
     const current = getSettings();
-    const { timeZone, minimumBlockMinutes } = current;
+    const { timeZone, minimumBlockMinutes, taskBufferAfterMinutes } = current;
     if (timeZone === null) return { ok: false, reason: "needs-time-zone" };
     const allContexts = commands.listContexts();
     const busy = busyTime(current, timeZone);
@@ -996,7 +1000,13 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         contexts: allContexts,
         minimumBlockMinutes,
         planningHorizonDays: PLANNING_HORIZON_DAYS,
-        tasks: schedulerTasks({ taskRows, declined, timeZone, contexts: allContexts }),
+        tasks: schedulerTasks({
+          taskRows,
+          declined,
+          timeZone,
+          contexts: allContexts,
+          buffers: { before: 0, after: taskBufferAfterMinutes },
+        }),
         busy,
         pinnedBlocks: [...inProgress.filter((b) => b.pinned), ...pinnedAhead],
         startedBlocks: inProgress.filter((b) => !b.pinned),

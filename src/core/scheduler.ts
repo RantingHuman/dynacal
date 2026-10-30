@@ -19,6 +19,17 @@ export interface SchedulerContext {
   windows: WeeklyWindows;
 }
 
+/**
+ * Time kept free before and after a Task or Event when placing Tasks, in minutes. Buffers are a separation rule
+ * between neighbours, never padding: the gap between two neighbours must be at least the larger of their facing sides.
+ */
+export interface Buffers {
+  before: number;
+  after: number;
+}
+
+const NO_BUFFERS: Buffers = { before: 0, after: 0 };
+
 export interface SchedulerTask {
   id: string;
   /** The Context whose windows this Task is placed in, and only them. */
@@ -34,6 +45,8 @@ export interface SchedulerTask {
   splittable: boolean;
   /** Declined Times: this Task's Blocks must stay out of them, though other Tasks may use them. */
   declinedTimes?: Interval[];
+  /** None if absent. They count beside this Task's pinned and started Blocks too. */
+  buffers?: Buffers;
 }
 
 export interface SchedulerInput {
@@ -44,8 +57,8 @@ export interface SchedulerInput {
   planningHorizonDays: number;
   /** In a stable order; it breaks any remaining ties. */
   tasks: SchedulerTask[];
-  /** Time no Block may overlap (Events on Busy Calendars). */
-  busy: Interval[];
+  /** Time no Block may overlap (Events on Busy Calendars), each with its Event Buffers, if any. */
+  busy: (Interval & { buffers?: Buffers })[];
   /** Blocks the owner placed by hand; planned around, never moved. */
   pinnedBlocks: ScheduledBlock[];
   /** Started Blocks: past and in-progress ones that aren't pinned; planned around, never moved. */
@@ -109,24 +122,6 @@ function windowSpans(windows: WeeklyWindows, timeZone: string, from: number, to:
   return spans.sort((a, b) => a[0] - b[0]);
 }
 
-/** Spans merged where they overlap or touch, so time any of them covers appears once. */
-function union(spans: Span[]): Span[] {
-  const merged: Span[] = [];
-  for (const [a, b] of [...spans].sort((x, y) => x[0] - y[0])) {
-    const last = merged.at(-1);
-    if (last && a <= last[1]) last[1] = Math.max(last[1], b);
-    else merged.push([a, b]);
-  }
-  return merged;
-}
-
-/** The time both `free` and `windows` cover. */
-function intersect(free: Span[], windows: Span[]): Span[] {
-  return free.flatMap(([a, b]) =>
-    windows.map(([c, d]): Span => [Math.max(a, c), Math.min(b, d)]).filter(([s, e]) => e > s),
-  );
-}
-
 /** Removes `taken` from `free`, then rounds each remaining span inward to the grid. */
 function subtract(free: Span[], taken: Interval[]): Span[] {
   let spans = free;
@@ -150,7 +145,9 @@ export function schedule(input: SchedulerInput): SchedulerOutput {
   const to = input.now.getTime() + input.planningHorizonDays * DAY_MS;
   const now = input.now.getTime();
   const pinnedOrStarted = [...input.pinnedBlocks, ...input.startedBlocks].filter((b) => b.end.getTime() > now);
-  const windows = new Map(input.contexts.map((c) => [c.id, windowSpans(c.windows, input.timeZone, from, to)]));
+  // Each Context's windows, rounded to the grid; only its own Tasks are placed in them.
+  const windows = new Map(input.contexts.map((c) => [c.id, subtract(windowSpans(c.windows, input.timeZone, from, to), [])]));
+  const buffersOf = new Map(input.tasks.map((t) => [t.id, t.buffers ?? NO_BUFFERS]));
   const state: PlanningState = {
     now,
     from,
@@ -158,9 +155,12 @@ export function schedule(input: SchedulerInput): SchedulerOutput {
     minimum: input.minimumBlockMinutes * MINUTE_MS,
     pinnedOrStarted,
     awaiting: input.awaitingBlocks,
-    // One record of occupied time, shared by every Context: where two Contexts' windows overlap, their Tasks share it.
-    free: subtract(union([...windows.values()].flat()), [...input.busy, ...pinnedOrStarted]),
     windows,
+    // One record of what's taken, shared by every Context: where two Contexts' windows overlap, their Tasks share it.
+    fixed: [
+      ...input.busy.map((e) => neighbour(e, e.buffers ?? NO_BUFFERS)),
+      ...pinnedOrStarted.map((b) => neighbour(b, buffersOf.get(b.taskId) ?? NO_BUFFERS)),
+    ],
   };
 
   const order = chooseOrder(state, input.tasks);
@@ -204,10 +204,40 @@ interface PlanningState {
   pinnedOrStarted: ScheduledBlock[];
   /** Past Blocks waiting for a Check-in: they count toward their Tasks too. */
   awaiting: ScheduledBlock[];
-  /** Free time before any Task is placed, over every Context's windows. */
-  free: Span[];
-  /** Each Context's windows in the Planning Horizon, by Context id. */
+  /** Each Context's windows from the first grid mark on, by Context id, before anything is taken out of them. */
   windows: Map<string, Span[]>;
+  /** What's there before any Task is placed: busy Events, and pinned and started Blocks. */
+  fixed: Neighbour[];
+}
+
+/** Something a Task being placed keeps its distance from: [start, end) in epoch ms, with its Buffers in ms. */
+interface Neighbour {
+  start: number;
+  end: number;
+  before: number;
+  after: number;
+}
+
+function neighbour({ start, end }: Interval, buffers: Buffers): Neighbour {
+  return {
+    start: start.getTime(),
+    end: end.getTime(),
+    before: buffers.before * MINUTE_MS,
+    after: buffers.after * MINUTE_MS,
+  };
+}
+
+/**
+ * The time a Task with `buffers` can't overlap because of its neighbours: each one stretched by the larger of the
+ * facing Buffers, the Task's after against the neighbour's before, and the neighbour's after against the Task's before.
+ * A Buffer needs no working time, so it may fall outside the windows.
+ */
+function keptApart(neighbours: Neighbour[], buffers: Buffers): Interval[] {
+  const [before, after] = [buffers.before * MINUTE_MS, buffers.after * MINUTE_MS];
+  return neighbours.map((n) => ({
+    start: new Date(n.start - Math.max(n.before, after)),
+    end: new Date(n.end + Math.max(n.after, before)),
+  }));
 }
 
 interface Placement {
@@ -263,7 +293,7 @@ function overlapWithPrevious(placed: Placement[], previous: ScheduledBlock[]): n
 
 /** Places Tasks one at a time in `order`, each in the earliest free time those before it left. */
 function place(state: PlanningState, order: SchedulerTask[]): Placement[] {
-  const free = state.free.map((s): Span => [s[0], s[1]]);
+  const taken = [...state.fixed];
   return order.map((task) => {
     // Each Block that counts toward the Task counts in full, an in-progress one too: the Remaining Duration is what
     // the owner says is left, and includes them.
@@ -271,10 +301,14 @@ function place(state: PlanningState, order: SchedulerTask[]): Placement[] {
     const covered = counted.reduce((sum, b) => sum + b.end.getTime() - b.start.getTime(), 0);
     const need = Math.max(0, remainingMs(task) - covered);
     const earliest = task.earliestStart ? roundUp(task.earliestStart.getTime()) : state.from;
-    const own = intersect(startingFrom(free, earliest), state.windows.get(task.contextId) ?? []);
-    const available = subtract(own, task.declinedTimes ?? []);
-    const pieces = task.splittable ? placeSplit(available, need, state.minimum) : placeWhole(available, need);
-    for (const [start, end] of pieces) take(free, start, end);
+    const buffers = task.buffers ?? NO_BUFFERS;
+    const available = subtract(startingFrom(state.windows.get(task.contextId) ?? [], earliest), [
+      ...keptApart(taken, buffers),
+      ...(task.declinedTimes ?? []),
+    ]);
+    const gap = Math.max(buffers.before, buffers.after) * MINUTE_MS;
+    const pieces = task.splittable ? placeSplit(available, need, state.minimum, gap) : placeWhole(available, need);
+    for (const [start, end] of pieces) taken.push(neighbour({ start: new Date(start), end: new Date(end) }, buffers));
     const flag = flagFor(task, need, pieces, counted, state);
     const unplaced = flag === "unscheduled" || flag === "later";
     return { task, pieces, flag, misses: flag === "at-risk" || (unplaced && task.deadline !== null) };
@@ -398,31 +432,25 @@ function placeWhole(free: Span[], need: number): Span[] {
 }
 
 /**
- * Pieces in the earliest gaps, none shorter than `minimum`. A Task needing less than `minimum`
- * in total is placed whole. A piece never leaves a remainder shorter than `minimum`.
+ * Pieces in the earliest gaps, none shorter than `minimum` and each at least `gap` after the one before (the larger
+ * of the Task's own Buffers). A Task needing less than `minimum` in total is placed whole. A piece never leaves a
+ * remainder shorter than `minimum`.
  */
-function placeSplit(free: Span[], need: number, minimum: number): Span[] {
+function placeSplit(free: Span[], need: number, minimum: number, gap: number): Span[] {
   if (need <= 0) return [];
   if (need < minimum) return placeWhole(free, need);
   const pieces: Span[] = [];
   let left = need;
-  for (const [a, b] of free) {
+  let notBefore = -Infinity;
+  for (const [start, b] of free) {
     if (left <= 0) break;
+    const a = Math.max(start, notBefore);
     const room = b - a;
     const length = room >= left ? left : Math.min(room, left - minimum);
     if (length < minimum) continue;
     pieces.push([a, a + length]);
     left -= length;
+    notBefore = a + length + gap;
   }
   return pieces;
-}
-
-/** Marks [start, end) as used. */
-function take(free: Span[], start: number, end: number): void {
-  const index = free.findIndex(([a, b]) => a <= start && end <= b);
-  const [a, b] = free[index];
-  const rest: Span[] = [];
-  if (start > a) rest.push([a, start]);
-  if (end < b) rest.push([end, b]);
-  free.splice(index, 1, ...rest);
 }

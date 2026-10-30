@@ -1,5 +1,5 @@
 import type { tasks } from "./db/schema";
-import { resolveDeadline, resolveEarliestStart, type SchedulerContext, type SchedulerTask } from "./scheduler";
+import { resolveDeadline, resolveEarliestStart, type Buffers, type SchedulerContext, type SchedulerTask } from "./scheduler";
 import type { Interval } from "./time";
 
 /**
@@ -14,11 +14,14 @@ export function schedulerTasks({
   declined,
   timeZone,
   contexts,
+  buffers,
 }: {
   taskRows: TaskRow[];
   declined: (Interval & { taskId: string })[];
   timeZone: string;
   contexts: SchedulerContext[];
+  /** Every Task's Buffers: the defaults from Settings. */
+  buffers: Buffers;
 }): SchedulerTask[] {
   return taskRows.map((row) => {
     // Date-only values resolve against the Task's own Context's windows.
@@ -38,6 +41,7 @@ export function schedulerTasks({
     priority: row.priority,
     splittable: row.splittable,
     declinedTimes: declined.filter((t) => t.taskId === row.id).map(({ start, end }) => ({ start, end })),
+    buffers,
   };
   });
 }

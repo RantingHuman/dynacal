@@ -244,11 +244,14 @@ describe("the time every Context covers", () => {
 });
 
 describe("a Task in a Context", () => {
-  /** London, Monday 06:00, with Work from 06:00 on Mondays and Deep work Mon 08:00–11:00. */
-  function appWithDeepWork() {
+  /**
+   * London, Monday 06:00, with Work from 06:00 on Mondays and Deep work Mon 08:00–11:00. No Buffer after Tasks, so
+   * Blocks sit back to back, unless a test sets one.
+   */
+  function appWithDeepWork({ bufferAfter = 0 } = {}) {
     const app = createTestApp();
     app.clock.set(new Date("2026-01-05T06:00:00Z"));
-    app.commands.updateSettings({ timeZone: "Europe/London" });
+    app.commands.updateSettings({ timeZone: "Europe/London", taskBufferAfterMinutes: bufferAfter });
     setDefaultWindows(app.commands, { mon: [{ start: 6 * 60, end: 17 * 60 }] });
     const result = app.commands.createContext({ name: "Deep work", windows: deepMornings });
     if (!result.ok) throw new Error("Deep work refused");
@@ -304,6 +307,17 @@ describe("a Task in a Context", () => {
     expect(blocks(commands)).toEqual([
       ["Email", "2026-01-05T06:00:00.000Z", "2026-01-05T08:30:00.000Z"],
       ["Write essay", "2026-01-05T08:30:00.000Z", "2026-01-05T10:00:00.000Z"],
+    ]);
+  });
+
+  it("keeps a Buffer from a Task in another Context, since what's taken is shared", () => {
+    const { commands, deep } = appWithDeepWork({ bufferAfter: 15 });
+    commands.createTask({ ...oneHour("Email"), estimatedMinutes: 150 });
+    commands.createTask({ ...oneHour("Write essay", deep.id), estimatedMinutes: 90 });
+
+    expect(blocks(commands)).toEqual([
+      ["Email", "2026-01-05T06:00:00.000Z", "2026-01-05T08:30:00.000Z"],
+      ["Write essay", "2026-01-05T08:45:00.000Z", "2026-01-05T10:15:00.000Z"],
     ]);
   });
 
