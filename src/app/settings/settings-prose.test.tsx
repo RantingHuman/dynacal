@@ -70,3 +70,24 @@ describe("Settings save as you go", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 });
+
+describe("the Buffer after Tasks", () => {
+  beforeEach(() => {
+    vi.mocked(saveSettings).mockReset();
+    vi.mocked(saveSettings).mockImplementation(async (settings) => ({ ok: true, settings: settings as Settings }));
+  });
+
+  it("offers 0, 15m, 30m, 45m and 1h under After Tasks, and saves the one chosen", async () => {
+    renderSettings();
+
+    await userEvent.click(screen.getByRole("button", { name: "15 minutes" }));
+    const editor = within(screen.getByRole("group", { name: "After Tasks" }));
+    expect(editor.getAllByRole("radio").map((c) => c.textContent)).toEqual(["0", "15m", "30m", "45m", "1h"]);
+    expect(editor.getByRole("radio", { name: "15m" }).getAttribute("aria-checked")).toBe("true");
+
+    await userEvent.click(editor.getByRole("radio", { name: "45m" }));
+
+    expect(screen.getByRole("button", { name: "45 minutes" })).toBeTruthy();
+    await waitFor(() => expect(saveSettings).toHaveBeenCalledWith(expect.objectContaining({ taskBufferAfterMinutes: 45 })));
+  });
+});

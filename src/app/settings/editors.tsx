@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { formatMinutes, type TimeWindow } from "@/core/settings";
+import { BUFFER_MINUTES, formatMinutes, type TimeWindow } from "@/core/settings";
 import { DAY_MINUTES } from "@/core/time";
 import styles from "./prose.module.css";
 
@@ -153,6 +153,40 @@ export function MinutesEditor({
         onChange={(e) => onChange(e.target.valueAsNumber)}
       />
       {unit}
+    </span>
+  );
+}
+
+/** A Buffer's length as a short chip label: "0", "15m", "1h". */
+export function bufferChipLabel(minutes: number): string {
+  if (minutes === 0) return "0";
+  return minutes % 60 === 0 ? `${minutes / 60}h` : `${minutes}m`;
+}
+
+/** One chip per Buffer length, of which exactly one is chosen. */
+export function BufferChips({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (minutes: number) => void;
+}) {
+  return (
+    <span className={styles.chips} role="radiogroup" aria-label={label}>
+      {BUFFER_MINUTES.map((minutes) => (
+        <button
+          key={minutes}
+          type="button"
+          role="radio"
+          className={styles.chip}
+          aria-checked={minutes === value}
+          onClick={() => onChange(minutes)}
+        >
+          {bufferChipLabel(minutes)}
+        </button>
+      ))}
     </span>
   );
 }

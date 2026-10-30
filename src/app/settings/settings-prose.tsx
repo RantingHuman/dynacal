@@ -6,7 +6,7 @@ import { settingsToSave } from "@/core/settings-draft";
 import { saveBusyCalendars, saveSettings } from "./actions";
 import { BusyCalendarsValue, toggled } from "./busy-calendars-value";
 import type { CalendarView } from "./calendar-view";
-import { MinutesEditor } from "./editors";
+import { BufferChips, MinutesEditor } from "./editors";
 import { connectHref, ConnectError, GoogleTrouble } from "./google-connection";
 import styles from "./prose.module.css";
 import { FlipValue, Value } from "./value";
@@ -80,6 +80,7 @@ export function SettingsProse({
 
   const lead = draft.reminderLeadMinutes;
   const minimum = draft.minimumBlockMinutes;
+  const after = draft.taskBufferAfterMinutes;
 
   return (
     <>
@@ -146,7 +147,18 @@ export function SettingsProse({
         >
           {!Number.isFinite(lead) ? "… minutes before" : lead === 0 ? "as" : `${lead} ${lead === 1 ? "minute" : "minutes"} before`}
         </Value>{" "}
-        each Task starts.
+        each Task starts. Keep{" "}
+        <Value
+          label="After Tasks"
+          open={open === "after"}
+          onOpenChange={toggleOpen("after")}
+          editor={
+            <BufferChips label="After Tasks" value={after} onChange={(taskBufferAfterMinutes) => update({ taskBufferAfterMinutes })} />
+          }
+        >
+          {after === 0 ? "no time" : after === 60 ? "1 hour" : `${after} minutes`}
+        </Value>{" "}
+        free after each Task.
       </p>
 
       <h2 className={styles.kicker}>Which Events count as busy</h2>
