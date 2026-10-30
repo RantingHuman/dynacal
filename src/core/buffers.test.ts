@@ -34,7 +34,7 @@ function appWorking(...windows: [number, number][]) {
 }
 
 /** Google connected with "work" as the Busy Calendar, holding the given Events; returns the dynacal calendar's ID. */
-async function connect(app: App, events: { title: string; start: Date; end: Date }[] = []): Promise<string> {
+async function connect(app: App, events: Parameters<App["calendar"]["addEvent"]>[1][] = []): Promise<string> {
   app.calendar.addCalendar({ id: "work", name: "Work", primary: true });
   for (const event of events) app.calendar.addEvent("work", event);
   await app.commands.connectGoogle(grant);
@@ -198,5 +198,135 @@ describe("Buffers beside a time the owner placed", () => {
     expect(view(app).conflicts).toEqual([]);
     expect(blocks(app)).toEqual([["Pinned", at("10:00"), at("11:00")]]);
     expect(view(app).flags).toEqual({ [view(app).blocks[0].taskId]: null });
+  });
+});
+
+describe("Event Buffers", () => {
+  /** Working 08:00–17:00 from 08:00 with no Buffer after Tasks, so only the Event Buffers keep Tasks away. */
+  function appBesideEvents() {
+    const app = appWorking([8, 17]);
+    app.clock.set(at("08:00"));
+    app.commands.updateSettings({ taskBufferAfterMinutes: 0 });
+    return app;
+  }
+
+  it("start at 0", () => {
+    const app = appWorking([9, 12]);
+
+    expect(app.commands.getSettings()).toMatchObject({ eventBufferBeforeMinutes: 0, eventBufferAfterMinutes: 0 });
+  });
+
+  it("keep a Task from ending within Before Events of a busy Event's start", async () => {
+    const app = appBesideEvents();
+    await connect(app, [{ title: "Stand-up", start: at("10:00"), end: at("11:00") }]);
+    app.commands.updateSettings({ eventBufferBeforeMinutes: 15 });
+
+    createTask(app, { title: "Long", estimatedMinutes: 120 });
+    createTask(app, { title: "Short", estimatedMinutes: 105 });
+
+    expect(blocks(app)).toEqual([
+      ["Short", at("08:00"), at("09:45")],
+      ["Long", at("11:00"), at("13:00")],
+    ]);
+  });
+
+  it("keep a Task from starting within After Events of a busy Event's end", async () => {
+    const app = appBesideEvents();
+    await connect(app, [{ title: "Stand-up", start: at("08:00"), end: at("09:00") }]);
+    app.commands.updateSettings({ eventBufferAfterMinutes: 15 });
+
+    createTask(app);
+
+    expect(blocks(app)).toEqual([["Write report", at("09:15"), at("10:15")]]);
+  });
+
+  it("share time with a Task's Buffer after, the longer one winning", async () => {
+    const app = appBesideEvents();
+    await connect(app, [{ title: "Stand-up", start: at("10:00"), end: at("11:00") }]);
+    app.commands.updateSettings({ taskBufferAfterMinutes: 15, eventBufferBeforeMinutes: 30 });
+
+    createTask(app, { estimatedMinutes: 90 });
+
+    // 08:00–09:30 ends 30 minutes before the Stand-up: Before Events covers the Task's 15 minutes after.
+    expect(blocks(app)).toEqual([["Write report", at("08:00"), at("09:30")]]);
+  });
+
+  it("don't apply to a Free Event that doesn't count as busy", async () => {
+    const app = appBesideEvents();
+    await connect(app, [{ title: "Flight", free: true, start: at("10:00"), end: at("11:00") }]);
+    app.commands.updateSettings({ eventBufferBeforeMinutes: 60, eventBufferAfterMinutes: 60 });
+
+    createTask(app, { estimatedMinutes: 120 });
+
+    expect(blocks(app)).toEqual([["Write report", at("08:00"), at("10:00")]]);
+  });
+
+  it("apply to a Free Event a Busy Override counts as busy", async () => {
+    const app = appBesideEvents();
+    app.calendar.addCalendar({ id: "work", name: "Work", primary: true });
+    const flight = app.calendar.addEvent("work", { title: "Flight", free: true, start: at("10:00"), end: at("11:00") });
+    await connect(app);
+    app.commands.updateSettings({ eventBufferAfterMinutes: 30 });
+    createTask(app, { estimatedMinutes: 150 });
+
+    app.commands.setBusyOverride({ calendarId: "work", eventId: flight }, "busy");
+
+    expect(blocks(app)).toEqual([["Write report", at("11:30"), at("14:00")]]);
+  });
+
+  it("don't apply to an all-day Event, even one that counts as busy", async () => {
+    const app = createTestApp();
+    app.commands.updateSettings({
+      timeZone: "Europe/London",
+      countAllDayEvents: true,
+      taskBufferAfterMinutes: 0,
+      eventBufferBeforeMinutes: 60,
+      eventBufferAfterMinutes: 60,
+    });
+    setDefaultWindows(app.commands, { mon: [], tue: [{ start: 0, end: 2 * 60 }], wed: [], thu: [], fri: [] });
+    await connect(app, [{ title: "Offsite", startDate: "2026-01-05", endDate: "2026-01-06" }]);
+
+    createTask(app);
+
+    expect(blocks(app)).toEqual([["Write report", new Date("2026-01-06T00:00:00Z"), new Date("2026-01-06T01:00:00Z")]]);
+  });
+
+  it("never move a pinned Task or make a Conflict of it ending right before a busy Event", async () => {
+    const app = appWorking([9, 17]);
+    await connect(app, [{ title: "Stand-up", start: at("11:00"), end: at("12:00") }]);
+    app.commands.updateSettings({ eventBufferBeforeMinutes: 15 });
+    createTask(app, { title: "Pinned" });
+    const id = view(app).blocks[0].id;
+
+    app.commands.moveBlock(id, { start: at("10:00"), end: at("11:00") });
+
+    expect(view(app).conflicts).toEqual([]);
+    expect(blocks(app)).toEqual([["Pinned", at("10:00"), at("11:00")]]);
+    expect(view(app).flags).toEqual({ [view(app).blocks[0].taskId]: null });
+  });
+
+  it("move the Schedule when changed", async () => {
+    const app = appBesideEvents();
+    await connect(app, [{ title: "Stand-up", start: at("10:00"), end: at("11:00") }]);
+    createTask(app, { estimatedMinutes: 120 });
+    expect(blocks(app)).toEqual([["Write report", at("08:00"), at("10:00")]]);
+
+    app.commands.updateSettings({ eventBufferBeforeMinutes: 15 });
+    expect(blocks(app)).toEqual([["Write report", at("11:00"), at("13:00")]]);
+
+    app.commands.updateSettings({ eventBufferAfterMinutes: 30 });
+    expect(blocks(app)).toEqual([["Write report", at("11:30"), at("13:30")]]);
+  });
+
+  it("are each one of 0, 15m, 30m, 45m or 1h", () => {
+    const app = appWorking([9, 12]);
+
+    expect(app.commands.updateSettings({ eventBufferBeforeMinutes: 10, eventBufferAfterMinutes: 90 })).toEqual({
+      ok: false,
+      errors: {
+        eventBufferBeforeMinutes: "Before Events must be 0, 15, 30, 45 or 60 minutes.",
+        eventBufferAfterMinutes: "After Events must be 0, 15, 30, 45 or 60 minutes.",
+      },
+    });
   });
 });

@@ -798,4 +798,17 @@ describe("Buffers", () => {
     // 09:00–09:45 would end within b's 30 minutes before.
     expect(blocksOf(result)).toEqual([["a", "2026-01-05T11:00:00.000Z", "2026-01-05T11:45:00.000Z"]]);
   });
+
+  it("keep a Task clear of a busy Event's own Buffers, the longer of the facing ones winning", () => {
+    const standUp = { start: new Date("2026-01-05T09:00:00Z"), end: new Date("2026-01-05T10:00:00Z") };
+    const result = schedule(
+      input({
+        tasks: [task("a", { buffers: { before: 30, after: 0 } })],
+        busy: [{ ...standUp, buffers: { before: 0, after: 15 } }],
+      }),
+    );
+
+    // The Task's 30 minutes before covers the Event's 15 minutes after: 10:30, not 10:45.
+    expect(blocksOf(result)).toEqual([["a", "2026-01-05T10:30:00.000Z", "2026-01-05T11:30:00.000Z"]]);
+  });
 });

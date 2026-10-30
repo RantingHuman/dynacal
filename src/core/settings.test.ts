@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createTestApp } from "./testing";
 
 describe("settings", () => {
-  it("starts with a 30-minute Minimum Block Length, 10-minute reminders, free and all-day Events ignored, and 15 minutes after Tasks", () => {
+  it("starts with a 30-minute Minimum Block Length, 10-minute reminders, free and all-day Events ignored, 15 minutes after Tasks and none around Events", () => {
     const { commands } = createTestApp();
 
     expect(commands.getSettings()).toEqual({
@@ -12,6 +12,8 @@ describe("settings", () => {
       countFreeEvents: false,
       countAllDayEvents: false,
       taskBufferAfterMinutes: 15,
+      eventBufferBeforeMinutes: 0,
+      eventBufferAfterMinutes: 0,
     });
   });
 
