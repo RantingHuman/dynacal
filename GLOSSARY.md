@@ -27,8 +27,12 @@ A flag on an incomplete Task whose deadline has already passed.
 _Avoid_: Late, missed, expired
 
 **Unscheduled**:
-A flag on a Task for which no Block fits within the Planning Horizon.
+A flag on a Task needed within the Planning Horizon for which no Block fits there.
 _Avoid_: Backlog, unplanned, inbox
+
+**Later**:
+Said of a Task that has no time within the Planning Horizon but isn't needed there: its deadline and Earliest Start, if any, lie beyond it. Unlike Unscheduled, it's no cause for concern.
+_Avoid_: Deferred, someday, parked
 
 **Remaining Duration**:
 The time a Task still needs: its estimate, until the user says at a Check-in, by answering More time, how much more it needs.
@@ -64,6 +68,10 @@ _Avoid_: Not then, avoid, banned slot
 The shortest Block the scheduler may create when splitting a Splittable Task.
 _Avoid_: Min chunk, minimum slot
 
+**Buffer**:
+Time before or after a Task or Event that dynacal keeps free when placing Tasks, so the user doesn't go straight from one thing into the next. Where two Buffers meet, the longer one is enough. Buffers only shape where dynacal places Tasks: they never move, flag or make a Conflict of a time the user placed by hand.
+_Avoid_: Break, gap, padding, margin
+
 **Event**:
 A commitment on the user's calendar that is not a Block, whether it came from a connected calendar or was created in dynacal; the scheduler plans around it and never moves it.
 _Avoid_: Meeting, appointment, busy slot
@@ -88,9 +96,13 @@ _Avoid_: Notification offset, alert time
 A connected calendar the user has chosen to count as busy time; its Events constrain the Schedule.
 _Avoid_: Source calendar, blocking calendar
 
-**Working Hours**:
-The weekly windows, in the user's time zone, within which Blocks may be placed.
-_Avoid_: Availability, schedule hours, business hours
+**Context**:
+A named set of weekly windows, such as "Deep work: weekdays 08:00–11:00"; every Task belongs to exactly one Context and is placed only inside its windows. Windows of different Contexts may overlap, and only there can Tasks of different Contexts share time.
+_Avoid_: Profile, mode, zone, room, Working Hours
+
+**Default Context**:
+The Context a Task belongs to when the user doesn't choose one; there is always exactly one.
+_Avoid_: General, no context, fallback
 
 **Schedule**:
 The full set of Blocks currently placed within the Planning Horizon.
