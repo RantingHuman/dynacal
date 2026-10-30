@@ -429,7 +429,7 @@ function BufferField({
   return (
     <div className={styles.chips} role="radiogroup" aria-label={label}>
       <button type="button" role="radio" aria-checked={value === null} className={styles.chip} onClick={() => onChange(null)}>
-        Default ({bufferChipLabel(fallback)})
+        Default ({fallback === 0 ? "none" : bufferChipLabel(fallback)})
       </button>
       {BUFFER_MINUTES.map((minutes) => (
         <button

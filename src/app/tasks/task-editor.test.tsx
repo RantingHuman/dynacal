@@ -186,9 +186,9 @@ describe("the full-page Task editor", () => {
     const before = within(editor.getByRole("radiogroup", { name: "Buffer before" }));
     const after = within(editor.getByRole("radiogroup", { name: "Buffer after" }));
 
-    expect(before.getAllByRole("radio").map((c) => c.textContent)).toEqual(["Default (0)", "0", "15m", "30m", "45m", "1h"]);
+    expect(before.getAllByRole("radio").map((c) => c.textContent)).toEqual(["Default (none)", "0", "15m", "30m", "45m", "1h"]);
     expect(after.getAllByRole("radio").map((c) => c.textContent)).toEqual(["Default (15m)", "0", "15m", "30m", "45m", "1h"]);
-    expect(before.getByRole("radio", { name: "Default (0)" }).getAttribute("aria-checked")).toBe("true");
+    expect(before.getByRole("radio", { name: "Default (none)" }).getAttribute("aria-checked")).toBe("true");
     expect(after.getByRole("radio", { name: "30m" }).getAttribute("aria-checked")).toBe("true");
 
     await userEvent.click(before.getByRole("radio", { name: "15m" }));
