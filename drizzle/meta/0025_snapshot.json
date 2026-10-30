@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "f3311277-a729-46cc-a8b7-4612d26fda37",
+  "id": "905673b6-96cf-451b-b942-ea1d60d8b6c5",
   "prevId": "81772837-74bd-4d9d-9994-56dacb1a2300",
   "tables": {
     "block_events": {
@@ -872,14 +872,6 @@
           "autoincrement": false,
           "default": false
         },
-        "task_buffer_before_minutes": {
-          "name": "task_buffer_before_minutes",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
         "task_buffer_after_minutes": {
           "name": "task_buffer_after_minutes",
           "type": "integer",
@@ -887,6 +879,22 @@
           "notNull": true,
           "autoincrement": false,
           "default": 15
+        },
+        "event_buffer_before_minutes": {
+          "name": "event_buffer_before_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "event_buffer_after_minutes": {
+          "name": "event_buffer_after_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
         }
       },
       "indexes": {},
@@ -966,20 +974,6 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
-        },
-        "buffer_before_minutes": {
-          "name": "buffer_before_minutes",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "buffer_after_minutes": {
-          "name": "buffer_after_minutes",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
           "autoincrement": false
         },
         "created_at": {

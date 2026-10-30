@@ -35,7 +35,9 @@ function sameSettings(a: Settings, b: Settings): boolean {
     a.countFreeEvents === b.countFreeEvents &&
     a.countAllDayEvents === b.countAllDayEvents &&
     a.taskBufferBeforeMinutes === b.taskBufferBeforeMinutes &&
-    a.taskBufferAfterMinutes === b.taskBufferAfterMinutes
+    a.taskBufferAfterMinutes === b.taskBufferAfterMinutes &&
+    a.eventBufferBeforeMinutes === b.eventBufferBeforeMinutes &&
+    a.eventBufferAfterMinutes === b.eventBufferAfterMinutes
   );
 }
 

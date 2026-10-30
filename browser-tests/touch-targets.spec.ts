@@ -98,3 +98,22 @@ test("fits After Tasks' five choices on one line on a phone, with 44px targets",
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   });
 });
+
+for (const [value, label] of [["no time before", "Before Events"], ["no time after", "After Events"]]) {
+  test(`fits ${label}' five choices on one line on a phone, with 44px targets`, async ({ browser }) => {
+    await withApp(browser, async (page) => {
+      await asPhone(page);
+      await page.goto("/settings");
+      await page.getByRole("button", { name: value }).click();
+      const choices = page.getByRole("radiogroup", { name: label }).getByRole("radio");
+
+      await expect(choices).toHaveText(["0", "15m", "30m", "45m", "1h"]);
+      await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== "running"));
+      const boxes = await choices.evaluateAll((els) => els.map((el) => el.getBoundingClientRect().toJSON()));
+      expect(new Set(boxes.map((b) => Math.round(b.top))).size).toBe(1);
+      for (const box of boxes) expect(box.left >= 0 && box.right <= 390).toBe(true);
+      for (const choice of await choices.all()) await expectTappable(choice);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+    });
+  });
+}

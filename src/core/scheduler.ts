@@ -49,8 +49,8 @@ export interface SchedulerInput {
   planningHorizonDays: number;
   /** In a stable order; it breaks any remaining ties. */
   tasks: SchedulerTask[];
-  /** Time no Block may overlap (Events on Busy Calendars). */
-  busy: Interval[];
+  /** Time no Block may overlap (Events on Busy Calendars), each with its Event Buffers, if any. */
+  busy: (Interval & { buffers?: Buffers })[];
   /** Blocks the owner placed by hand; planned around, never moved. */
   pinnedBlocks: ScheduledBlock[];
   /** Started Blocks: past and in-progress ones that aren't pinned; planned around, never moved. */
@@ -146,7 +146,7 @@ export function schedule(input: SchedulerInput): SchedulerOutput {
     awaiting: input.awaitingBlocks,
     windows: subtract(workingSpans(input, from, to), []),
     fixed: [
-      ...input.busy.map((e) => neighbour(e, NO_BUFFERS)),
+      ...input.busy.map((e) => neighbour(e, e.buffers ?? NO_BUFFERS)),
       ...pinnedOrStarted.map((b) => neighbour(b, buffersOf.get(b.taskId) ?? NO_BUFFERS)),
     ],
   };

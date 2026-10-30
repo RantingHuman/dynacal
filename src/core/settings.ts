@@ -24,6 +24,9 @@ export interface Settings {
   taskBufferBeforeMinutes: number;
   /** The Buffer after Tasks, in minutes: one of `BUFFER_MINUTES`. A Task's own Buffer after overrides it. */
   taskBufferAfterMinutes: number;
+  /** The Buffers before and after timed Events that count as busy, in minutes: each one of `BUFFER_MINUTES`. */
+  eventBufferBeforeMinutes: number;
+  eventBufferAfterMinutes: number;
 }
 
 /** The lengths a Buffer may be, in minutes: the planning grid's steps up to an hour. */
@@ -61,6 +64,8 @@ export const DEFAULT_SETTINGS: Settings = {
   countAllDayEvents: false,
   taskBufferBeforeMinutes: 0,
   taskBufferAfterMinutes: 15,
+  eventBufferBeforeMinutes: 0,
+  eventBufferAfterMinutes: 0,
 };
 
 export type SettingsUpdate = Partial<Settings>;
@@ -74,6 +79,8 @@ export interface SettingsErrors {
   reminderLeadMinutes?: string;
   taskBufferBeforeMinutes?: string;
   taskBufferAfterMinutes?: string;
+  eventBufferBeforeMinutes?: string;
+  eventBufferAfterMinutes?: string;
 }
 
 /** Formats minutes after midnight as HH:MM. */
@@ -151,11 +158,16 @@ export function validateSettings(settings: Settings): SettingsErrors | null {
   if (!Number.isInteger(reminderLeadMinutes) || reminderLeadMinutes < 0 || reminderLeadMinutes > DAY_MINUTES) {
     errors.reminderLeadMinutes = "Reminder lead time must be a whole number of minutes from 0 to 1440.";
   }
-  if (!isBufferMinutes(settings.taskBufferBeforeMinutes)) {
-    errors.taskBufferBeforeMinutes = "Before Tasks must be 0, 15, 30, 45 or 60 minutes.";
-  }
-  if (!isBufferMinutes(settings.taskBufferAfterMinutes)) {
-    errors.taskBufferAfterMinutes = "After Tasks must be 0, 15, 30, 45 or 60 minutes.";
+  const buffers = [
+    ["taskBufferBeforeMinutes", "Before Tasks"],
+    ["taskBufferAfterMinutes", "After Tasks"],
+    ["eventBufferBeforeMinutes", "Before Events"],
+    ["eventBufferAfterMinutes", "After Events"],
+  ] as const;
+  for (const [field, label] of buffers) {
+    if (!isBufferMinutes(settings[field])) {
+      errors[field] = `${label} must be 0, 15, 30, 45 or 60 minutes.`;
+    }
   }
   return Object.keys(errors).length ? errors : null;
 }

@@ -26,6 +26,9 @@ export const settings = sqliteTable("settings", {
   taskBufferBeforeMinutes: integer("task_buffer_before_minutes").notNull().default(0),
   /** The Buffer after Tasks, in minutes. */
   taskBufferAfterMinutes: integer("task_buffer_after_minutes").notNull().default(15),
+  /** The Buffers before and after timed busy Events, in minutes. */
+  eventBufferBeforeMinutes: integer("event_buffer_before_minutes").notNull().default(0),
+  eventBufferAfterMinutes: integer("event_buffer_after_minutes").notNull().default(0),
 });
 
 /**
