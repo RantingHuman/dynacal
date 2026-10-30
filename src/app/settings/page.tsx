@@ -8,6 +8,7 @@ import { SettingsProse } from "./settings-prose";
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ google?: string }> }) {
   if (!(await currentSession())) redirect("/sign-in");
   const { google } = await searchParams;
+  const { commands } = getRuntime();
 
   return (
     <main className={styles.letter}>
@@ -22,7 +23,12 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       </header>
       <h1 className={styles.head}>How dynacal plans for you</h1>
       <p className={styles.muted}>Click any underlined value to change it. Changes save as you make them.</p>
-      <SettingsProse initial={getRuntime().commands.getSettings()} calendar={await loadCalendarView()} connectError={google} />
+      <SettingsProse
+        initial={commands.getSettings()}
+        contexts={commands.listContexts()}
+        calendar={await loadCalendarView()}
+        connectError={google}
+      />
     </main>
   );
 }

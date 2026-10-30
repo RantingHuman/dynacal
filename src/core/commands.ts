@@ -11,6 +11,7 @@ import {
   type GoogleCalendar,
 } from "./calendar-gateway";
 import type { Clock } from "./clock";
+import { FIRST_CONTEXT_NAME, type Context, type SetContextWindowsResult, type SetUpWeekResult } from "./contexts";
 import { connectionProblem, unlessRefused, watchConnectionHealth } from "./connection-health";
 import {
   awaitsCheckIn,
@@ -39,6 +40,7 @@ import {
   busyCalendars,
   busyOverrides,
   calendarWatches,
+  contexts,
   dynacalEvents,
   dynacalEventWrites,
   events,
@@ -110,7 +112,16 @@ import {
 } from "./scheduler";
 import { DAY_MS, GRID_MS, PLANNING_HORIZON_DAYS, planningHorizonEnd } from "./time";
 import { summariseWeek, type WeekSummary } from "./week-summary";
-import { DEFAULT_SETTINGS, validateSettings, type Settings, type SettingsUpdate, type UpdateSettingsResult } from "./settings";
+import {
+  DEFAULT_SETTINGS,
+  DEFAULT_WINDOWS,
+  validateSettings,
+  validateWindows,
+  type Settings,
+  type SettingsUpdate,
+  type UpdateSettingsResult,
+  type WeeklyWindows,
+} from "./settings";
 import {
   compareTasks,
   validateTask,
@@ -318,6 +329,22 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     if (!row) return structuredClone(DEFAULT_SETTINGS);
     const { id: _id, ...saved } = row;
     return saved;
+  }
+
+  /**
+   * The Default Context. An install has none until it's first needed, by setup saving the owner's hours or by a
+   * Task: then it's "Work", weekdays 09:00–17:00.
+   */
+  function defaultContext(tx: Pick<Db, "select" | "insert"> = db): Context {
+    const row = tx.select().from(contexts).where(eq(contexts.isDefault, true)).get();
+    if (row) return row;
+    const work = { id: randomUUID(), name: FIRST_CONTEXT_NAME, windows: structuredClone(DEFAULT_WINDOWS), isDefault: true };
+    tx.insert(contexts).values(work).run();
+    return work;
+  }
+
+  function saveContextWindows(tx: Pick<Db, "update">, id: string, windows: WeeklyWindows): Context | undefined {
+    return tx.update(contexts).set({ windows }).where(eq(contexts.id, id)).returning().get();
   }
 
   function taskRow(input: TaskInput) {
@@ -913,8 +940,10 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
    */
   function recalculateSchedule(): RecalculateResult {
     const current = getSettings();
-    const { timeZone, workingHours, minimumBlockMinutes } = current;
+    const { timeZone, minimumBlockMinutes } = current;
     if (timeZone === null) return { ok: false, reason: "needs-time-zone" };
+    // Every Task is in the Default Context until the owner can add others.
+    const workingHours = defaultContext().windows;
     const busy = busyTime(current, timeZone);
     const now = clock.now();
     db.transaction((tx) => {
@@ -1190,7 +1219,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     createTask(input: TaskInput): TaskResult {
       const errors = validateTask(input);
       if (errors) return { ok: false, errors };
-      const row = { id: randomUUID(), createdAt: clock.now(), ...taskRow(input) };
+      const row = { id: randomUUID(), createdAt: clock.now(), contextId: defaultContext().id, ...taskRow(input) };
       db.insert(tasks).values(row).run();
       recalculateAutomatically();
       return { ok: true, task: toTask(row) };
@@ -1239,6 +1268,48 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         }))
         .sort((a, b) => Number(a.completedAt !== null) - Number(b.completedAt !== null) || compareTasks(a, b))
         .map(({ createdAt: _createdAt, ...task }) => task);
+    },
+
+    /** The Contexts, the Default Context first. */
+    listContexts(): Context[] {
+      const first = defaultContext();
+      const others = db.select().from(contexts).where(eq(contexts.isDefault, false)).orderBy(contexts.name).all();
+      return [first, ...others];
+    },
+
+    /** Changes a Context's windows, then replans: its Tasks go only in the new windows. */
+    setContextWindows(id: string, windows: WeeklyWindows): SetContextWindowsResult {
+      if (!db.select({ id: contexts.id }).from(contexts).where(eq(contexts.id, id)).get()) return { ok: false, notFound: true };
+      const errors = validateWindows(windows);
+      if (errors) return { ok: false, errors };
+      const context = saveContextWindows(db, id, windows)!;
+      recalculateAutomatically();
+      return { ok: true, context };
+    },
+
+    /** First-run setup's last step: saves the time zone and the owner's hours, as the Default Context, together. */
+    setUpWeek({ timeZone, windows }: { timeZone: string; windows: WeeklyWindows }): SetUpWeekResult {
+      const next = { ...getSettings(), timeZone };
+      const settingsErrors = validateSettings(next);
+      const windowsErrors = validateWindows(windows);
+      if (settingsErrors || windowsErrors) {
+        return {
+          ok: false,
+          errors: {
+            ...(settingsErrors?.timeZone && { timeZone: settingsErrors.timeZone }),
+            ...(windowsErrors && { windows: windowsErrors }),
+          },
+        };
+      }
+      db.transaction((tx) => {
+        tx.insert(settings)
+          .values({ id: 1, ...next })
+          .onConflictDoUpdate({ target: settings.id, set: next })
+          .run();
+        saveContextWindows(tx, defaultContext(tx).id, windows);
+      });
+      recalculateAutomatically();
+      return { ok: true };
     },
 
     updateSettings(update: SettingsUpdate): UpdateSettingsResult {
@@ -1560,11 +1631,11 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
             eventTitle: schedule.events.find((e) => e.id === eventId)!.title,
           }))
         : [];
-    const { timeZone, workingHours } = getSettings();
+    const { timeZone } = getSettings();
     return summariseWeek({
       now: clock.now(),
       timeZone,
-      workingHours,
+      workingHours: defaultContext().windows,
       connection: getGoogleConnection(),
       blocks: schedule.status === "ready" ? schedule.blocks : [],
       busy: schedule.status === "ready" ? schedule.events.filter((e) => e.countsAsBusy) : [],

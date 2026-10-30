@@ -139,7 +139,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
                   {schedule ? (
                     <Calendar
                       {...schedule}
-                      workingHours={commands.getSettings().workingHours}
+                      workingHours={commands.listContexts()[0].windows}
                       connectionBroken={connectionBroken}
                     />
                   ) : (

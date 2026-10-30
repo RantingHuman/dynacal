@@ -3,7 +3,7 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_SETTINGS, type Settings } from "@/core/settings";
+import { DEFAULT_SETTINGS, DEFAULT_WINDOWS, type Settings } from "@/core/settings";
 import { PhoneSchedule } from "./home/phone/phone-schedule";
 import { Calendar, type CalendarBlock, type CalendarConflict, type CalendarEvent } from "./schedule/calendar";
 import { EmptyWeek } from "./schedule/empty-week";
@@ -37,10 +37,16 @@ vi.mock("./tasks/actions", () => ({
   allowSplitting: vi.fn(),
   checkIn: vi.fn(),
 }));
-vi.mock("./settings/actions", () => ({ saveSettings: vi.fn(), saveBusyCalendars: vi.fn() }));
+vi.mock("./settings/actions", () => ({
+  saveSettings: vi.fn(),
+  saveBusyCalendars: vi.fn(),
+  saveContextWindows: vi.fn(),
+  saveSetupWeek: vi.fn(),
+}));
 
 // Now is Tuesday 27 October 2026, 14:00 London time. "Pack for vegas" was at 10:30 and waits for a Check-in;
 // "Print mystery machine" was at 08:00 and is answered; "Board memo" is pinned at 15:00, over Lunch with Sam.
+const work = { id: "work", name: "Work", windows: DEFAULT_WINDOWS, isDefault: true };
 const NOW = "2026-10-27T14:00:00.000Z";
 const horizon = { start: NOW, end: "2026-11-10T14:00:00.000Z" };
 const waiting: CalendarBlock = {
@@ -103,7 +109,7 @@ describe("the owner never sees the word Block", () => {
           blocks={[answered, waiting, pinned]}
           events={[lunch]}
           conflicts={conflicts}
-          workingHours={DEFAULT_SETTINGS.workingHours}
+          workingHours={DEFAULT_WINDOWS}
         />
       </TaskEditorProvider>,
     );
@@ -154,14 +160,14 @@ describe("the owner never sees the word Block", () => {
 
   it("in Settings, with the shortest split piece open", async () => {
     const settings: Settings = { ...DEFAULT_SETTINGS, timeZone: "Europe/London", minimumBlockMinutes: 30 };
-    renderGuarded(<SettingsProse initial={settings} calendar={connected} />);
+    renderGuarded(<SettingsProse initial={settings} contexts={[work]} calendar={connected} />);
     await userEvent.click(screen.getByRole("button", { name: "30 minutes" }));
     expectTaskWords();
   });
 
   it("in onboarding", () => {
     const status = { googleConnected: true, busyCalendarsChosen: false, timeZoneSaved: false, complete: false };
-    renderGuarded(<SetupLetter status={status} calendar={connected} settings={DEFAULT_SETTINGS} />);
+    renderGuarded(<SetupLetter status={status} calendar={connected} settings={DEFAULT_SETTINGS} windows={DEFAULT_WINDOWS} />);
     expectTaskWords();
   });
 
@@ -181,7 +187,7 @@ describe("the owner never sees the word Block", () => {
 describe("the setting for split Tasks", () => {
   it("reads “Shortest split piece”, and says it's only for Tasks that can be split", async () => {
     const settings: Settings = { ...DEFAULT_SETTINGS, timeZone: "Europe/London", minimumBlockMinutes: 30 };
-    renderGuarded(<SettingsProse initial={settings} calendar={{ status: "unreachable" }} />);
+    renderGuarded(<SettingsProse initial={settings} contexts={[work]} calendar={{ status: "unreachable" }} />);
 
     await userEvent.click(screen.getByRole("button", { name: "30 minutes" }));
 

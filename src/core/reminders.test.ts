@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { blockForReminderLink } from "./reminders";
 import type { TaskInput } from "./tasks";
-import { createTestApp } from "./testing";
+import { createTestApp, setDefaultWindows } from "./testing";
 
 // The test clock starts at Monday 5 January 2026, 09:00 UTC; London is on UTC in winter.
 const MINUTE = 60_000;
@@ -24,11 +24,8 @@ const subscription = {
 /** An app in London with one push subscription, whose working day starts at 10:00 so Blocks begin an hour from now. */
 function appWithSubscription() {
   const app = createTestApp();
-  const { workingHours } = app.commands.getSettings();
-  app.commands.updateSettings({
-    timeZone: "Europe/London",
-    workingHours: { ...workingHours, mon: [{ start: 10 * 60, end: 17 * 60 }] },
-  });
+  app.commands.updateSettings({ timeZone: "Europe/London" });
+  setDefaultWindows(app.commands, { mon: [{ start: 10 * 60, end: 17 * 60 }] });
   app.commands.subscribeToPush(subscription);
   return app;
 }
@@ -110,10 +107,9 @@ describe("reminders", () => {
     await commands.sendDueReminders();
     pushSender.sent = [];
 
-    // Monday's Working Hours now start at 11:00, so the Block moves there.
+    // Monday's windows now start at 11:00, so the Block moves there.
     clock.set(new Date("2026-01-05T09:55:00Z"));
-    const { workingHours } = commands.getSettings();
-    commands.updateSettings({ workingHours: { ...workingHours, mon: [{ start: 11 * 60, end: 17 * 60 }] } });
+    setDefaultWindows(commands, { mon: [{ start: 11 * 60, end: 17 * 60 }] });
     for (const at of ["2026-01-05T10:00:00Z", "2026-01-05T10:49:00Z"]) {
       clock.set(new Date(at));
       await commands.sendDueReminders();

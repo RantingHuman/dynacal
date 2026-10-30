@@ -4,7 +4,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TaskListItem } from "@/core/commands";
-import { DEFAULT_SETTINGS } from "@/core/settings";
+import { DEFAULT_WINDOWS } from "@/core/settings";
 import { checkIn } from "../tasks/actions";
 import { TaskEditorProvider } from "../tasks/task-editor-slot";
 import { TaskPanel } from "../tasks/task-panel";
@@ -57,7 +57,7 @@ function renderDesktop(tasks: TaskListItem[] = [packing()]) {
         blocks={[past]}
         events={[]}
         conflicts={[]}
-        workingHours={DEFAULT_SETTINGS.workingHours}
+        workingHours={DEFAULT_WINDOWS}
       />
     </TaskEditorProvider>,
   );

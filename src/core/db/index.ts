@@ -13,8 +13,20 @@ const migrationsFolder = join(process.cwd(), "drizzle");
 export function openDatabase(path: string): Db {
   const sqlite = new Database(path);
   sqlite.pragma("journal_mode = WAL");
-  sqlite.pragma("foreign_keys = ON");
   const db = drizzle(sqlite, { schema });
-  migrate(db, { migrationsFolder });
+  migrateDatabase(db);
   return db;
+}
+
+/**
+ * Brings the database up to the latest schema, then turns foreign keys on. Migrations run with them off, as SQLite
+ * advises, so rebuilding a table others refer to (as 0023 does Tasks) doesn't cascade its deletion to them. A
+ * reference a migration leaves dangling is an error.
+ */
+export function migrateDatabase(db: Db): void {
+  db.$client.pragma("foreign_keys = OFF");
+  migrate(db, { migrationsFolder });
+  const dangling = db.$client.pragma("foreign_key_check") as unknown[];
+  if (dangling.length) throw new Error(`Migrations left dangling references: ${JSON.stringify(dangling)}`);
+  db.$client.pragma("foreign_keys = ON");
 }

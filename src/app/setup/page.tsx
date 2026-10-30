@@ -5,7 +5,7 @@ import { getRuntime } from "@/server/runtime";
 import { currentSession } from "@/server/session";
 import { SetupLetter } from "./setup-letter";
 
-/** First-run setup: connect Google, confirm Busy Calendars, then confirm the time zone and Working Hours. */
+/** First-run setup: connect Google, confirm Busy Calendars, then confirm the time zone and the hours that become Work. */
 export default async function SetupPage({ searchParams }: { searchParams: Promise<{ google?: string }> }) {
   if (!(await currentSession())) redirect("/sign-in");
   const { google } = await searchParams;
@@ -19,6 +19,7 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
         status={commands.getSetupStatus()}
         calendar={await loadCalendarView()}
         settings={commands.getSettings()}
+        windows={commands.listContexts()[0].windows}
         connectError={google}
       />
     </main>

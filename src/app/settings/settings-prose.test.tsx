@@ -3,17 +3,18 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_SETTINGS, type Settings } from "@/core/settings";
+import { DEFAULT_SETTINGS, DEFAULT_WINDOWS, type Settings } from "@/core/settings";
 import { renderGuarded } from "../testing/render";
 import { saveSettings } from "./actions";
 import { SettingsProse } from "./settings-prose";
 
-vi.mock("./actions", () => ({ saveSettings: vi.fn(), saveBusyCalendars: vi.fn() }));
+vi.mock("./actions", () => ({ saveSettings: vi.fn(), saveBusyCalendars: vi.fn(), saveContextWindows: vi.fn() }));
 
 const initial: Settings = { ...DEFAULT_SETTINGS, timeZone: "Europe/London", minimumBlockMinutes: 30 };
+const work = { id: "work", name: "Work", windows: DEFAULT_WINDOWS, isDefault: true };
 
 function renderSettings() {
-  renderGuarded(<SettingsProse initial={initial} calendar={{ status: "unreachable" }} />);
+  renderGuarded(<SettingsProse initial={initial} contexts={[work]} calendar={{ status: "unreachable" }} />);
 }
 
 /** The editor that opens under the "Never split a Task into pieces shorter than …" sentence. */

@@ -2,30 +2,33 @@
 
 import { useEffect, useState, useTransition } from "react";
 import type { SetupStatus } from "@/core/commands";
-import { validateSettings, type Settings } from "@/core/settings";
-import { saveBusyCalendars, saveSettings } from "@/app/settings/actions";
+import { validateSettings, validateWindows, type Settings, type WeeklyWindows } from "@/core/settings";
+import { saveBusyCalendars, saveSetupWeek } from "@/app/settings/actions";
 import { BusyCalendarsValue, toggled } from "@/app/settings/busy-calendars-value";
 import type { CalendarView } from "@/app/settings/calendar-view";
 import { browserTimeZone } from "@/app/settings/editors";
 import { GoogleButton } from "@/app/settings/google-button";
 import { connectHref, ConnectError, GoogleTrouble } from "@/app/settings/google-connection";
 import styles from "@/app/settings/prose.module.css";
-import { WeekSentences, type OpenValue } from "@/app/settings/week-sentences";
+import { TimeZoneSentence, WindowsSentences, type OpenValue } from "@/app/settings/week-sentences";
 
 /**
  * First-run setup as a numbered letter of three paragraphs: connect Google, confirm Busy Calendars, then confirm
- * the time zone and Working Hours. Each is confirmed with "That's right", and a paragraph stays dimmed until the
+ * the time zone and the owner's hours, which become the Context called Work. Each is confirmed with "That's right", and a paragraph stays dimmed until the
  * one before is done.
  */
 export function SetupLetter({
   status,
   calendar,
   settings,
+  windows,
   connectError,
 }: {
   status: SetupStatus;
   calendar: CalendarView;
   settings: Settings;
+  /** The Default Context's windows: weekdays 09:00–17:00 until the owner confirms their own. */
+  windows: WeeklyWindows;
   connectError?: string;
 }) {
   const connected = calendar.status === "connected";
@@ -63,7 +66,7 @@ export function SetupLetter({
         </p>
       )}
 
-      <WeekParagraph settings={settings} later={!status.busyCalendarsChosen} done={status.timeZoneSaved} />
+      <WeekParagraph settings={settings} windows={windows} later={!status.busyCalendarsChosen} done={status.timeZoneSaved} />
 
       {status.complete && (
         <p className={styles.prose}>
@@ -123,21 +126,37 @@ function BusyParagraph({ view, done }: { view: Extract<CalendarView, { status: "
   );
 }
 
-/** "I work in Europe/London. Monday to Friday, 09:00–17:00. Saturday and Sunday are off." The time zone is detected. */
-function WeekParagraph({ settings, later, done }: { settings: Settings; later: boolean; done: boolean }) {
-  const [draft, setDraft] = useState(settings);
+/**
+ * "I work in Europe/London. Monday to Friday, 09:00–17:00. Saturday and Sunday are off." The time zone is detected.
+ * Confirming saves the hours as Work, the Default Context.
+ */
+function WeekParagraph({
+  settings,
+  windows,
+  later,
+  done,
+}: {
+  settings: Settings;
+  windows: WeeklyWindows;
+  later: boolean;
+  done: boolean;
+}) {
+  const [timeZone, setTimeZone] = useState(settings.timeZone);
+  const [draftWindows, setDraftWindows] = useState(windows);
   const [open, setOpen] = useState<OpenValue>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, startSaving] = useTransition();
-  const held = validateSettings(draft);
+  const heldTimeZone = validateSettings({ ...settings, timeZone })?.timeZone;
+  const heldWindows = validateWindows(draftWindows);
 
   useEffect(() => {
-    if (settings.timeZone === null) setDraft((d) => (d.timeZone === null ? { ...d, timeZone: browserTimeZone() } : d));
+    if (settings.timeZone === null) setTimeZone((t) => t ?? browserTimeZone());
   }, [settings.timeZone]);
 
   function confirm() {
+    if (timeZone === null) return;
     startSaving(async () => {
-      const result = await saveSettings(draft);
+      const result = await saveSetupWeek({ timeZone, windows: draftWindows });
       setError(result.ok ? null : "Something here isn't valid yet. Check the values in the accent.");
       if (result.ok) setOpen(null);
     });
@@ -146,11 +165,20 @@ function WeekParagraph({ settings, later, done }: { settings: Settings; later: b
   return (
     <p className={styles.prose} data-later={later} data-done={done}>
       <span className={styles.paraNum}>3</span>
-      <WeekSentences
-        settings={done ? settings : draft}
-        saved={settings}
-        held={done ? null : held}
-        onChange={(change) => setDraft((d) => ({ ...d, ...change }))}
+      <TimeZoneSentence
+        timeZone={done ? settings.timeZone : timeZone}
+        saved={settings.timeZone}
+        held={done ? undefined : heldTimeZone}
+        onChange={setTimeZone}
+        open={open}
+        onOpen={setOpen}
+        readOnly={done || later}
+      />
+      <WindowsSentences
+        windows={done ? windows : draftWindows}
+        saved={windows}
+        held={done ? null : heldWindows}
+        onChange={setDraftWindows}
         open={open}
         onOpen={setOpen}
         readOnly={done || later}
@@ -159,7 +187,7 @@ function WeekParagraph({ settings, later, done }: { settings: Settings; later: b
         <button
           type="button"
           className={`button ${styles.paraAction}`}
-          disabled={saving || held !== null || draft.timeZone === null}
+          disabled={saving || heldTimeZone !== undefined || heldWindows !== null || timeZone === null}
           onClick={confirm}
         >
           {saving ? "…" : <>That&rsquo;s right</>}

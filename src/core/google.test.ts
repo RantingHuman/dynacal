@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { GoogleGrant } from "./commands";
 import type { TaskInput } from "./tasks";
-import { createTestApp } from "./testing";
+import { createTestApp, setDefaultWindows } from "./testing";
 
 // The test clock starts at Monday 5 January 2026, 09:00 UTC; London is on UTC in winter.
 const grant: GoogleGrant = {
@@ -243,12 +243,10 @@ describe("Events on Busy Calendars", () => {
 
   it("that last all day are ignored, unless the owner chooses to count them, and then span the day in their time zone", async () => {
     const app = appWithCalendars();
-    // Evening Working Hours in New York: 20:00–21:00 local is 01:00–02:00 UTC the next day.
+    // Evening windows in New York: 20:00–21:00 local is 01:00–02:00 UTC the next day.
     const evening = [{ start: 20 * 60, end: 21 * 60 }];
-    app.commands.updateSettings({
-      timeZone: "America/New_York",
-      workingHours: { mon: evening, tue: evening, wed: evening, thu: evening, fri: evening, sat: [], sun: [] },
-    });
+    app.commands.updateSettings({ timeZone: "America/New_York" });
+    setDefaultWindows(app.commands, { mon: evening, tue: evening, wed: evening, thu: evening, fri: evening });
     app.calendar.addEvent("work", { title: "Offsite", startDate: "2026-01-05", endDate: "2026-01-06" });
     await connect(app);
     createTask(app);
