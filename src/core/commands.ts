@@ -12,6 +12,7 @@ import {
 } from "./calendar-gateway";
 import type { Clock } from "./clock";
 import {
+  CONTEXT_GONE,
   FIRST_CONTEXT_NAME,
   contextNameError,
   contextTag,
@@ -347,15 +348,23 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
   }
 
   /**
-   * The Default Context. An install has none until it's first needed, by setup saving the owner's hours or by a
-   * Task: then it's "Work", weekdays 09:00–17:00.
+   * Saves "Work", weekdays 09:00–17:00, as the Default Context if the install has none yet: a fresh install, before
+   * setup saves the owner's hours. This is the only place a Default Context is created; there's always one after.
    */
-  function defaultContext(tx: Pick<Db, "select" | "insert"> = db): Context {
-    const row = tx.select().from(contexts).where(eq(contexts.isDefault, true)).get();
-    if (row) return row;
+  function saveFirstContext(): void {
+    if (db.select({ id: contexts.id }).from(contexts).where(eq(contexts.isDefault, true)).get()) return;
     const work = { id: randomUUID(), name: FIRST_CONTEXT_NAME, windows: structuredClone(DEFAULT_WINDOWS), isDefault: true };
-    tx.insert(contexts).values(work).run();
-    return work;
+    db.insert(contexts).values(work).run();
+  }
+  saveFirstContext();
+
+  /** The Default Context, which `saveFirstContext` makes sure there is. */
+  function defaultContext(tx: Pick<Db, "select"> = db): Context {
+    return tx.select().from(contexts).where(eq(contexts.isDefault, true)).get()!;
+  }
+
+  function contextExists(id: string): boolean {
+    return db.select({ id: contexts.id }).from(contexts).where(eq(contexts.id, id)).get() !== undefined;
   }
 
   function saveContextWindows(tx: Pick<Db, "update">, id: string, windows: WeeklyWindows): Context | undefined {
@@ -402,13 +411,11 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     };
   }
 
-  /** The Task's input checked, its Context included: a missing one means the Default Context. */
-  function checkTask(input: TaskInput): { errors: TaskErrors } | { errors: null; contextId: string } {
+  /** The Task's input checked, its Context included: a missing one means `current`, the Task's own Context. */
+  function checkTask(input: TaskInput, current: string): { errors: TaskErrors } | { errors: null; contextId: string } {
     const errors = validateTask(input) ?? {};
-    const contextId = input.contextId ?? defaultContext().id;
-    if (!db.select({ id: contexts.id }).from(contexts).where(eq(contexts.id, contextId)).get()) {
-      errors.contextId = "That Context no longer exists.";
-    }
+    const contextId = input.contextId ?? current;
+    if (!contextExists(contextId)) errors.contextId = CONTEXT_GONE;
     return Object.keys(errors).length ? { errors } : { errors: null, contextId };
   }
 
@@ -1265,7 +1272,8 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     },
 
     createTask(input: TaskInput): TaskResult {
-      const checked = checkTask(input);
+      // A Task added without a Context joins the Default Context.
+      const checked = checkTask(input, defaultContext().id);
       if (checked.errors) return { ok: false, errors: checked.errors };
       const row = {
         id: randomUUID(),
@@ -1281,8 +1289,10 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     },
 
     updateTask(id: string, input: TaskInput): UpdateTaskResult {
-      if (!db.select({ id: tasks.id }).from(tasks).where(eq(tasks.id, id)).get()) return { ok: false, notFound: true };
-      const checked = checkTask(input);
+      const current = db.select({ contextId: tasks.contextId }).from(tasks).where(eq(tasks.id, id)).get();
+      if (!current) return { ok: false, notFound: true };
+      // Like a missing Buffer, a missing Context keeps the Task's own.
+      const checked = checkTask(input, current.contextId);
       if (checked.errors) return { ok: false, errors: checked.errors };
       const row = db
         .update(tasks)
@@ -1366,7 +1376,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
      * Context stay in it, so nothing needs replanning.
      */
     makeDefaultContext(id: string): MakeDefaultContextResult {
-      if (!db.select({ id: contexts.id }).from(contexts).where(eq(contexts.id, id)).get()) return { ok: false, notFound: true };
+      if (!contextExists(id)) return { ok: false, notFound: true };
       db.transaction((tx) => {
         // The old default is cleared first: only one row may be the default at a time.
         tx.update(contexts).set({ isDefault: false }).where(eq(contexts.isDefault, true)).run();
@@ -1393,7 +1403,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
 
     /** Changes a Context's windows, then replans: its Tasks go only in the new windows. */
     setContextWindows(id: string, windows: WeeklyWindows): SetContextWindowsResult {
-      if (!db.select({ id: contexts.id }).from(contexts).where(eq(contexts.id, id)).get()) return { ok: false, notFound: true };
+      if (!contextExists(id)) return { ok: false, notFound: true };
       const errors = validateWindows(windows);
       if (errors) return { ok: false, errors };
       const context = saveContextWindows(db, id, windows)!;

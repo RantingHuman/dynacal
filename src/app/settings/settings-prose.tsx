@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { contextNameError, type Context, type ContextErrors } from "@/core/contexts";
+import { CONTEXT_GONE, contextNameError, type Context, type ContextErrors } from "@/core/contexts";
 import { DEFAULT_WINDOWS, validateSettings, validateWindows, type Settings, type WeeklyWindows } from "@/core/settings";
 import { settingsToSave, windowsToSave } from "@/core/settings-draft";
 import {
@@ -406,7 +406,7 @@ function useManageContext(context: Context, contexts: Context[], onDone: (messag
       if (nameError) return setError(nameError);
       return run(async () => {
         const result = await renameContext(context.id, newName);
-        if (!result.ok) return "errors" in result ? result.errors.name : "That Context no longer exists.";
+        if (!result.ok) return "errors" in result ? result.errors.name : CONTEXT_GONE;
         setName(result.context.name);
         onDone(`Renamed to ${result.context.name}`);
         return null;
@@ -415,7 +415,7 @@ function useManageContext(context: Context, contexts: Context[], onDone: (messag
     makeDefault() {
       return run(async () => {
         const result = await makeDefaultContext(context.id);
-        if (!result.ok) return "That Context no longer exists.";
+        if (!result.ok) return CONTEXT_GONE;
         onDone(`${name} is the default`);
         return null;
       }, "The default wasn't changed");
@@ -423,7 +423,7 @@ function useManageContext(context: Context, contexts: Context[], onDone: (messag
     remove() {
       return run(async () => {
         const result = await deleteContext(context.id);
-        if (!result.ok) return "error" in result ? result.error : "That Context no longer exists.";
+        if (!result.ok) return "error" in result ? result.error : CONTEXT_GONE;
         setDeleted(true);
         onDone(`${name} deleted`);
         return null;

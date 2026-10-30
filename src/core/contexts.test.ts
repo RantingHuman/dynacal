@@ -43,6 +43,17 @@ describe("Work, the first Context", () => {
     expect(commands.listContexts()).toEqual([{ id: expect.any(String), name: "Work", windows: weekdays, isDefault: true }]);
   });
 
+  it("is there on a fresh install without listing the Contexts writing anything", () => {
+    const { commands, db } = createTestApp();
+    const changes = () => (db.$client.prepare("SELECT total_changes() AS n").get() as { n: number }).n;
+    const before = changes();
+
+    const listed = commands.listContexts();
+
+    expect(changes()).toBe(before);
+    expect(listed).toEqual([{ id: expect.any(String), name: "Work", windows: weekdays, isDefault: true }]);
+  });
+
   it("is what first-run setup saves the owner's hours as, with the time zone", () => {
     const { commands } = createTestApp();
     const mornings = { ...weekdays, mon: [{ start: 8 * 60, end: 12 * 60 }], sat: [{ start: 10 * 60, end: 12 * 60 }] };
@@ -400,6 +411,17 @@ describe("a Task in a Context", () => {
 
     expect(result).toMatchObject({ ok: true, task: { contextId: deep.id } });
     expect(blocks(commands)).toEqual([["Write essay", "2026-01-05T08:00:00.000Z", "2026-01-05T09:00:00.000Z"]]);
+  });
+
+  it("keeps its Context when updated without one", () => {
+    const { commands, deep } = appWithDeepWork();
+    const created = commands.createTask(oneHour("Write essay", deep.id));
+    if (!created.ok) throw new Error("Task refused");
+
+    const result = commands.updateTask(created.task.id, { ...oneHour("Write essay"), estimatedMinutes: 90 });
+
+    expect(result).toMatchObject({ ok: true, task: { contextId: deep.id } });
+    expect(blocks(commands)).toEqual([["Write essay", "2026-01-05T08:00:00.000Z", "2026-01-05T09:30:00.000Z"]]);
   });
 
   it("can't be put in a Context that doesn't exist", () => {

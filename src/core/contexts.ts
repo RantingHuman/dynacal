@@ -12,13 +12,11 @@ export interface Context {
 /** The Default Context an install starts with, holding what used to be Working Hours. */
 export const FIRST_CONTEXT_NAME = "Work";
 
-export type SetContextWindowsResult =
-  | { ok: true; context: Context }
-  | { ok: false; notFound: true }
-  | { ok: false; errors: WindowsErrors };
-
 /** A Context's name is short enough to fit as a tag on a phone row. */
 export const CONTEXT_NAME_MAX = 20;
+
+/** What a Context's commands say when it was deleted elsewhere. */
+export const CONTEXT_GONE = "That Context no longer exists.";
 
 export interface ContextInput {
   name: string;
@@ -34,6 +32,17 @@ export type RenameContextResult =
   | { ok: false; notFound: true }
   | { ok: false; errors: { name: string } };
 
+export type SetContextWindowsResult =
+  | { ok: true; context: Context }
+  | { ok: false; notFound: true }
+  | { ok: false; errors: WindowsErrors };
+
+export type MakeDefaultContextResult = { ok: true } | { ok: false; notFound: true };
+
+export type DeleteContextResult = { ok: true } | { ok: false; notFound: true } | { ok: false; error: string };
+
+export type SetUpWeekResult = { ok: true } | { ok: false; errors: { timeZone?: string; windows?: WindowsErrors } };
+
 /** Why a name can't be a Context's, or null: names are trimmed, non-empty, short and unique ignoring case. */
 export function contextNameError(name: string, others: Pick<Context, "name">[]): string | null {
   const trimmed = name.trim();
@@ -42,12 +51,6 @@ export function contextNameError(name: string, others: Pick<Context, "name">[]):
   const same = others.find((c) => c.name.toLowerCase() === trimmed.toLowerCase());
   return same ? `There's already a Context called ${same.name}.` : null;
 }
-
-export type MakeDefaultContextResult = { ok: true } | { ok: false; notFound: true };
-
-export type DeleteContextResult = { ok: true } | { ok: false; notFound: true } | { ok: false; error: string };
-
-export type SetUpWeekResult = { ok: true } | { ok: false; errors: { timeZone?: string; windows?: WindowsErrors } };
 
 /**
  * The time any Context covers, as one set of weekly windows: where windows overlap or touch, they're joined. The

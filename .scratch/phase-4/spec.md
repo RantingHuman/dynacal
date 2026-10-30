@@ -98,7 +98,7 @@ Finally, a Task due in three weeks shows as Unscheduled, with the same alarm as 
 **Commands**
 
 - New commands: create, rename, set windows, make default, and delete a Context. Each that changes where Tasks may go triggers a Recalculation. Delete moves the Context's Tasks (complete or not) to the Default Context first, and refuses to delete the Default Context.
-- Task create and update accept a Context id; when missing, the Default Context is used. An unknown id is a validation error.
+- Task create and update accept a Context id. When missing, create uses the Default Context and update keeps the Task's current Context (as a missing Buffer keeps the Task's own). An unknown id is a validation error.
 - Task create and update accept an optional Buffer before and Buffer after in minutes, each one of 0, 15, 30, 45 or 60, or null to follow the default.
 - Settings gain four values: the Task Buffer before and after defaults (0 and 15) and the Event Buffer before and after (0 and 0), validated to the same steps.
 - Context listing is exposed to the add-line reader, the editor, the task list and Settings.
