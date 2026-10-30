@@ -1,6 +1,6 @@
 import type { GoogleConnectionView } from "./google-connection";
 import type { TaskFlag } from "./scheduler";
-import { WEEKDAYS, type WorkingHours } from "./settings";
+import { WEEKDAYS, type WeeklyWindows } from "./settings";
 import type { DateOrDateTime } from "./tasks";
 import { HOUR_MS, type Interval } from "./time";
 import { addDays, fromZoned, toZoned, weekdayOf } from "./time-zone";
@@ -93,7 +93,7 @@ export interface WeekSummary {
 export interface WeekSummaryInput {
   now: Date;
   timeZone: string | null;
-  workingHours: WorkingHours;
+  workingHours: WeeklyWindows;
   connection: GoogleConnectionView;
   /** Every Block, in time order. */
   blocks: { taskId: string; taskTitle: string; start: Date; end: Date }[];
@@ -177,7 +177,7 @@ interface WorkingSpan extends Interval {
 }
 
 /** The Working Hours left in the week starting `monday`, from `now` on. */
-function workingSpans(monday: string, timeZone: string, workingHours: WorkingHours, now: Date): WorkingSpan[] {
+function workingSpans(monday: string, timeZone: string, workingHours: WeeklyWindows, now: Date): WorkingSpan[] {
   return WEEKDAYS.flatMap((day, i) => {
     const date = addDays(monday, i);
     return workingHours[day].map((window) => ({
