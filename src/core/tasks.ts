@@ -112,7 +112,7 @@ export function compareTasks(a: Task & { createdAt: Date }, b: Task & { createdA
 }
 
 /**
- * Whether the Earliest Start is after the deadline whatever the Working Hours are:
+ * Whether the Earliest Start is after the deadline whatever its Context's windows are:
  * a date-only Earliest Start could be as early as 00:00 and a date-only deadline as late as 24:00.
  */
 function startsAfterDeadline(earliestStart: DateOrDateTime, deadline: DateOrDateTime): boolean {

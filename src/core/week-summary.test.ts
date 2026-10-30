@@ -4,7 +4,7 @@ import type { TaskInput } from "./tasks";
 import { createTestApp } from "./testing";
 
 // The test clock starts at Monday 5 January 2026, 09:00 UTC; London is on UTC in winter.
-// Working Hours default to 09:00–17:00 on weekdays.
+// Work's windows default to 09:00–17:00 on weekdays.
 type App = ReturnType<typeof createTestApp>;
 
 const grant: GoogleGrant = {
@@ -57,9 +57,9 @@ describe("the week summary's takeover states", () => {
 
 /** A Task that's Overdue: its deadline passed last Friday. */
 const overdue = { title: "Invoice", deadline: { date: "2026-01-02", time: null } };
-/** A Task that's At Risk: ten hours of work due by the end of today's Working Hours. */
+/** A Task that's At Risk: ten hours of work due by the end of today's windows. */
 const atRisk = { title: "Board memo", estimatedMinutes: 600, deadline: { date: "2026-01-05", time: null } };
-/** A Task that's Unscheduled: nine hours in one go, due this week, but no day has more than eight Working Hours. */
+/** A Task that's Unscheduled: nine hours in one go, due this week, but no day has more than eight hours of windows. */
 const unscheduled = {
   title: "Offsite plan",
   estimatedMinutes: 540,
@@ -231,14 +231,14 @@ describe("the week the summary describes", () => {
     });
   });
 
-  it("stays on this week while Working Hours remain", () => {
+  it("stays on this week while windows remain", () => {
     const app = appInLondon();
     app.clock.set(at("16:00", "2026-01-09"));
 
     expect(app.commands.getWeekSummary()).toMatchObject({ weekOf: "2026-01-05", nextWeek: false });
   });
 
-  it("rolls over to next week once no Working Hours remain, counting next week's Blocks", () => {
+  it("rolls over to next week once no windows remain, counting next week's Blocks", () => {
     const app = appInLondon();
     app.clock.set(at("17:00", "2026-01-09"));
     createTask(app, { title: "Budget" });
@@ -254,7 +254,7 @@ describe("the week the summary describes", () => {
 });
 
 describe("the longest free stretch", () => {
-  it("is the longest time inside Working Hours this week without a Block or busy Event", async () => {
+  it("is the longest time inside windows this week without a Block or busy Event", async () => {
     const app = await appWithMeeting();
     createTask(app, { title: "Report" });
     // Monday is broken up by the Report and the Stand-up, so all of Tuesday is the longest.
@@ -266,7 +266,7 @@ describe("the longest free stretch", () => {
 
   it("counts only when it's at least two hours", () => {
     const app = appInLondon();
-    // 38 of the week's 40 Working Hours are taken, leaving two on Friday afternoon.
+    // 38 of the week's 40 hours of windows are taken, leaving two on Friday afternoon.
     createTask(app, { title: "Thesis", estimatedMinutes: 38 * 60, deadline: { date: "2026-01-09", time: null } });
 
     expect(app.commands.getWeekSummary()).toMatchObject({

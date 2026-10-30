@@ -197,7 +197,7 @@ export function Calendar({
   blocks,
   events,
   conflicts,
-  workingHours,
+  contextWindows,
   connectionBroken = false,
   openBlockId,
 }: {
@@ -206,7 +206,8 @@ export function Calendar({
   blocks: CalendarBlock[];
   events: CalendarEvent[];
   conflicts: CalendarConflict[];
-  workingHours: WeeklyWindows;
+  /** The time any Context covers (`coveredWindows`): shaded, and always in view. */
+  contextWindows: WeeklyWindows;
   /**
    * While Google access is broken, automatic Recalculation is paused; the Recalculate button still works,
    * planning around the Events dynacal last saw.
@@ -512,11 +513,11 @@ export function Calendar({
   const hasAllDay = days.some((d) => allDayByDay.get(d)!.length > 0);
   const draftByDay = newEvent.draft && placeOnDays([newEvent.draft], days, timeZone);
 
-  // Show the hours that matter: Working Hours on the days in view and any Block or Event, at least 08:00–18:00.
+  // Show the hours that matter: Contexts' windows on the days in view and any Block or Event, at least 08:00–18:00.
   let first = 8 * 60;
   let last = 18 * 60;
   for (const day of days) {
-    for (const w of workingHours[weekdayOf(day)]) {
+    for (const w of contextWindows[weekdayOf(day)]) {
       first = Math.min(first, w.start);
       last = Math.max(last, w.end);
     }
@@ -688,10 +689,10 @@ export function Calendar({
               aria-label={dayLabel(day)}
               onClick={(e) => createAt(e, day)}
             >
-              {workingHours[weekdayOf(day)].map((w) => (
+              {contextWindows[weekdayOf(day)].map((w) => (
                 <div
                   key={w.start}
-                  className="working-hours"
+                  className="context-window"
                   style={{ top: px(Math.max(w.start, first)), height: px(Math.min(w.end, last)) - px(Math.max(w.start, first)) }}
                 />
               ))}

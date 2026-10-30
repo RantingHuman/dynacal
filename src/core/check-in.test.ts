@@ -4,7 +4,7 @@ import { createTestApp } from "./testing";
 
 // The test clock starts at Monday 5 January 2026, 09:00 UTC; London is on UTC in winter.
 // Tasks pack back to back here: the Buffer after Tasks is 0 (buffers.test.ts covers Buffers).
-// Working Hours default to 09:00–17:00 on weekdays.
+// Work's windows default to 09:00–17:00 on weekdays.
 const oneHour: TaskInput = {
   title: "Pack for vegas",
   notes: "",

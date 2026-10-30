@@ -1241,7 +1241,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
 
     getGoogleConnection,
 
-    /** First-run setup: connect Google (and choose Busy Calendars), then set Working Hours and time zone. */
+    /** First-run setup: connect Google (and choose Busy Calendars), then save the time zone and the hours that become Work. */
     getSetupStatus(): SetupStatus {
       const googleConnected = getGoogleConnection().status !== "not-connected";
       const chosen = busyCalendarsChosen();
@@ -1760,7 +1760,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     return summariseWeek({
       now: clock.now(),
       timeZone,
-      workingHours: coveredWindows(contexts),
+      windows: coveredWindows(contexts),
       connection: getGoogleConnection(),
       blocks: schedule.status === "ready" ? schedule.blocks : [],
       busy: schedule.status === "ready" ? schedule.events.filter((e) => e.countsAsBusy) : [],

@@ -59,7 +59,7 @@ export function toZoned(instant: Date, timeZone: string): ZonedTime {
  * The instant a wall-clock time in `timeZone` names. `minutes` may be 1440 (midnight ending the day).
  * A time the clocks pass twice (when daylight saving ends) picks the `earlier` or `later` pass.
  * A time the clocks skip (when daylight saving starts) becomes the moment of the jump, so a window
- * of Working Hours never stretches past what the wall clock shows.
+ * of a Context never stretches past what the wall clock shows.
  */
 export function fromZoned(
   { date, minutes }: ZonedTime,

@@ -1,7 +1,7 @@
 "use client";
 
 import type { GoogleCalendar } from "@/core/calendar-gateway";
-import { andList } from "@/core/working-hours-runs";
+import { andList } from "@/core/window-runs";
 import { CalendarChips } from "./editors";
 import { Value } from "./value";
 

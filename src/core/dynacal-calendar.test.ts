@@ -190,7 +190,7 @@ describe("Blocks in the dynacal calendar", () => {
   it("are added and removed as a Task is split into more or fewer Blocks", async () => {
     const app = appInLondon();
     const dynacal = await connect(app);
-    // Working Hours default to 09:00–17:00, so a 10-hour Task needs two Blocks.
+    // Work's windows default to 09:00–17:00, so a 10-hour Task needs two Blocks.
     const task = createTask(app, { estimatedMinutes: 600 });
     await app.commands.writeBlocksToGoogle();
     expect(app.calendar.blockEventsOn(dynacal)).toEqual([

@@ -43,7 +43,7 @@ function blocksOf(result: ReturnType<typeof schedule>) {
 }
 
 describe("scheduler", () => {
-  it("places a Task at the start of Working Hours", () => {
+  it("places a Task at the start of its Context's windows", () => {
     const result = schedule(input({ tasks: [task("a")] }));
 
     expect(blocksOf(result)).toEqual([["a", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"]]);
@@ -67,7 +67,7 @@ describe("scheduler", () => {
     ]);
   });
 
-  it("skips days without Working Hours", () => {
+  it("skips days without windows", () => {
     const friday5pm = new Date("2026-01-09T17:00:00Z");
     const result = schedule(input({ now: friday5pm, tasks: [task("a")] }));
 
@@ -508,7 +508,7 @@ describe("scheduler", () => {
       expect(blocksOf(result)).toEqual([["a", "2026-01-05T10:00:00.000Z", "2026-01-05T11:00:00.000Z"]]);
     });
 
-    it("counts a Pinned Block outside Working Hours toward the Task", () => {
+    it("counts a Pinned Block outside its Context's windows toward the Task", () => {
       const result = schedule(
         input({
           tasks: [task("a", { remainingMinutes: 90 })],
@@ -581,13 +581,13 @@ describe("scheduler", () => {
   });
 
   describe("time zones", () => {
-    it("places Blocks in Working Hours on the owner's wall clock", () => {
+    it("places Blocks in windows on the owner's wall clock", () => {
       const result = schedule(input({ timeZone: "America/New_York", tasks: [task("a")] }));
 
       expect(blocksOf(result)).toEqual([["a", "2026-01-05T14:00:00.000Z", "2026-01-05T15:00:00.000Z"]]);
     });
 
-    it("follows Working Hours across a daylight-saving change", () => {
+    it("follows windows across a daylight-saving change", () => {
       // New York leaves daylight saving on Sunday 1 November 2026: 09:00 is 13:00Z on Friday, 14:00Z on Monday.
       const result = schedule(
         input({
@@ -637,7 +637,7 @@ describe("scheduler", () => {
     function randomInput(seed: number): SchedulerInput {
       const r = random(seed);
       const quarter = (min: number, max: number) => r.int(min / 15, max / 15) * 15;
-      const workingHours = Object.fromEntries(
+      const windows = Object.fromEntries(
         WEEKDAYS.map((day) => {
           if (r.next() < 0.25) return [day, []];
           const start = quarter(0, 600);
@@ -668,7 +668,7 @@ describe("scheduler", () => {
       const result = input({
         now,
         timeZone: r.pick(["Europe/London", "America/New_York", "Australia/Sydney", "Asia/Kathmandu", "UTC"]),
-        contexts: [{ id: "work", windows: workingHours }],
+        contexts: [{ id: "work", windows }],
         minimumBlockMinutes: quarter(15, 120),
         tasks,
         busy,
@@ -735,7 +735,7 @@ describe("scheduler", () => {
       }
     });
 
-    it("keeps every Block inside Working Hours on the owner's wall clock", () => {
+    it("keeps every Block inside windows on the owner's wall clock", () => {
       for (const seed of seeds) {
         const given = randomInput(seed);
         for (const block of schedule(given).blocks) {

@@ -488,7 +488,7 @@ input[type="checkbox"]:disabled {
   opacity: 0.45;
 }
 
-.working-hours {
+.context-window {
   position: absolute;
   left: 0;
   right: 0;

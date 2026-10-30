@@ -109,7 +109,7 @@ describe("the owner never sees the word Block", () => {
           blocks={[answered, waiting, pinned]}
           events={[lunch]}
           conflicts={conflicts}
-          workingHours={DEFAULT_WINDOWS}
+          contextWindows={DEFAULT_WINDOWS}
         />
       </TaskEditorProvider>,
     );

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { TaskInput } from "./tasks";
 import { createTestApp } from "./testing";
 
-// The test clock starts at Monday 5 January 2026, 09:00 UTC; London is on UTC in winter. Working Hours default to
+// The test clock starts at Monday 5 January 2026, 09:00 UTC; London is on UTC in winter. Work's windows default to
 // 09:00–17:00 on weekdays, so the 14-day Planning Horizon holds ten working days: 80 hours.
 type Commands = ReturnType<typeof createTestApp>["commands"];
 

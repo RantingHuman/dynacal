@@ -52,7 +52,7 @@ describe("Tasks", () => {
     expect(commands.listTasks()[0]).toMatchObject(full);
   });
 
-  it("allows an Earliest Start on the deadline's day, since date-only values depend on Working Hours", () => {
+  it("allows an Earliest Start on the deadline's day, since date-only values depend on the Context's windows", () => {
     const { commands } = createTestApp();
 
     for (const [earliestStart, deadline] of [

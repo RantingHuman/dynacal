@@ -1,7 +1,7 @@
 "use client";
 
 import type { WeeklyWindows, Weekday, WindowsErrors } from "@/core/settings";
-import { runDays, runHours, setRunHours, workingHoursRuns } from "@/core/working-hours-runs";
+import { runDays, runHours, setRunHours, windowRuns } from "@/core/window-runs";
 import { TimeZoneEditor, WindowsEditor } from "./editors";
 import styles from "./prose.module.css";
 import { Value } from "./value";
@@ -91,7 +91,7 @@ export function WindowsSentences({
 
   return (
     <>
-      {workingHoursRuns(windows).map((run) => {
+      {windowRuns(windows).map((run) => {
         const isOpen = editing !== null && run.days.includes(editing[0]);
         const target = isOpen ? editing : run.days;
         const label = runDays(target);

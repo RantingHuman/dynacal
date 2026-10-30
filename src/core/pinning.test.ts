@@ -149,7 +149,7 @@ describe("a Block that has started", () => {
 });
 
 describe("a Pinned Block", () => {
-  it("can be placed outside Working Hours, and stays put through later Recalculations", () => {
+  it("can be placed outside its Context's windows, and stays put through later Recalculations", () => {
     const app = appInLondon();
     createTask(app, { title: "Report", estimatedMinutes: 90 });
     app.commands.moveBlock(blockOf(app, "Report").id, { start: at("19:00"), end: at("20:00") });

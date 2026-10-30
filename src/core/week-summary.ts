@@ -43,14 +43,14 @@ const MAX_SECONDARY = 2;
 /** A free stretch shorter than this isn't worth pointing out. */
 const MIN_FREE_STRETCH_MS = 2 * HOUR_MS;
 
-/** A stretch of one day's Working Hours, on the owner's wall clock. */
+/** A stretch of one day's windows (the time any Context covers), on the owner's wall clock. */
 export interface FreeStretch {
   /** YYYY-MM-DD */
   date: string;
   /** Minutes after midnight. */
   start: number;
   end: number;
-  /** It runs from the start of that day's Working Hours to their end. */
+  /** It runs from the start of that day's windows to their end. */
   wholeDay: boolean;
 }
 
@@ -80,7 +80,7 @@ export interface WeekSummary {
   email: string | null;
   /** Today's date on the owner's wall clock (UTC until they save a time zone). */
   today: string;
-  /** The Monday that starts the week described: this week, or next week once this one has no Working Hours left. */
+  /** The Monday that starts the week described: this week, or next week once this one has no windows left. */
   weekOf: string;
   /** Whether the summary has rolled over to next week. */
   nextWeek: boolean;
@@ -88,14 +88,15 @@ export interface WeekSummary {
   tasks: number;
   /** The first Block after the week described, for "nothing scheduled this week". */
   nextBlock: { taskTitle: string; date: string } | null;
-  /** The longest stretch inside Working Hours left in the week without a Block or busy Event, if it's two hours or more. */
+  /** The longest stretch inside the windows left in the week without a Block or busy Event, if it's two hours or more. */
   freeStretch: FreeStretch | null;
 }
 
 export interface WeekSummaryInput {
   now: Date;
   timeZone: string | null;
-  workingHours: WeeklyWindows;
+  /** The time any Context covers (`coveredWindows`). */
+  windows: WeeklyWindows;
   connection: GoogleConnectionView;
   /** Every Block, in time order. */
   blocks: { taskId: string; taskTitle: string; start: Date; end: Date }[];
@@ -118,11 +119,11 @@ export interface WeekSummaryInput {
 
 /** Summarises the week for the headline. */
 export function summariseWeek(input: WeekSummaryInput): WeekSummary {
-  const { now, workingHours } = input;
+  const { now, windows } = input;
   const timeZone = input.timeZone ?? "UTC";
   const today = toZoned(now, timeZone).date;
   const thisMonday = addDays(today, -WEEKDAYS.indexOf(weekdayOf(today)));
-  const hoursLeft = (monday: string) => workingSpans(monday, timeZone, workingHours, now);
+  const hoursLeft = (monday: string) => windowSpans(monday, timeZone, windows, now);
   const nextWeek = input.timeZone !== null && hoursLeft(thisMonday).length === 0;
   const weekOf = nextWeek ? addDays(thisMonday, 7) : thisMonday;
   const weekEnd = fromZoned({ date: addDays(weekOf, 7), minutes: 0 }, timeZone);
@@ -174,17 +175,17 @@ export function summariseWeek(input: WeekSummaryInput): WeekSummary {
   };
 }
 
-/** A window of Working Hours as instants, with the date and wall-clock window it came from. */
-interface WorkingSpan extends Interval {
+/** A window as instants, with the date and wall-clock window it came from. */
+interface WindowSpan extends Interval {
   date: string;
   window: { start: number; end: number };
 }
 
-/** The Working Hours left in the week starting `monday`, from `now` on. */
-function workingSpans(monday: string, timeZone: string, workingHours: WeeklyWindows, now: Date): WorkingSpan[] {
+/** The windows left in the week starting `monday`, from `now` on. */
+function windowSpans(monday: string, timeZone: string, windows: WeeklyWindows, now: Date): WindowSpan[] {
   return WEEKDAYS.flatMap((day, i) => {
     const date = addDays(monday, i);
-    return workingHours[day].map((window) => ({
+    return windows[day].map((window) => ({
       date,
       window,
       start: new Date(Math.max(now.getTime(), fromZoned({ date, minutes: window.start }, timeZone, "later").getTime())),
@@ -194,8 +195,8 @@ function workingSpans(monday: string, timeZone: string, workingHours: WeeklyWind
 }
 
 /** The longest stretch of `spans` that `taken` leaves free, if it's long enough to mention; the earliest wins a tie. */
-function longestFreeStretch(spans: WorkingSpan[], taken: Interval[], timeZone: string): FreeStretch | null {
-  let best: { span: WorkingSpan; start: number; end: number } | null = null;
+function longestFreeStretch(spans: WindowSpan[], taken: Interval[], timeZone: string): FreeStretch | null {
+  let best: { span: WindowSpan; start: number; end: number } | null = null;
   for (const span of spans) {
     let pieces: [number, number][] = [[span.start.getTime(), span.end.getTime()]];
     for (const t of taken) {

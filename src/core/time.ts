@@ -6,7 +6,7 @@ export const HOUR_MS = HOUR_MINUTES * MINUTE_MS;
 export const DAY_MINUTES = 24 * HOUR_MINUTES;
 export const DAY_MS = DAY_MINUTES * MINUTE_MS;
 
-/** Blocks, Working Hours, estimates and the Minimum Block Length all sit on this grid. */
+/** Blocks, Contexts' windows, estimates and the Minimum Block Length all sit on this grid. */
 export const GRID_MINUTES = 15;
 export const GRID_MS = GRID_MINUTES * MINUTE_MS;
 

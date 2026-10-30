@@ -57,7 +57,7 @@ function renderDesktop(tasks: TaskListItem[] = [packing()]) {
         blocks={[past]}
         events={[]}
         conflicts={[]}
-        workingHours={DEFAULT_WINDOWS}
+        contextWindows={DEFAULT_WINDOWS}
       />
     </TaskEditorProvider>,
   );
