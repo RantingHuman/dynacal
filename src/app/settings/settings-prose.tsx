@@ -1,16 +1,17 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { validateSettings, type Settings } from "@/core/settings";
-import { settingsToSave } from "@/core/settings-draft";
-import { saveBusyCalendars, saveSettings } from "./actions";
+import type { Context } from "@/core/contexts";
+import { validateSettings, validateWindows, type Settings } from "@/core/settings";
+import { settingsToSave, windowsToSave } from "@/core/settings-draft";
+import { saveBusyCalendars, saveContextWindows, saveSettings } from "./actions";
 import { BusyCalendarsValue, toggled } from "./busy-calendars-value";
 import type { CalendarView } from "./calendar-view";
 import { BufferChips, MinutesEditor } from "./editors";
 import { connectHref, ConnectError, GoogleTrouble } from "./google-connection";
 import styles from "./prose.module.css";
 import { FlipValue, Value } from "./value";
-import { WeekSentences, type OpenValue } from "./week-sentences";
+import { TimeZoneSentence, WindowsSentences, type OpenValue } from "./week-sentences";
 
 /** How long a change settles before it saves. */
 const SETTLE_MS = 700;
@@ -34,16 +35,19 @@ function useToast() {
 }
 
 /**
- * Settings as "How dynacal plans for you": four headed paragraphs of sentences whose underlined values open small
+ * Settings as "How dynacal plans for you": headed paragraphs of sentences whose underlined values open small
  * editors. There's no Save button: a change settles for a moment, then what's valid saves with a quiet toast.
  * An invalid value is held unsaved with its message and "Undo" (see `settingsToSave`).
  */
 export function SettingsProse({
   initial,
+  contexts,
   calendar,
   connectError,
 }: {
   initial: Settings;
+  /** The Contexts, the Default Context first. */
+  contexts: Context[];
   calendar: CalendarView;
   connectError?: string;
 }) {
@@ -98,8 +102,20 @@ export function SettingsProse({
 
       <h2 className={styles.kicker}>Your week</h2>
       <p className={styles.prose}>
-        <WeekSentences settings={draft} saved={saved} held={held} onChange={update} open={open} onOpen={setOpen} />
+        <TimeZoneSentence
+          timeZone={draft.timeZone}
+          saved={saved.timeZone}
+          held={held?.timeZone}
+          onChange={(timeZone) => update({ timeZone })}
+          open={open}
+          onOpen={setOpen}
+        />
       </p>
+
+      <h2 className={styles.kicker}>Contexts</h2>
+      {contexts.map((context) => (
+        <ContextParagraph key={context.id} context={context} open={open} onOpen={setOpen} onSaved={show} />
+      ))}
 
       <h2 className={styles.kicker}>Your Tasks</h2>
       <p className={styles.prose}>
@@ -179,6 +195,64 @@ export function SettingsProse({
         {toast}
       </div>
     </>
+  );
+}
+
+/**
+ * "Work, the default. Monday to Friday, 09:00–17:00. Saturday and Sunday are off." A Context's windows save as you
+ * go too, each invalid day held at its last saved windows (see `windowsToSave`).
+ */
+function ContextParagraph({
+  context,
+  open,
+  onOpen,
+  onSaved,
+}: {
+  context: Context;
+  open: OpenValue;
+  onOpen: (open: OpenValue) => void;
+  onSaved: (message: string) => void;
+}) {
+  const [draft, setDraft] = useState(context.windows);
+  const [saved, setSaved] = useState(context.windows);
+  // Each Context's editors are told apart by its id: "<id>/hours:mon,tue".
+  const prefix = `${context.id}/`;
+
+  useEffect(() => {
+    const { save } = windowsToSave(draft, saved);
+    if (!save) return;
+    const timer = setTimeout(async () => {
+      try {
+        const result = await saveContextWindows(context.id, save);
+        if (result.ok) {
+          setSaved(result.context.windows);
+          onSaved("Settings saved");
+        } else {
+          console.error("Context windows refused:", result);
+          onSaved("Settings weren't saved. Please try again.");
+        }
+      } catch (e) {
+        console.error("Saving Context windows failed:", e);
+        onSaved("Settings weren't saved. Check your connection.");
+      }
+    }, SETTLE_MS);
+    return () => clearTimeout(timer);
+    // `onSaved` only sets state, so it's safe to leave out.
+  }, [context.id, draft, saved]);
+
+  return (
+    <p className={styles.prose}>
+      <strong>{context.name}</strong>
+      {context.isDefault && ", the default"}.
+      <WindowsSentences
+        windows={draft}
+        saved={saved}
+        held={validateWindows(draft)}
+        onChange={setDraft}
+        open={open?.startsWith(prefix) ? open.slice(prefix.length) : null}
+        onOpen={(o) => onOpen(o && prefix + o)}
+      />
+    </p>
   );
 }
 

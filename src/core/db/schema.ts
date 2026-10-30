@@ -1,4 +1,5 @@
-import { integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { sql } from "drizzle-orm";
+import { integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import type { BlockReview } from "../completion";
 import type { TaskFlag } from "../scheduler";
 import type { WeeklyWindows } from "../settings";
@@ -14,7 +15,6 @@ export const sessions = sqliteTable("sessions", {
 /** A single row (id = 1) holding the owner's settings; absent until they're first saved. */
 export const settings = sqliteTable("settings", {
   id: integer("id").primaryKey(),
-  workingHours: text("working_hours", { mode: "json" }).notNull().$type<WeeklyWindows>(),
   timeZone: text("time_zone"),
   minimumBlockMinutes: integer("minimum_block_minutes").notNull(),
   reminderLeadMinutes: integer("reminder_lead_minutes").notNull(),
@@ -25,6 +25,21 @@ export const settings = sqliteTable("settings", {
   /** The Buffer after Tasks, in minutes. */
   taskBufferAfterMinutes: integer("task_buffer_after_minutes").notNull().default(15),
 });
+
+/**
+ * Contexts: named weekly windows; every Task belongs to one and is placed only inside its windows (ADR 0007).
+ * Exactly one is the Default Context. An install has none until the owner first saves their hours.
+ */
+export const contexts = sqliteTable(
+  "contexts",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    windows: text("windows", { mode: "json" }).notNull().$type<WeeklyWindows>(),
+    isDefault: integer("is_default", { mode: "boolean" }).notNull().default(false),
+  },
+  (t) => [uniqueIndex("contexts_one_default").on(t.isDefault).where(sql`${t.isDefault} = 1`)],
+);
 
 export const tasks = sqliteTable("tasks", {
   id: text("id").primaryKey(),
@@ -43,6 +58,9 @@ export const tasks = sqliteTable("tasks", {
   scheduleFlag: text("schedule_flag").$type<TaskFlag>(),
   /** When the owner marked the Task complete; null while it's still to do. */
   completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+  contextId: text("context_id")
+    .notNull()
+    .references(() => contexts.id),
 });
 
 /** The Schedule: each Block is a span of time for one Task, stored as UTC instants. */

@@ -180,10 +180,10 @@ function leadSentences(summary: WeekSummary, today: string): Prose {
         : [`${capitalise(plural(counts.conflict, "pinned time"))} overlap Events. Only you can choose which gives way.`];
     case "unscheduled":
       return named
-        ? [`There's no room for ${named.taskTitle} in ${HORIZON}. Free up Working Hours or move its deadline.`]
+        ? [`There's no room for ${named.taskTitle} in ${HORIZON}. Free up time or move its deadline.`]
         : [
             `There's no room for ${plural(counts.unscheduled, "Task")} in ${HORIZON}. ` +
-              "Free up Working Hours or move their deadlines.",
+              "Free up time or move their deadlines.",
           ];
     case "check-in":
       return [

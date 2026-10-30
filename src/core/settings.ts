@@ -12,7 +12,6 @@ export interface TimeWindow {
 export type WeeklyWindows = Record<Weekday, TimeWindow[]>;
 
 export interface Settings {
-  workingHours: WeeklyWindows;
   /** IANA time zone; null until the owner first chooses one. */
   timeZone: string | null;
   minimumBlockMinutes: number;
@@ -30,16 +29,18 @@ export const BUFFER_MINUTES = [0, 15, 30, 45, 60] as const;
 
 const nineToFive = (): TimeWindow[] => [{ start: 9 * 60, end: 17 * 60 }];
 
+/** The windows first-run setup suggests for Work: weekdays 09:00–17:00. */
+export const DEFAULT_WINDOWS: WeeklyWindows = {
+  mon: nineToFive(),
+  tue: nineToFive(),
+  wed: nineToFive(),
+  thu: nineToFive(),
+  fri: nineToFive(),
+  sat: [],
+  sun: [],
+};
+
 export const DEFAULT_SETTINGS: Settings = {
-  workingHours: {
-    mon: nineToFive(),
-    tue: nineToFive(),
-    wed: nineToFive(),
-    thu: nineToFive(),
-    fri: nineToFive(),
-    sat: [],
-    sun: [],
-  },
   timeZone: null,
   minimumBlockMinutes: 30,
   reminderLeadMinutes: 10,
@@ -52,9 +53,8 @@ export type SettingsUpdate = Partial<Settings>;
 
 export type UpdateSettingsResult = { ok: true; settings: Settings } | { ok: false; errors: SettingsErrors };
 
-/** One message per invalid field; for Working Hours, keyed by weekday. */
+/** One message per invalid field. */
 export interface SettingsErrors {
-  workingHours?: Partial<Record<Weekday, string>>;
   timeZone?: string;
   minimumBlockMinutes?: string;
   reminderLeadMinutes?: string;
@@ -99,13 +99,20 @@ function dayError(windows: TimeWindow[]): string | null {
   return null;
 }
 
-function workingHoursErrors(workingHours: WeeklyWindows): SettingsErrors["workingHours"] {
-  const errors: Partial<Record<Weekday, string>> = {};
+/** One message per weekday whose windows are invalid. */
+export type WindowsErrors = Partial<Record<Weekday, string>>;
+
+/** A Context's windows: each day's must be valid, and there must be at least one in the week. */
+export function validateWindows(windows: WeeklyWindows): WindowsErrors | null {
+  const errors: WindowsErrors = {};
   for (const day of WEEKDAYS) {
-    const error = dayError(workingHours[day]);
+    const error = dayError(windows[day]);
     if (error) errors[day] = error;
   }
-  return Object.keys(errors).length ? errors : undefined;
+  if (WEEKDAYS.every((day) => windows[day].length === 0)) {
+    for (const day of WEEKDAYS) errors[day] = "A Context needs at least one window in the week.";
+  }
+  return Object.keys(errors).length ? errors : null;
 }
 
 function isTimeZone(name: string): boolean {
@@ -119,8 +126,6 @@ function isTimeZone(name: string): boolean {
 
 export function validateSettings(settings: Settings): SettingsErrors | null {
   const errors: SettingsErrors = {};
-  const workingHours = workingHoursErrors(settings.workingHours);
-  if (workingHours) errors.workingHours = workingHours;
   if (settings.timeZone !== null && !isTimeZone(settings.timeZone)) {
     errors.timeZone = `“${settings.timeZone}” isn't a time zone dynacal recognises.`;
   }

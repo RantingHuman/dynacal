@@ -5,7 +5,7 @@ import { createCommands } from "@/core/commands";
 import { openDatabase } from "@/core/db";
 import { googleConnection } from "@/core/db/schema";
 import { FakeCalendarGateway } from "@/core/fake-calendar-gateway";
-import { FakeClock, FakePushSender } from "@/core/testing";
+import { FakeClock, FakePushSender, setDefaultWindows } from "@/core/testing";
 import type { Config } from "@/server/config";
 import type { Runtime } from "@/server/runtime-type";
 
@@ -24,20 +24,18 @@ const PAST_TIMES = ["Pack for vegas", "Print mystery machine", "Create WhatsApp 
  */
 function seedPastTimes(commands: ReturnType<typeof createCommands>, clock: FakeClock) {
   const usual = clock.now();
-  const { workingHours } = commands.getSettings();
+  const [{ windows }] = commands.listContexts();
   clock.set(new Date("2026-01-05T06:00:00Z"));
+  setDefaultWindows(commands, { mon: [{ start: 6 * 60, end: 17 * 60 }] });
   // No Buffer after Tasks, so the three times sit back to back at 06:00, 07:00 and 08:00.
-  commands.updateSettings({
-    workingHours: { ...workingHours, mon: [{ start: 6 * 60, end: 17 * 60 }] },
-    taskBufferAfterMinutes: 0,
-  });
+  commands.updateSettings({ taskBufferAfterMinutes: 0 });
   for (const title of PAST_TIMES) {
     const result = commands.createTask({ title, notes: "", estimatedMinutes: 60, deadline: null, earliestStart: null,
       priority: "medium", splittable: false });
     if (!result.ok) throw new Error("Could not seed past times");
   }
   clock.set(usual);
-  commands.updateSettings({ workingHours });
+  setDefaultWindows(commands, windows);
 }
 
 /** This file is substituted only into a disposable browser-test build. */

@@ -1,6 +1,6 @@
 "use client";
 
-import type { Settings, SettingsErrors, Weekday } from "@/core/settings";
+import type { WeeklyWindows, Weekday, WindowsErrors } from "@/core/settings";
 import { runDays, runHours, setRunHours, workingHoursRuns } from "@/core/working-hours-runs";
 import { TimeZoneEditor, WindowsEditor } from "./editors";
 import styles from "./prose.module.css";
@@ -25,14 +25,9 @@ function openDays(open: OpenValue): Weekday[] | null {
   return open?.startsWith("hours:") ? (open.slice("hours:".length).split(",") as Weekday[]) : null;
 }
 
-/**
- * "I work in Europe/London. Monday to Thursday, 09:00–17:30. Friday, 09:00–15:00. Saturday and Sunday are off."
- * Days with the same hours read as one run. Editing a run edits every day in it; "Give one day its own hours"
- * edits just that day, splitting it off. The days an editor edits are fixed when it opens, so a run that merges
- * with its neighbours while you edit it doesn't start editing them too.
- */
-export function WeekSentences({
-  settings,
+/** "I work in Europe/London." */
+export function TimeZoneSentence({
+  timeZone,
   saved,
   held,
   onChange,
@@ -40,11 +35,54 @@ export function WeekSentences({
   onOpen,
   readOnly = false,
 }: {
-  settings: Settings;
-  /** The last saved Settings, which "Undo" puts back. */
-  saved: Settings;
-  held: SettingsErrors | null;
-  onChange: (change: Partial<Settings>) => void;
+  timeZone: string | null;
+  /** The last saved time zone, which "Undo" puts back. */
+  saved: string | null;
+  held?: string;
+  onChange: (timeZone: string | null) => void;
+  open: OpenValue;
+  onOpen: (open: OpenValue) => void;
+  readOnly?: boolean;
+}) {
+  return (
+    <>
+      I work in{" "}
+      <Value
+        label="Time zone"
+        open={open === "timeZone"}
+        onOpenChange={(o) => onOpen(o ? "timeZone" : null)}
+        held={held}
+        onUndo={() => onChange(saved)}
+        disabled={readOnly}
+        editor={<TimeZoneEditor value={timeZone} onChange={onChange} />}
+      >
+        {timeZone ?? "no time zone yet"}
+      </Value>
+      .
+    </>
+  );
+}
+
+/**
+ * A Context's windows as sentences: "Monday to Thursday, 09:00–17:30. Friday, 09:00–15:00. Saturday and Sunday are
+ * off." Days with the same windows read as one run. Editing a run edits every day in it; "Give one day its own
+ * hours" edits just that day, splitting it off. The days an editor edits are fixed when it opens, so a run that
+ * merges with its neighbours while you edit it doesn't start editing them too.
+ */
+export function WindowsSentences({
+  windows,
+  saved,
+  held,
+  onChange,
+  open,
+  onOpen,
+  readOnly = false,
+}: {
+  windows: WeeklyWindows;
+  /** The last saved windows, which "Undo" puts back. */
+  saved: WeeklyWindows;
+  held: WindowsErrors | null;
+  onChange: (windows: WeeklyWindows) => void;
   open: OpenValue;
   onOpen: (open: OpenValue) => void;
   readOnly?: boolean;
@@ -53,20 +91,7 @@ export function WeekSentences({
 
   return (
     <>
-      I work in{" "}
-      <Value
-        label="Time zone"
-        open={open === "timeZone"}
-        onOpenChange={(o) => onOpen(o ? "timeZone" : null)}
-        held={held?.timeZone}
-        onUndo={() => onChange({ timeZone: saved.timeZone })}
-        disabled={readOnly}
-        editor={<TimeZoneEditor value={settings.timeZone} onChange={(timeZone) => onChange({ timeZone })} />}
-      >
-        {settings.timeZone ?? "no time zone yet"}
-      </Value>
-      .
-      {workingHoursRuns(settings.workingHours).map((run) => {
+      {workingHoursRuns(windows).map((run) => {
         const isOpen = editing !== null && run.days.includes(editing[0]);
         const target = isOpen ? editing : run.days;
         const label = runDays(target);
@@ -75,11 +100,11 @@ export function WeekSentences({
             label={`${label} hours`}
             open={isOpen}
             onOpenChange={(o) => onOpen(o ? hoursValue(run.days) : null)}
-            held={held?.workingHours?.[run.days[0]]}
+            held={held?.[run.days[0]]}
             onUndo={() => {
-              const workingHours = { ...settings.workingHours };
-              for (const day of target) workingHours[day] = saved.workingHours[day];
-              onChange({ workingHours });
+              const next = { ...windows };
+              for (const day of target) next[day] = saved[day];
+              onChange(next);
             }}
             disabled={readOnly}
             editor={
@@ -89,8 +114,8 @@ export function WeekSentences({
                 </span>
                 <WindowsEditor
                   label={label}
-                  windows={settings.workingHours[target[0]]}
-                  onChange={(windows) => onChange({ workingHours: setRunHours(settings.workingHours, target, windows) })}
+                  windows={windows[target[0]]}
+                  onChange={(dayWindows) => onChange(setRunHours(windows, target, dayWindows))}
                 />
                 {target.length > 1 && (
                   <span className={styles.chips}>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TaskInput } from "./tasks";
-import { createTestApp } from "./testing";
+import { createTestApp, setDefaultWindows } from "./testing";
 
 // The test clock starts at Monday 5 January 2026, 09:00 UTC; London is on UTC in winter.
 // Tasks pack back to back here: the Buffer after Tasks is 0 (buffers.test.ts covers Buffers).
@@ -123,13 +123,11 @@ describe("the Schedule", () => {
     expect(blocks(commands)).toEqual([["Second", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"]]);
   });
 
-  it("is recalculated when settings change", () => {
+  it("is recalculated when settings or windows change", () => {
     const { commands } = appInLondon();
     createTask(commands, { estimatedMinutes: 120 });
 
-    commands.updateSettings({
-      workingHours: { ...commands.getSettings().workingHours, mon: [{ start: 13 * 60, end: 14 * 60 }] },
-    });
+    setDefaultWindows(commands, { mon: [{ start: 13 * 60, end: 14 * 60 }] });
     expect(blocks(commands)).toEqual([
       ["Write quarterly report", "2026-01-05T13:00:00.000Z", "2026-01-05T14:00:00.000Z"],
       ["Write quarterly report", "2026-01-06T09:00:00.000Z", "2026-01-06T10:00:00.000Z"],
@@ -197,7 +195,7 @@ describe("the Schedule", () => {
       return app;
     }
 
-    it("a date-only Earliest Start is the start of that day's Working Hours", () => {
+    it("a date-only Earliest Start is the start of that day's windows", () => {
       const { commands } = appInNewYork();
 
       createTask(commands, { earliestStart: { date: "2026-11-02", time: null } });
@@ -218,7 +216,7 @@ describe("the Schedule", () => {
       ]);
     });
 
-    it("a date-only deadline is the end of that day's Working Hours", () => {
+    it("a date-only deadline is the end of that day's windows", () => {
       const { commands } = appInNewYork();
       // Busy all of Friday with an earlier Task, leaving exactly Monday 09:00–17:00 EST before Monday's deadline.
       createTask(commands, { title: "Friday", estimatedMinutes: 480, deadline: { date: "2026-10-30", time: null } });
@@ -287,9 +285,7 @@ describe("Block display keys", () => {
 
   it("number each Task's Blocks in time order, following position as the number of Blocks changes", () => {
     const { commands } = appInLondon();
-    commands.updateSettings({
-      workingHours: { ...commands.getSettings().workingHours, mon: [{ start: 13 * 60, end: 14 * 60 }] },
-    });
+    setDefaultWindows(commands, { mon: [{ start: 13 * 60, end: 14 * 60 }] });
     const report = createTask(commands, { title: "Report", estimatedMinutes: 120, deadline: { date: "2026-01-06", time: null } });
     const slides = createTask(commands, { title: "Slides" });
     expect(keyed(commands).map(([title, key]) => [title, key])).toEqual([

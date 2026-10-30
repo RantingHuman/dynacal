@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { GoogleGrant } from "./commands";
 import type { TaskInput } from "./tasks";
-import { createTestApp } from "./testing";
+import { createTestApp, setDefaultWindows } from "./testing";
 
 // The test clock starts at Monday 5 January 2026, 09:00 UTC; London is on UTC in winter.
 // The Buffer after Tasks defaults to 15m.
@@ -19,13 +19,16 @@ function at(time: string): Date {
   return new Date(`2026-01-05T${time}:00Z`);
 }
 
-/** The owner in London, working on Monday only, in the given windows ("09:00–12:00" style pairs of hours). */
+/** The owner in London, whose Default Context has only Monday's given windows, as [start, end] hours. */
 function appWorking(...windows: [number, number][]) {
   const app = createTestApp();
-  const none = { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] };
-  app.commands.updateSettings({
-    timeZone: "Europe/London",
-    workingHours: { ...none, mon: windows.map(([start, end]) => ({ start: start * 60, end: end * 60 })) },
+  app.commands.updateSettings({ timeZone: "Europe/London" });
+  setDefaultWindows(app.commands, {
+    mon: windows.map(([start, end]) => ({ start: start * 60, end: end * 60 })),
+    tue: [],
+    wed: [],
+    thu: [],
+    fri: [],
   });
   return app;
 }

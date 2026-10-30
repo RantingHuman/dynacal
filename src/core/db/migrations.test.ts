@@ -5,6 +5,11 @@ import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:f
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { createCommands } from "../commands";
+import { FakeCalendarGateway } from "../fake-calendar-gateway";
+import { FakeClock, FakePushSender } from "../testing";
+import { migrateDatabase } from ".";
+import * as schema from "./schema";
 
 const migrationsFolder = join(process.cwd(), "drizzle");
 let copies: string[] = [];
@@ -37,7 +42,7 @@ describe("migrations", () => {
     insert.run("was-splittable", "Board memo", 0);
     insert.run("was-whole", "Offsite plan", 1);
 
-    migrate(drizzle(sqlite), { migrationsFolder });
+    migrateDatabase(drizzle(sqlite, { schema }));
 
     expect(sqlite.prepare("SELECT id, splittable FROM tasks ORDER BY id").all()).toEqual([
       { id: "was-splittable", splittable: 0 },
@@ -66,7 +71,7 @@ describe("migrations", () => {
       };
       /** Each Task's Blocks waiting for a Check-in (unreviewed, past, of an open Task), once migrated. */
       const waiting = () => {
-        migrate(drizzle(sqlite), { migrationsFolder });
+        migrateDatabase(drizzle(sqlite, { schema }));
         const rows = sqlite
           .prepare(
             `SELECT t.id AS task, b.id AS block FROM tasks t LEFT JOIN blocks b
@@ -135,7 +140,7 @@ describe("migrations", () => {
       };
       /** Each Task's duration, and its Blocks' answers, once migrated. */
       const migrated = () => {
-        migrate(drizzle(sqlite), { migrationsFolder });
+        migrateDatabase(drizzle(sqlite, { schema }));
         const durations = sqlite.prepare("SELECT id, estimated_minutes AS minutes FROM tasks ORDER BY id").all() as {
           id: string;
           minutes: number;
@@ -236,10 +241,97 @@ describe("migrations", () => {
       .prepare(`INSERT INTO blocks (id, task_id, start, "end", review, worked_minutes) VALUES ('b', 'report', 0, 3600000, 'partial', 30)`)
       .run();
 
-    migrate(drizzle(sqlite), { migrationsFolder });
+    migrateDatabase(drizzle(sqlite, { schema }));
 
     expect(sqlite.prepare("SELECT * FROM blocks").all()).toEqual([
       { id: "b", task_id: "report", start: 0, end: 3600000, review: "partial", pinned: 0 },
     ]);
+  });
+
+  describe("making the saved Working Hours the Context called Work", () => {
+    const mondayMornings = { mon: [{ start: 8 * 60, end: 11 * 60 }], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] };
+
+    function oldInstall() {
+      const sqlite = migratedUpTo("work-context");
+      sqlite
+        .prepare(
+          `INSERT INTO settings (id, working_hours, time_zone, minimum_block_minutes, reminder_lead_minutes)
+           VALUES (1, ?, 'Europe/London', 30, 10)`,
+        )
+        .run(JSON.stringify(mondayMornings));
+      const addTask = (id: string, completedAt: number | null = null) =>
+        sqlite
+          .prepare(
+            `INSERT INTO tasks (id, title, notes, estimated_minutes, priority, splittable, created_at, completed_at)
+             VALUES (?, ?, '', 60, 'medium', 0, 0, ?)`,
+          )
+          .run(id, id, completedAt);
+      const migrateAll = () => {
+        const db = drizzle(sqlite, { schema });
+        migrateDatabase(db);
+        return db;
+      };
+      return { sqlite, addTask, migrateAll };
+    }
+
+    it("creates Work from the saved hours as the Default Context, with every Task in it", () => {
+      const { sqlite, addTask, migrateAll } = oldInstall();
+      addTask("report");
+      addTask("filed", 1000);
+      sqlite.prepare(`INSERT INTO blocks (id, task_id, start, "end") VALUES ('b', 'filed', 0, 3600000)`).run();
+
+      migrateAll();
+
+      const contexts = sqlite.prepare("SELECT id, name, windows, is_default FROM contexts").all() as {
+        id: string;
+        name: string;
+        windows: string;
+        is_default: number;
+      }[];
+      expect(contexts.map(({ name, windows, is_default }) => ({ name, windows: JSON.parse(windows), is_default }))).toEqual([
+        { name: "Work", windows: mondayMornings, is_default: 1 },
+      ]);
+      expect(sqlite.prepare("SELECT id, context_id FROM tasks ORDER BY id").all()).toEqual([
+        { id: "filed", context_id: contexts[0].id },
+        { id: "report", context_id: contexts[0].id },
+      ]);
+      const settingsColumns = sqlite.prepare("SELECT name FROM pragma_table_info('settings')").all();
+      expect(settingsColumns).not.toContainEqual({ name: "working_hours" });
+      // Rebuilding Tasks keeps their Blocks.
+      expect(sqlite.prepare("SELECT id, task_id FROM blocks").all()).toEqual([{ id: "b", task_id: "filed" }]);
+    });
+
+    it("plans the same Schedule afterwards, inside the old hours", () => {
+      const { addTask, migrateAll } = oldInstall();
+      addTask("report");
+      addTask("memo");
+
+      const db = migrateAll();
+      // Monday 5 January 2026, 09:00 in London: the 08:00–11:00 window has two hours left.
+      const commands = createCommands({
+        db,
+        clock: new FakeClock(),
+        ownerEmail: "owner@example.com",
+        pushSender: new FakePushSender(),
+        calendar: new FakeCalendarGateway(),
+      });
+      // Without the Buffer after Tasks that came later, which would push "memo" past 11:00.
+      commands.updateSettings({ taskBufferAfterMinutes: 0 });
+      commands.recalculate();
+
+      const view = commands.getSchedule();
+      expect(view.status === "ready" && view.blocks.map((b) => [b.taskTitle, b.start.toISOString()])).toEqual([
+        ["report", "2026-01-05T09:00:00.000Z"],
+        ["memo", "2026-01-05T10:00:00.000Z"],
+      ]);
+    });
+
+    it("leaves an install that hasn't saved its hours yet without Contexts, for setup to create Work", () => {
+      const sqlite = migratedUpTo("work-context");
+
+      migrateDatabase(drizzle(sqlite, { schema }));
+
+      expect(sqlite.prepare("SELECT * FROM contexts").all()).toEqual([]);
+    });
   });
 });

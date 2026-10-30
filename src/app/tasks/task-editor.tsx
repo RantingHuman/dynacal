@@ -314,7 +314,7 @@ function WhenField({
             value={value.time ?? ""}
             onChange={(e) => onChange({ ...value, time: e.target.value || null })}
           />
-          {!value.time && <span className="muted">any time in Working Hours</span>}
+          {!value.time && <span className="muted">any time in its Context</span>}
         </label>
       )}
     </div>

@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_SETTINGS, type TimeWindow, type WeeklyWindows } from "./settings";
+import { DEFAULT_WINDOWS, type TimeWindow, type WeeklyWindows } from "./settings";
 import { runDays, runHours, setRunHours, workingHoursRuns } from "./working-hours-runs";
 
 const window = (startHour: number, endHour: number): TimeWindow => ({ start: startHour * 60, end: endHour * 60 });
 
-const weekdaysNineToFive = DEFAULT_SETTINGS.workingHours;
+const weekdaysNineToFive = DEFAULT_WINDOWS;
 
 describe("Working Hours runs", () => {
   it("groups adjacent days with the same windows: weekdays 9–5, then the weekend off", () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { schedule, type SchedulerInput, type SchedulerTask } from "./scheduler";
-import { DEFAULT_SETTINGS, WEEKDAYS, type WeeklyWindows } from "./settings";
+import { DEFAULT_WINDOWS, WEEKDAYS, type WeeklyWindows } from "./settings";
 import { PRIORITIES } from "./tasks";
 import { toZoned, weekdayOf } from "./time-zone";
 
@@ -11,7 +11,7 @@ function input(change: Partial<SchedulerInput> = {}): SchedulerInput {
   return {
     now: MONDAY_9AM,
     timeZone: "Europe/London",
-    workingHours: DEFAULT_SETTINGS.workingHours,
+    workingHours: DEFAULT_WINDOWS,
     minimumBlockMinutes: 30,
     planningHorizonDays: 14,
     tasks: [],
@@ -592,7 +592,7 @@ describe("scheduler", () => {
       const result = schedule(
         input({
           now: new Date("2026-03-28T12:00:00Z"),
-          workingHours: { ...DEFAULT_SETTINGS.workingHours, sat: [], sun: [{ start: 30, end: 90 }] },
+          workingHours: { ...DEFAULT_WINDOWS, sat: [], sun: [{ start: 30, end: 90 }] },
           tasks: [task("a", { remainingMinutes: 60 })],
           minimumBlockMinutes: 15,
         }),

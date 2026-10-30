@@ -3,37 +3,59 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_SETTINGS, type Settings } from "@/core/settings";
+import type { Context } from "@/core/contexts";
+import { DEFAULT_SETTINGS, DEFAULT_WINDOWS, type Settings, type WeeklyWindows } from "@/core/settings";
 import { renderGuarded } from "../testing/render";
-import { saveSettings } from "./actions";
+import { saveContextWindows, saveSettings } from "./actions";
 import { SettingsProse } from "./settings-prose";
 
-vi.mock("./actions", () => ({ saveSettings: vi.fn(), saveBusyCalendars: vi.fn() }));
+vi.mock("./actions", () => ({ saveSettings: vi.fn(), saveBusyCalendars: vi.fn(), saveContextWindows: vi.fn() }));
 
 const initial: Settings = { ...DEFAULT_SETTINGS, timeZone: "Europe/London" };
+const work: Context = { id: "work", name: "Work", windows: DEFAULT_WINDOWS, isDefault: true };
+
+/** The windows sent with the latest save of Work. */
+function lastSent(): WeeklyWindows {
+  const call = vi.mocked(saveContextWindows).mock.calls.at(-1);
+  expect(call?.[0]).toBe("work");
+  return call?.[1] as WeeklyWindows;
+}
 
 async function openWeekdays() {
   await userEvent.click(screen.getByRole("button", { name: "09:00–17:00" }));
   return within(screen.getByRole("group", { name: "Monday to Friday hours" }));
 }
 
-describe("Working Hours in prose Settings", () => {
+describe("Contexts in prose Settings", () => {
   beforeEach(() => {
     vi.mocked(saveSettings).mockReset();
     vi.mocked(saveSettings).mockImplementation(async (settings) => ({ ok: true, settings: settings as Settings }));
-    renderGuarded(<SettingsProse initial={initial} calendar={{ status: "unreachable" }} />);
+    vi.mocked(saveContextWindows).mockReset();
+    vi.mocked(saveContextWindows).mockImplementation(async (id, windows) => ({
+      ok: true,
+      context: { ...work, id, windows: windows as WeeklyWindows },
+    }));
+    renderGuarded(<SettingsProse initial={initial} contexts={[work]} calendar={{ status: "unreachable" }} />);
+  });
+
+  it("lists Work, the default, with its windows as week sentences, and never says Working Hours", () => {
+    const heading = screen.getByRole("heading", { name: "Contexts" });
+    const section = heading.nextElementSibling as HTMLElement;
+    expect(section.textContent).toBe("Work, the default. Monday to Friday, 09:00–17:00. Saturday and Sunday are off.");
+    expect(document.body.textContent).not.toMatch(/working hours/i);
   });
 
   it("saves an edited run for every weekday", async () => {
     const editor = await openWeekdays();
     fireEvent.change(editor.getByLabelText("Monday to Friday window 1 end"), { target: { value: "16:00" } });
-    await waitFor(() => expect(saveSettings).toHaveBeenCalled());
-    const sent = vi.mocked(saveSettings).mock.calls.at(-1)?.[0] as Settings;
+    await waitFor(() => expect(saveContextWindows).toHaveBeenCalled());
+    const sent = lastSent();
     for (const day of ["mon", "tue", "wed", "thu", "fri"] as const) {
-      expect(sent.workingHours[day]).toEqual([{ start: 540, end: 960 }]);
+      expect(sent[day]).toEqual([{ start: 540, end: 960 }]);
     }
-    expect(sent.workingHours.sat).toEqual([]);
-    expect(sent.workingHours.sun).toEqual([]);
+    expect(sent.sat).toEqual([]);
+    expect(sent.sun).toEqual([]);
+    await waitFor(() => expect(screen.getByRole("status").textContent).toBe("Settings saved"));
   });
 
   it("gives Friday its own hours without changing the other weekdays", async () => {
@@ -41,14 +63,12 @@ describe("Working Hours in prose Settings", () => {
     await userEvent.click(editor.getByRole("button", { name: "Fri" }));
     const friday = within(screen.getByRole("group", { name: "Friday hours" }));
     fireEvent.change(friday.getByLabelText("Friday window 1 end"), { target: { value: "15:00" } });
-    await waitFor(() => expect(saveSettings).toHaveBeenCalled());
-    const sent = vi.mocked(saveSettings).mock.calls.at(-1)?.[0] as Settings;
-    expect(sent.workingHours.fri).toEqual([{ start: 540, end: 900 }]);
+    await waitFor(() => expect(saveContextWindows).toHaveBeenCalled());
+    const sent = lastSent();
+    expect(sent.fri).toEqual([{ start: 540, end: 900 }]);
     for (const day of ["mon", "tue", "wed", "thu"] as const) {
-      expect(sent.workingHours[day]).toEqual([{ start: 540, end: 1020 }]);
+      expect(sent[day]).toEqual([{ start: 540, end: 1020 }]);
     }
-    expect(sent.workingHours.sat).toEqual([]);
-    expect(sent.workingHours.sun).toEqual([]);
   });
 
   it("holds overlapping windows unsaved while another setting can save", async () => {
@@ -59,8 +79,6 @@ describe("Working Hours in prose Settings", () => {
     expect(editor.getByRole("button", { name: "Done" })).toHaveProperty("disabled", true);
     await userEvent.click(screen.getByRole("switch", { name: "Count free Events" }));
     await waitFor(() => expect(saveSettings).toHaveBeenCalled());
-    for (const [sent] of vi.mocked(saveSettings).mock.calls) {
-      expect(sent).toMatchObject({ countFreeEvents: true, workingHours: initial.workingHours });
-    }
+    expect(saveContextWindows).not.toHaveBeenCalled();
   });
 });
