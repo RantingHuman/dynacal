@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { Context } from "@/core/contexts";
 import { parseTaskLine } from "@/core/task-line";
 import { PRIORITY_LABELS, formatDuration, validateTask, type TaskErrors, type TaskInput } from "@/core/tasks";
 import { OFFLINE_REASON } from "../states/use-online";
@@ -13,19 +14,22 @@ export const TASK_LINE_ID = "task-line-add";
 
 /**
  * One line at the top of the Tasks column that adds a Task: "Board memo 2h by fri". A preview shows what was
- * understood, solid for what was picked out and dashed for defaults. Enter adds it straight to the list (it's
- * taken out again, and the line put back, if the server refuses); "Full form" opens the editor, and the line
- * clears once the Task is added there.
+ * understood, solid for what was picked out and dashed for defaults; "@deep" picks a Context. Enter adds it
+ * straight to the list (it's taken out again, and the line put back, if the server refuses); "Full form" opens the
+ * editor, and the line clears once the Task is added there.
  */
 export function TaskLineAdd({
   today,
   offline,
+  contexts,
   act,
   onFullForm,
   focusWhenEmpty = false,
 }: {
   today: string;
   offline: boolean;
+  /** Every Context, the Default Context first. */
+  contexts: Context[];
   act: ActOnTasks;
   /** Opens the editor on what the line understood; `onAdded` clears the line once that Task is added. */
   onFullForm: (input: TaskInput, onAdded: () => void) => void;
@@ -46,7 +50,13 @@ export function TaskLineAdd({
       line.current?.focus();
     }
   }, [interactive, focusWhenEmpty, offline]);
-  const { input, found } = parseTaskLine(text, today);
+  const parsed = parseTaskLine(text, today, contexts.map((c) => c.name));
+  const { found, context } = parsed;
+  // No "@name" leaves the Context out, so the Task joins the Default Context.
+  const contextId = contexts.find((c) => c.name === context)?.id;
+  const input: TaskInput = contextId ? { ...parsed.input, contextId } : parsed.input;
+  // The hint shows "@" only once there's a Context other than the Default to pick.
+  const otherContext = contexts.find((c) => !c.isDefault)?.name.split(" ")[0].toLowerCase();
   const picked = (field: (typeof found)[number]) => found.includes(field);
 
   function add(event: React.FormEvent) {
@@ -99,6 +109,7 @@ export function TaskLineAdd({
           {input.earliestStart && <span data-found>from {whenWords(input.earliestStart, today)}</span>}
           {picked("priority") && <span data-found>{PRIORITY_LABELS[input.priority]}</span>}
           {input.splittable && <span data-found>can split</span>}
+          {context && <span data-found>{context}</span>}
           <button
             type="button"
             className="link"
@@ -113,7 +124,8 @@ export function TaskLineAdd({
         </p>
       ) : (
         <p id="task-line-preview" className={styles.hint}>
-          Try “2h”, “by fri at 16:00”, “from mon”, “!high”, “split”. Enter adds it.
+          Try “2h”, “by fri at 16:00”, “from mon”, “!high”, “split”
+          {otherContext && `, “@${otherContext}”`}. Enter adds it.
         </p>
       )}
       {errorList.length > 0 && (

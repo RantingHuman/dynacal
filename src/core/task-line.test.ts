@@ -16,6 +16,7 @@ describe("parseTaskLine", () => {
         priority: "medium",
         splittable: false,
       },
+      context: null,
       found: [],
     });
   });
@@ -199,5 +200,62 @@ describe("parseTaskLine", () => {
 
     expect(input).toMatchObject({ title: "Read chapter 2 of h2o", estimatedMinutes: 60 });
     expect(found).toEqual([]);
+  });
+
+  describe("@name", () => {
+    it("puts the Task in the Context whose name starts with the word after '@'", () => {
+      const { input, context, found } = parseTaskLine("Write essay 1h @deep", TODAY, ["Work", "Deep work"]);
+
+      expect(input).toMatchObject({ title: "Write essay", estimatedMinutes: 60 });
+      expect(context).toBe("Deep work");
+      expect(found).toEqual(["estimatedMinutes", "context"]);
+    });
+
+    it("prefers an exact name, ignoring case, over a longer name it starts", () => {
+      const { input, context } = parseTaskLine("Essay @deep", TODAY, ["Deep work", "Deep"]);
+
+      expect(context).toBe("Deep");
+      expect(input.title).toBe("Essay");
+    });
+
+    it("leaves a word that starts more than one name in the title", () => {
+      const { input, context, found } = parseTaskLine("Essay @de", TODAY, ["Deep work", "Design"]);
+
+      expect(context).toBeNull();
+      expect(input.title).toBe("Essay @de");
+      expect(found).toEqual([]);
+    });
+
+    it.each(["Essay @nothing", "Essay @", "Essay me@deep"])("leaves %j in the title, for the Default Context", (line) => {
+      const { input, context } = parseTaskLine(line, TODAY, ["Work", "Deep work"]);
+
+      expect(context).toBeNull();
+      expect(input.title).toBe(line);
+    });
+
+    it("takes the first '@' word that names a Context and leaves the rest in the title", () => {
+      const { input, context } = parseTaskLine("Essay @home @deep @work", TODAY, ["Work", "Deep work"]);
+
+      expect(context).toBe("Deep work");
+      expect(input.title).toBe("Essay @home @work");
+    });
+
+    it.each([
+      "@deep Write essay 1h30 by fri !high split",
+      "Write 1h30 @DEEP by fri essay split !high",
+      "Write essay 1h30 by fri !high split @deep",
+    ])("reads '@' anywhere alongside every other field: %j", (line) => {
+      const { input, context, found } = parseTaskLine(line, TODAY, ["Work", "Deep work"]);
+
+      expect(context).toBe("Deep work");
+      expect(input).toMatchObject({
+        title: "Write essay",
+        estimatedMinutes: 90,
+        deadline: { date: "2026-01-09", time: null },
+        priority: "high",
+        splittable: true,
+      });
+      expect(found).toEqual(["estimatedMinutes", "deadline", "priority", "splittable", "context"]);
+    });
   });
 });

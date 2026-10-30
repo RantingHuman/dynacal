@@ -4,23 +4,26 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderToString } from "react-dom/server";
 import { expect, it, vi } from "vitest";
+import { DEFAULT_WINDOWS } from "@/core/settings";
 import { renderGuarded } from "../testing/render";
 import { TaskLineAdd } from "./task-line-add";
 
 vi.mock("./actions", () => ({ createTask: vi.fn() }));
 
+const work = { id: "work", name: "Work", windows: DEFAULT_WINDOWS, isDefault: true };
+
 it("keeps the Task line disabled in server-rendered HTML until it becomes interactive", () => {
-  const markup = renderToString(<TaskLineAdd today="2026-10-26" offline={false} act={vi.fn()} onFullForm={vi.fn()} />);
+  const markup = renderToString(<TaskLineAdd today="2026-10-26" offline={false} contexts={[work]} act={vi.fn()} onFullForm={vi.fn()} />);
   const document = new DOMParser().parseFromString(markup, "text/html");
   expect(document.querySelector('input[aria-label="Add a Task"]')?.hasAttribute("disabled")).toBe(true);
-  const view = renderGuarded(<TaskLineAdd today="2026-10-26" offline={false} act={vi.fn()} onFullForm={vi.fn()} />);
+  const view = renderGuarded(<TaskLineAdd today="2026-10-26" offline={false} contexts={[work]} act={vi.fn()} onFullForm={vi.fn()} />);
   expect(screen.getByRole("textbox", { name: "Add a Task" })).toHaveProperty("disabled", false);
-  view.rerender(<TaskLineAdd today="2026-10-26" offline act={vi.fn()} onFullForm={vi.fn()} />);
+  view.rerender(<TaskLineAdd today="2026-10-26" offline contexts={[work]} act={vi.fn()} onFullForm={vi.fn()} />);
   expect(screen.getByRole("textbox", { name: "Add a Task" })).toHaveProperty("disabled", true);
 });
 
 it("previews what was parsed as the Task line is typed", async () => {
-  renderGuarded(<TaskLineAdd today="2026-10-26" offline={false} act={vi.fn()} onFullForm={vi.fn()} />);
+  renderGuarded(<TaskLineAdd today="2026-10-26" offline={false} contexts={[work]} act={vi.fn()} onFullForm={vi.fn()} />);
   const line = screen.getByRole("textbox", { name: "Add a Task" });
   await userEvent.type(line, "Board memo 2h by fri !high split");
   expect(screen.getByText("Board memo")).toBeTruthy();
@@ -32,8 +35,24 @@ it("previews what was parsed as the Task line is typed", async () => {
 });
 
 it("keeps an old phrase like “in one go” in the title, and says nothing about splitting", async () => {
-  renderGuarded(<TaskLineAdd today="2026-10-26" offline={false} act={vi.fn()} onFullForm={vi.fn()} />);
+  renderGuarded(<TaskLineAdd today="2026-10-26" offline={false} contexts={[work]} act={vi.fn()} onFullForm={vi.fn()} />);
   await userEvent.type(screen.getByRole("textbox", { name: "Add a Task" }), "Board memo in one go");
   expect(screen.getByText("Board memo in one go")).toBeTruthy();
   expect(screen.queryByText("can split")).toBeNull();
+});
+
+it("adds the Task to the Context '@name' picks", async () => {
+  const act = vi.fn();
+  const deep = { id: "deep", name: "Deep work", windows: DEFAULT_WINDOWS, isDefault: false };
+  renderGuarded(<TaskLineAdd today="2026-10-26" offline={false} contexts={[work, deep]} act={act} onFullForm={vi.fn()} />);
+  await userEvent.type(screen.getByRole("textbox", { name: "Add a Task" }), "Write essay 1h @deep{Enter}");
+  expect(act.mock.calls[0][0].input).toMatchObject({ title: "Write essay", estimatedMinutes: 60, contextId: "deep" });
+});
+
+it("previews the Context '@name' picks", async () => {
+  const deep = { id: "deep", name: "Deep work", windows: DEFAULT_WINDOWS, isDefault: false };
+  renderGuarded(<TaskLineAdd today="2026-10-26" offline={false} contexts={[work, deep]} act={vi.fn()} onFullForm={vi.fn()} />);
+  await userEvent.type(screen.getByRole("textbox", { name: "Add a Task" }), "Write essay @deep");
+  expect(screen.getByText("Write essay")).toBeTruthy();
+  expect(screen.getByText("Deep work")).toBeTruthy();
 });

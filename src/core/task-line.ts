@@ -2,12 +2,14 @@ import type { Priority, TaskInput } from "./tasks";
 import { addDays, weekdayOf } from "./time-zone";
 
 /** The fields a typed line can set; anything it doesn't mention keeps its default. */
-export type TaskLineField = "estimatedMinutes" | "deadline" | "earliestStart" | "priority" | "splittable";
+export type TaskLineField = "estimatedMinutes" | "deadline" | "earliestStart" | "priority" | "splittable" | "context";
 
 export interface ParsedTaskLine {
   /** The Task the line describes, with defaults for what it doesn't mention and what's left as the title. */
   input: TaskInput;
-  /** The fields picked out of the line: duration, deadline, Earliest Start, Priority, Splittable, in that order. */
+  /** The name of the Context "@name" picked, or null for the Default Context. */
+  context: string | null;
+  /** The fields picked out of the line: duration, deadline, Earliest Start, Priority, Splittable, Context, in order. */
   found: TaskLineField[];
 }
 
@@ -25,9 +27,10 @@ export const TASK_LINE_DEFAULTS: TaskInput = {
 /**
  * Reads a one-line Task such as "Board memo 2h by fri at 16:00 !high" against `today` (YYYY-MM-DD, the
  * owner's date). Each field is read from its first whole-word mention, in any order; whatever isn't picked out
- * (a second duration, "by" without a day) stays in the title. Validation is left to the Task commands.
+ * (a second duration, "by" without a day) stays in the title. "@name" picks one of `contextNames`, from the first
+ * "@" word that names exactly one. Validation is left to the Task commands.
  */
-export function parseTaskLine(text: string, today: string): ParsedTaskLine {
+export function parseTaskLine(text: string, today: string, contextNames: string[] = []): ParsedTaskLine {
   let rest = text;
   const input: TaskInput = { ...TASK_LINE_DEFAULTS };
   const found: TaskLineField[] = [];
@@ -60,8 +63,17 @@ export function parseTaskLine(text: string, today: string): ParsedTaskLine {
   // "split" is the one splitting word; "don't split" and "no split" stay in the title, as one piece is the default.
   take("splittable", "(?<!(?:don['’]?t|no)\\s+)split", () => ({ splittable: true }));
 
+  let context: string | null = null;
+  for (const match of rest.matchAll(/(?<=^|\s)@(\S+)(?=\s|$)/g)) {
+    context = contextNamed(match[1], contextNames);
+    if (!context) continue;
+    found.push("context");
+    rest = `${rest.slice(0, match.index)} ${rest.slice(match.index + match[0].length)}`;
+    break;
+  }
+
   input.title = rest.replace(/\s+/g, " ").trim();
-  return { input, found };
+  return { input, context, found };
 }
 
 /** "1h30" or "1h30m"; or an amount and a unit: "2h", "90m", "1.5 hours", "45 min". */
@@ -91,6 +103,15 @@ function resolveDay(word: string, today: string): string {
   let date = today;
   while (weekdayOf(date) !== w.slice(0, 3)) date = addDays(date, 1);
   return date;
+}
+
+/** The Context `word` names: its exact name ignoring case, else the only name it starts; none if none or several. */
+function contextNamed(word: string, names: string[]): string | null {
+  const w = word.toLowerCase();
+  const exact = names.find((name) => name.toLowerCase() === w);
+  if (exact) return exact;
+  const starting = names.filter((name) => name.toLowerCase().startsWith(w));
+  return starting.length === 1 ? starting[0] : null;
 }
 
 /** "9:30" as "09:30"; no time given as null. */
