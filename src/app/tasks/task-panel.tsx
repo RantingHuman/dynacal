@@ -188,6 +188,7 @@ export function TaskPanel({
       <TaskLineAdd
         today={today}
         offline={!online}
+        contexts={contexts}
         focusWhenEmpty={empty}
         act={act}
         onFullForm={(initial, onAdded) => openTask({ taskId: null, initial, onAdded })}
