@@ -22,6 +22,8 @@ test("fits the Task editor inside the page's margins on a phone, even with Safar
       editor.getByRole("textbox", { name: "Title" }),
       editor.getByRole("group", { name: "Estimated duration" }),
       editor.getByRole("radiogroup", { name: "Priority" }),
+      editor.getByRole("radiogroup", { name: "Buffer before" }),
+      editor.getByRole("radiogroup", { name: "Buffer after" }),
       editor.getByRole("button", { name: "Save", exact: true }),
       editor.getByRole("button", { name: "Delete", exact: true }),
     ]) {

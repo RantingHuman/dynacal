@@ -171,6 +171,148 @@ describe("the Buffer after Tasks", () => {
   });
 });
 
+describe("the Buffer before Tasks", () => {
+  it("starts at 0", () => {
+    expect(createTestApp().commands.getSettings().taskBufferBeforeMinutes).toBe(0);
+  });
+
+  it("keeps a Task from starting within it of a busy Event's end or another Task's end", async () => {
+    const app = appWorking([8, 17]);
+    app.clock.set(at("08:00"));
+    await connect(app, [{ title: "Stand-up", start: at("08:00"), end: at("09:00") }]);
+    app.commands.updateSettings({ taskBufferBeforeMinutes: 30, taskBufferAfterMinutes: 0 });
+
+    createTask(app, { title: "First" });
+    createTask(app, { title: "Second" });
+
+    expect(blocks(app)).toEqual([
+      ["First", at("09:30"), at("10:30")],
+      ["Second", at("11:00"), at("12:00")],
+    ]);
+  });
+
+  it("is one of 0, 15m, 30m, 45m or 1h", () => {
+    const app = appWorking([9, 12]);
+
+    expect(app.commands.updateSettings({ taskBufferBeforeMinutes: 10 })).toEqual({
+      ok: false,
+      errors: { taskBufferBeforeMinutes: "Before Tasks must be 0, 15, 30, 45 or 60 minutes." },
+    });
+  });
+
+  it("needs no time before a Task at the start of a window, or right now", () => {
+    const app = appWorking([9, 10], [13, 17]);
+    app.commands.updateSettings({ taskBufferBeforeMinutes: 60 });
+
+    createTask(app, { title: "Now" });
+    createTask(app, { title: "Window", estimatedMinutes: 240 });
+
+    expect(blocks(app)).toEqual([
+      ["Now", at("09:00"), at("10:00")],
+      ["Window", at("13:00"), at("17:00")],
+    ]);
+  });
+});
+
+describe("a Task's own Buffers", () => {
+  it("share time with its neighbour's, the longer one winning", () => {
+    const app = appWorking([9, 12]);
+
+    createTask(app, { title: "First" });
+    createTask(app, { title: "Second", bufferBeforeMinutes: 30 });
+
+    // 30m apart, not the 15m Buffer after First plus 30m.
+    expect(blocks(app)).toEqual([
+      ["First", at("09:00"), at("10:00")],
+      ["Second", at("10:30"), at("11:30")],
+    ]);
+  });
+
+  it("keep the next Task away by its own Buffer after", () => {
+    const app = appWorking([9, 12]);
+
+    createTask(app, { title: "First", bufferAfterMinutes: 45 });
+    createTask(app, { title: "Second" });
+
+    expect(blocks(app)).toEqual([
+      ["First", at("09:00"), at("10:00")],
+      ["Second", at("10:45"), at("11:45")],
+    ]);
+  });
+
+  it("stay put when the default changes, while Tasks following the default follow it", () => {
+    const app = appWorking([9, 17]);
+    createTask(app, { title: "Own", bufferAfterMinutes: 15 });
+    createTask(app, { title: "Default" });
+    createTask(app, { title: "Last" });
+
+    app.commands.updateSettings({ taskBufferAfterMinutes: 30 });
+
+    expect(blocks(app)).toEqual([
+      ["Own", at("09:00"), at("10:00")],
+      ["Default", at("10:15"), at("11:15")],
+      ["Last", at("11:45"), at("12:45")],
+    ]);
+  });
+
+  it("go back to the default when set to null", () => {
+    const app = appWorking([9, 12]);
+    const first = createTask(app, { title: "First", bufferAfterMinutes: 60 });
+    createTask(app, { title: "Second" });
+
+    const result = app.commands.updateTask(first.id, {
+      title: "First",
+      notes: "",
+      estimatedMinutes: 60,
+      deadline: null,
+      earliestStart: null,
+      priority: "medium",
+      splittable: false,
+      bufferBeforeMinutes: null,
+      bufferAfterMinutes: null,
+    });
+
+    expect(result).toMatchObject({ ok: true, task: { bufferBeforeMinutes: null, bufferAfterMinutes: null } });
+    expect(blocks(app)).toEqual([
+      ["First", at("09:00"), at("10:00")],
+      ["Second", at("10:15"), at("11:15")],
+    ]);
+  });
+
+  it("are kept when the Task is saved without them", () => {
+    const app = appWorking([9, 12]);
+    const task = createTask(app, { title: "First", bufferBeforeMinutes: 30 });
+
+    app.commands.updateTask(task.id, { ...task, title: "Renamed", bufferBeforeMinutes: undefined });
+
+    expect(app.commands.listTasks()[0]).toMatchObject({ title: "Renamed", bufferBeforeMinutes: 30 });
+  });
+
+  it("are each one of 0, 15m, 30m, 45m or 1h", () => {
+    const app = appWorking([9, 12]);
+
+    const result = app.commands.createTask({
+      title: "Write report",
+      notes: "",
+      estimatedMinutes: 60,
+      deadline: null,
+      earliestStart: null,
+      priority: "medium",
+      splittable: false,
+      bufferBeforeMinutes: 5,
+      bufferAfterMinutes: 90,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      errors: {
+        bufferBeforeMinutes: "Before must be 0, 15, 30, 45 or 60 minutes.",
+        bufferAfterMinutes: "After must be 0, 15, 30, 45 or 60 minutes.",
+      },
+    });
+  });
+});
+
 describe("Buffers beside a time the owner placed", () => {
   it("are kept on both sides of a pinned Task when placing another next to it", () => {
     const app = appWorking([9, 17]);

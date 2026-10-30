@@ -1,4 +1,5 @@
 import { monthName } from "./day-labels";
+import { isBufferMinutes } from "./settings";
 import { GRID_MINUTES } from "./time";
 
 export const PRIORITIES = ["low", "medium", "high", "critical"] as const;
@@ -33,11 +34,17 @@ export interface TaskInput {
   splittable: boolean;
   /** The Context the Task belongs to; the Default Context when missing. */
   contextId?: string | null;
+  /** The Task's own Buffer before, in minutes; null follows the default in Settings, and absent keeps what it has. */
+  bufferBeforeMinutes?: number | null;
+  /** The Task's own Buffer after, in minutes; null follows the default in Settings, and absent keeps what it has. */
+  bufferAfterMinutes?: number | null;
 }
 
 export interface Task extends TaskInput {
   id: string;
   contextId: string;
+  bufferBeforeMinutes: number | null;
+  bufferAfterMinutes: number | null;
 }
 
 export type TaskResult = { ok: true; task: Task } | { ok: false; errors: TaskErrors };
@@ -134,5 +141,11 @@ export function validateTask(input: TaskInput): TaskErrors | null {
     errors.earliestStart = `The Earliest Start (${formatDateOrDateTime(input.earliestStart)}) is after the deadline (${formatDateOrDateTime(input.deadline)}).`;
   }
   if (!PRIORITIES.includes(input.priority)) errors.priority = `Priority must be ${listPriorities()}.`;
+  if (input.bufferBeforeMinutes != null && !isBufferMinutes(input.bufferBeforeMinutes)) {
+    errors.bufferBeforeMinutes = "Before must be 0, 15, 30, 45 or 60 minutes.";
+  }
+  if (input.bufferAfterMinutes != null && !isBufferMinutes(input.bufferAfterMinutes)) {
+    errors.bufferAfterMinutes = "After must be 0, 15, 30, 45 or 60 minutes.";
+  }
   return Object.keys(errors).length ? errors : null;
 }

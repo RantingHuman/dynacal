@@ -72,7 +72,7 @@ describe("Settings save as you go", () => {
   });
 });
 
-describe("the Buffer after Tasks", () => {
+describe("the Buffers around Tasks", () => {
   beforeEach(() => {
     vi.mocked(saveSettings).mockReset();
     vi.mocked(saveSettings).mockImplementation(async (settings) => ({ ok: true, settings: settings as Settings }));
@@ -90,6 +90,21 @@ describe("the Buffer after Tasks", () => {
 
     expect(screen.getByRole("button", { name: "45 minutes" })).toBeTruthy();
     await waitFor(() => expect(saveSettings).toHaveBeenCalledWith(expect.objectContaining({ taskBufferAfterMinutes: 45 })));
+  });
+
+  it("offers the same under Before Tasks, which starts at no time, and saves the one chosen", async () => {
+    renderSettings();
+    expect(screen.getByText(/free before and/)).toBeTruthy();
+
+    await userEvent.click(screen.getByRole("button", { name: "no time" }));
+    const editor = within(screen.getByRole("group", { name: "Before Tasks" }));
+    expect(editor.getAllByRole("radio").map((c) => c.textContent)).toEqual(["0", "15m", "30m", "45m", "1h"]);
+    expect(editor.getByRole("radio", { name: "0" }).getAttribute("aria-checked")).toBe("true");
+
+    await userEvent.click(editor.getByRole("radio", { name: "1h" }));
+
+    expect(screen.getByRole("button", { name: "1 hour" })).toBeTruthy();
+    await waitFor(() => expect(saveSettings).toHaveBeenCalledWith(expect.objectContaining({ taskBufferBeforeMinutes: 60 })));
   });
 });
 

@@ -22,6 +22,8 @@ export const settings = sqliteTable("settings", {
   countFreeEvents: integer("count_free_events", { mode: "boolean" }).notNull().default(false),
   /** Whether all-day Events count as busy time. */
   countAllDayEvents: integer("count_all_day_events", { mode: "boolean" }).notNull().default(false),
+  /** The Buffer before Tasks, in minutes. */
+  taskBufferBeforeMinutes: integer("task_buffer_before_minutes").notNull().default(0),
   /** The Buffer after Tasks, in minutes. */
   taskBufferAfterMinutes: integer("task_buffer_after_minutes").notNull().default(15),
   /** The Buffers before and after timed busy Events, in minutes. */
@@ -56,6 +58,10 @@ export const tasks = sqliteTable("tasks", {
   earliestStartTime: text("earliest_start_time"),
   priority: text("priority").notNull().$type<Priority>(),
   splittable: integer("splittable", { mode: "boolean" }).notNull(),
+  /** The Task's own Buffer before, in minutes; null to follow the default in Settings. */
+  bufferBeforeMinutes: integer("buffer_before_minutes"),
+  /** The Task's own Buffer after, in minutes; null to follow the default in Settings. */
+  bufferAfterMinutes: integer("buffer_after_minutes"),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   /** Worked out by the latest Recalculation; null when the Task has no problem. */
   scheduleFlag: text("schedule_flag").$type<TaskFlag>(),

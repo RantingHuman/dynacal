@@ -20,7 +20,7 @@ export function schedulerTasks({
   declined: (Interval & { taskId: string })[];
   timeZone: string;
   contexts: SchedulerContext[];
-  /** Every Task's Buffers: the defaults from Settings. */
+  /** The default Buffers from Settings, for each side a Task hasn't its own. */
   buffers: Buffers;
 }): SchedulerTask[] {
   return taskRows.map((row) => {
@@ -41,7 +41,10 @@ export function schedulerTasks({
     priority: row.priority,
     splittable: row.splittable,
     declinedTimes: declined.filter((t) => t.taskId === row.id).map(({ start, end }) => ({ start, end })),
-    buffers,
+    buffers: {
+      before: row.bufferBeforeMinutes ?? buffers.before,
+      after: row.bufferAfterMinutes ?? buffers.after,
+    },
   };
   });
 }

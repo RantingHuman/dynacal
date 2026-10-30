@@ -20,7 +20,9 @@ export interface Settings {
   countFreeEvents: boolean;
   /** Whether all-day Events count as busy time. */
   countAllDayEvents: boolean;
-  /** The Buffer after Tasks, in minutes: one of `BUFFER_MINUTES`. */
+  /** The Buffer before Tasks, in minutes: one of `BUFFER_MINUTES`. A Task's own Buffer before overrides it. */
+  taskBufferBeforeMinutes: number;
+  /** The Buffer after Tasks, in minutes: one of `BUFFER_MINUTES`. A Task's own Buffer after overrides it. */
   taskBufferAfterMinutes: number;
   /** The Buffers before and after timed Events that count as busy, in minutes: each one of `BUFFER_MINUTES`. */
   eventBufferBeforeMinutes: number;
@@ -29,6 +31,17 @@ export interface Settings {
 
 /** The lengths a Buffer may be, in minutes: the planning grid's steps up to an hour. */
 export const BUFFER_MINUTES = [0, 15, 30, 45, 60] as const;
+
+/** A Buffer's length as a short chip label: "0", "15m", "1h". */
+export function bufferChipLabel(minutes: number): string {
+  if (minutes === 0) return "0";
+  return minutes % 60 === 0 ? `${minutes / 60}h` : `${minutes}m`;
+}
+
+/** Whether `minutes` is one of the lengths a Buffer may be. */
+export function isBufferMinutes(minutes: number): boolean {
+  return (BUFFER_MINUTES as readonly number[]).includes(minutes);
+}
 
 const nineToFive = (): TimeWindow[] => [{ start: 9 * 60, end: 17 * 60 }];
 
@@ -49,6 +62,7 @@ export const DEFAULT_SETTINGS: Settings = {
   reminderLeadMinutes: 10,
   countFreeEvents: false,
   countAllDayEvents: false,
+  taskBufferBeforeMinutes: 0,
   taskBufferAfterMinutes: 15,
   eventBufferBeforeMinutes: 0,
   eventBufferAfterMinutes: 0,
@@ -63,6 +77,7 @@ export interface SettingsErrors {
   timeZone?: string;
   minimumBlockMinutes?: string;
   reminderLeadMinutes?: string;
+  taskBufferBeforeMinutes?: string;
   taskBufferAfterMinutes?: string;
   eventBufferBeforeMinutes?: string;
   eventBufferAfterMinutes?: string;
@@ -144,12 +159,13 @@ export function validateSettings(settings: Settings): SettingsErrors | null {
     errors.reminderLeadMinutes = "Reminder lead time must be a whole number of minutes from 0 to 1440.";
   }
   const buffers = [
+    ["taskBufferBeforeMinutes", "Before Tasks"],
     ["taskBufferAfterMinutes", "After Tasks"],
     ["eventBufferBeforeMinutes", "Before Events"],
     ["eventBufferAfterMinutes", "After Events"],
   ] as const;
   for (const [field, label] of buffers) {
-    if (!(BUFFER_MINUTES as readonly number[]).includes(settings[field])) {
+    if (!isBufferMinutes(settings[field])) {
       errors[field] = `${label} must be 0, 15, 30, 45 or 60 minutes.`;
     }
   }

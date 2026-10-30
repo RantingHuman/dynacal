@@ -97,6 +97,8 @@ export function applyTaskChange(
     contextId: change.input.contextId ?? defaultContextId,
     title: change.input.title.trim(),
     id: change.id,
+    bufferBeforeMinutes: change.input.bufferBeforeMinutes ?? null,
+    bufferAfterMinutes: change.input.bufferAfterMinutes ?? null,
     remainingMinutes: change.input.estimatedMinutes,
     completedAt: null,
     declinedTimes: [],

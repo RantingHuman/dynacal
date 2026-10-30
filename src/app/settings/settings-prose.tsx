@@ -89,6 +89,7 @@ export function SettingsProse({
 
   const lead = draft.reminderLeadMinutes;
   const minimum = draft.minimumBlockMinutes;
+  const before = draft.taskBufferBeforeMinutes;
   const after = draft.taskBufferAfterMinutes;
   const beforeEvents = draft.eventBufferBeforeMinutes;
   const afterEvents = draft.eventBufferAfterMinutes;
@@ -172,6 +173,17 @@ export function SettingsProse({
           {!Number.isFinite(lead) ? "… minutes before" : lead === 0 ? "as" : `${lead} ${lead === 1 ? "minute" : "minutes"} before`}
         </Value>{" "}
         each Task starts. Keep{" "}
+        <Value
+          label="Before Tasks"
+          open={open === "before"}
+          onOpenChange={toggleOpen("before")}
+          editor={
+            <BufferChips label="Before Tasks" value={before} onChange={(taskBufferBeforeMinutes) => update({ taskBufferBeforeMinutes })} />
+          }
+        >
+          {bufferPhrase(before)}
+        </Value>{" "}
+        free before and{" "}
         <Value
           label="After Tasks"
           open={open === "after"}
