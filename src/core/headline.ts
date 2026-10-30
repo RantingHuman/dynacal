@@ -1,7 +1,7 @@
 import { dateParts, monthName, weekdayName } from "./day-labels";
 import { DAY_MS, PLANNING_HORIZON_DAYS } from "./time";
 import { addDays } from "./time-zone";
-import type { FreeStretch, WeekState, WeekSummary } from "./week-summary";
+import type { FreeStretch, NamedTask, WeekState, WeekSummary } from "./week-summary";
 
 /**
  * The home screen's headline and standfirst, written from the week summary. Fixed templates: each state has two
@@ -170,9 +170,10 @@ function leadSentences(summary: WeekSummary, today: string): Prose {
             `${capitalise(plural(counts.overdue, "Task"))} have passed their deadlines. ` +
               "Finish them, move their deadlines or mark them done.",
           ];
+    // A Task outside the Default Context is short of its Context's time, so the sentence says which.
     case "at-risk":
       return named
-        ? [`${named.taskTitle} needs more time than its deadline allows.`]
+        ? [`${named.taskTitle} needs more ${contextTime(named)} than its deadline allows.`]
         : [`${capitalise(plural(counts["at-risk"], "Task"))} need more time than their deadlines allow.`];
     case "conflict":
       return named
@@ -180,7 +181,11 @@ function leadSentences(summary: WeekSummary, today: string): Prose {
         : [`${capitalise(plural(counts.conflict, "pinned time"))} overlap Events. Only you can choose which gives way.`];
     case "unscheduled":
       return named
-        ? [`There's no room for ${named.taskTitle} in ${HORIZON}. Free up time or move its deadline.`]
+        ? [
+            named.context
+              ? `There's no ${contextTime(named)} for ${named.taskTitle} before its deadline. Free up time or move its deadline.`
+              : `There's no room for ${named.taskTitle} in ${HORIZON}. Free up time or move its deadline.`,
+          ]
         : [
             `There's no room for ${plural(counts.unscheduled, "Task")} in ${HORIZON}. ` +
               "Free up time or move their deadlines.",
@@ -204,6 +209,11 @@ function leadSentences(summary: WeekSummary, today: string): Prose {
       return [`Every Task lands before its deadline.${free ? ` ${free}` : ""}`];
     }
   }
+}
+
+/** "Deep work time", or just "time" in the Default Context. */
+function contextTime({ context }: NamedTask): string {
+  return context ? `${context} time` : "time";
 }
 
 function deadlineDay(date: string, today: string): string {

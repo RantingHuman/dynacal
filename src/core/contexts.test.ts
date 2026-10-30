@@ -492,3 +492,91 @@ describe("deleting a Context", () => {
     expect(commands.deleteContext("nope")).toEqual({ ok: false, notFound: true });
   });
 });
+
+describe("a date without a time, on a Task in a Context", () => {
+  /** "Deep work: Fri 08:00–11:00", while Work keeps its weekdays 09:00–17:00. */
+  const deepFridays: WeeklyWindows = { ...deepMornings, mon: [], fri: [{ start: 8 * 60, end: 11 * 60 }] };
+
+  function appWithDeepFridays() {
+    const app = createTestApp();
+    app.clock.set(new Date("2026-01-05T06:00:00Z"));
+    app.commands.updateSettings({ timeZone: "Europe/London", taskBufferAfterMinutes: 0 });
+    const result = app.commands.createContext({ name: "Deep work", windows: deepFridays });
+    if (!result.ok) throw new Error("Deep work refused");
+    return { ...app, deep: result.context };
+  }
+
+  const essay = (contextId: string, input: Partial<TaskInput> = {}): TaskInput => ({
+    ...twoHours,
+    title: "Write essay",
+    estimatedMinutes: 60,
+    splittable: false,
+    contextId,
+    ...input,
+  });
+
+  /** Creates the Task, pins its one Block to `start` (an hour), then gives it `deadline`: is it still on time? */
+  function pinnedThenDue(start: string, deadline: TaskInput["deadline"]) {
+    const { commands, deep } = appWithDeepFridays();
+    const created = commands.createTask(essay(deep.id));
+    if (!created.ok) throw new Error("Task refused");
+    const [block] = view(commands).blocks;
+    commands.moveBlock(block.id, { start: new Date(start), end: new Date(new Date(start).getTime() + 60 * 60_000) });
+
+    commands.updateTask(created.task.id, essay(deep.id, { deadline }));
+
+    return view(commands).flags[created.task.id];
+  }
+
+  it("as a deadline, is the end of that day's windows in the Task's Context, not the Default Context's", () => {
+    const byFriday = { date: "2026-01-09", time: null };
+
+    // Friday 11:00: an hour pinned from 10:00 meets it, one from 11:00 doesn't, though Work runs to 17:00.
+    expect(pinnedThenDue("2026-01-09T10:00:00Z", byFriday)).toBeNull();
+    expect(pinnedThenDue("2026-01-09T11:00:00Z", byFriday)).toBe("at-risk");
+  });
+
+  it("as a deadline, is the end of the day when the Task's Context has no window that day", () => {
+    // Deep work has no Thursday window, so the deadline is midnight, past Work's 17:00.
+    expect(pinnedThenDue("2026-01-08T22:00:00Z", { date: "2026-01-08", time: null })).toBeNull();
+  });
+
+  it("as an Earliest Start, is the start of that day's windows in the Task's Context", () => {
+    const { commands, deep } = appWithDeepFridays();
+
+    commands.createTask(essay(deep.id, { earliestStart: { date: "2026-01-09", time: null } }));
+
+    // Deep work's Friday starts at 08:00; Work's at 09:00.
+    expect(blocks(commands)).toEqual([["Write essay", "2026-01-09T08:00:00.000Z", "2026-01-09T09:00:00.000Z"]]);
+  });
+
+  it("leaves a Task that can't fit its Context before its deadline At Risk, never placed in other time", () => {
+    const { commands, deep } = appWithDeepFridays();
+
+    const created = commands.createTask(
+      essay(deep.id, { estimatedMinutes: 240, splittable: true, deadline: { date: "2026-01-09", time: null } }),
+    );
+    if (!created.ok) throw new Error("Task refused");
+
+    // Work is free all week, but only Deep work's time is the essay's: Friday's three hours, then the next Friday.
+    expect(blocks(commands)).toEqual([
+      ["Write essay", "2026-01-09T08:00:00.000Z", "2026-01-09T11:00:00.000Z"],
+      ["Write essay", "2026-01-16T08:00:00.000Z", "2026-01-16T09:00:00.000Z"],
+    ]);
+    expect(view(commands).flags[created.task.id]).toBe("at-risk");
+    // So the home screen can say it's Deep work's time that's short.
+    expect(commands.getWeekSummary()).toMatchObject({
+      state: "at-risk",
+      named: { taskTitle: "Write essay", context: "Deep work" },
+    });
+  });
+
+  it("names no Context for a Task in the Default Context that can't fit", () => {
+    const { commands } = appWithDeepFridays();
+
+    commands.createTask({ ...twoHours, title: "Email", estimatedMinutes: 600, deadline: { date: "2026-01-05", time: null } });
+
+    expect(commands.getWeekSummary()).toMatchObject({ state: "at-risk", named: { taskTitle: "Email" } });
+    expect(commands.getWeekSummary().named).not.toHaveProperty("context");
+  });
+});

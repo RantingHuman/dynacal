@@ -19,7 +19,7 @@ import { CheckInSheet } from "./check-in-sheet";
 import { CompleteTaskButton } from "./complete-task-button";
 import { useCompletion } from "./completion";
 import { deadlineWords, spanWords, todayIn } from "./day-words";
-import { FLAG_LABELS, isAlarm } from "./flags";
+import { contextShortWords, FLAG_LABELS, isAlarm } from "./flags";
 import { useTaskEditor, type ActOnTasks } from "./task-editor-slot";
 import { TASK_LINE_ID, TaskLineAdd } from "./task-line-add";
 import styles from "./task-panel.module.css";
@@ -220,17 +220,25 @@ export function TaskPanel({
             // A Task whose time has passed asks "Finished?" about it, instead of the time it has left.
             const waiting = task.completedAt ? null : (task.checkIns[0] ?? null);
             const tag = contextTag(contexts, task.contextId);
+            // A Context's time running short says so in one phrase, which keeps the row short at phone width.
+            const short = contextShortWords(flag, tag, task.deadline, today);
             const details = (
               <>
-                {tag && (
+                {short ? (
+                  <em className={styles.flag}> · {short}</em>
+                ) : (
                   <>
-                    {" · "}
-                    <span className={styles.tag}>{tag}</span>
+                    {tag && (
+                      <>
+                        {" · "}
+                        <span className={styles.tag}>{tag}</span>
+                      </>
+                    )}
+                    {task.deadline && ` · ${deadlineWords(task.deadline, today)}`}
+                    {flag &&
+                      (isAlarm(flag) ? <em className={styles.flag}> · {FLAG_LABELS[flag]}</em> : ` · ${FLAG_LABELS[flag]}`)}
                   </>
                 )}
-                {task.deadline && ` · ${deadlineWords(task.deadline, today)}`}
-                {flag &&
-                  (isAlarm(flag) ? <em className={styles.flag}> · {FLAG_LABELS[flag]}</em> : ` · ${FLAG_LABELS[flag]}`)}
                 {declined > 0 && ` · ${declined} Declined ${declined === 1 ? "Time" : "Times"}`}
                 {justSaved && (
                   <span key={saved.n} className={styles.saved} role="status">

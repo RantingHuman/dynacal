@@ -59,6 +59,8 @@ export interface NamedTask {
   taskTitle: string;
   /** An Overdue Task's deadline date (YYYY-MM-DD). */
   deadline?: string;
+  /** An At Risk or Unscheduled Task's Context, when it isn't the Default Context: it's that Context's time that's short. */
+  context?: string;
   /** For a Conflict, the Event its Pinned Block overlaps. */
   eventTitle?: string;
 }
@@ -106,6 +108,8 @@ export interface WeekSummaryInput {
     completed: boolean;
     flag: TaskFlag | null;
     deadline: DateOrDateTime | null;
+    /** The name of the Task's Context; null for the Default Context. */
+    context: string | null;
     checkInSince: Date | null;
   }[];
   /** Conflicts between Pinned Blocks and Events. */
@@ -234,7 +238,7 @@ function namedTask(
     case "at-risk":
     case "unscheduled": {
       const task = only(open.filter((t) => t.flag === state));
-      return task && { taskTitle: task.title };
+      return task && { taskTitle: task.title, ...(task.context && { context: task.context }) };
     }
     case "check-in": {
       const task = only(checkingIn);

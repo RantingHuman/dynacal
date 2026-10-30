@@ -14,6 +14,7 @@ import type { Clock } from "./clock";
 import {
   FIRST_CONTEXT_NAME,
   contextNameError,
+  contextTag,
   coveredWindows,
   type Context,
   type ContextErrors,
@@ -1737,10 +1738,11 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
           }))
         : [];
     const { timeZone } = getSettings();
+    const contexts = commands.listContexts();
     return summariseWeek({
       now: clock.now(),
       timeZone,
-      workingHours: coveredWindows(commands.listContexts()),
+      workingHours: coveredWindows(contexts),
       connection: getGoogleConnection(),
       blocks: schedule.status === "ready" ? schedule.blocks : [],
       busy: schedule.status === "ready" ? schedule.events.filter((e) => e.countsAsBusy) : [],
@@ -1750,6 +1752,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         completed: t.completedAt !== null,
         flag: flags[t.id] ?? null,
         deadline: t.deadline,
+        context: contextTag(contexts, t.contextId),
         checkInSince: t.checkIns[0]?.start ?? null,
       })),
       conflicts,
