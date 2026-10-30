@@ -21,6 +21,7 @@ const settingsInput = z.object({
   reminderLeadMinutes: z.number(),
   countFreeEvents: z.boolean(),
   countAllDayEvents: z.boolean(),
+  taskBufferBeforeMinutes: z.number(),
   taskBufferAfterMinutes: z.number(),
 });
 

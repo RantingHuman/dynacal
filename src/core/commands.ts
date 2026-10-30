@@ -358,6 +358,9 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       earliestStartTime: input.earliestStart?.time ?? null,
       priority: input.priority,
       splittable: input.splittable,
+      // Left undefined, an update keeps the Task's own Buffers.
+      bufferBeforeMinutes: input.bufferBeforeMinutes,
+      bufferAfterMinutes: input.bufferAfterMinutes,
     };
   }
 
@@ -378,6 +381,8 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       earliestStart: dateOrDateTime(row.earliestStartDate, row.earliestStartTime),
       priority: row.priority,
       splittable: row.splittable,
+      bufferBeforeMinutes: row.bufferBeforeMinutes,
+      bufferAfterMinutes: row.bufferAfterMinutes,
     };
   }
 
@@ -940,7 +945,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
    */
   function recalculateSchedule(): RecalculateResult {
     const current = getSettings();
-    const { timeZone, minimumBlockMinutes, taskBufferAfterMinutes } = current;
+    const { timeZone, minimumBlockMinutes, taskBufferBeforeMinutes, taskBufferAfterMinutes } = current;
     if (timeZone === null) return { ok: false, reason: "needs-time-zone" };
     // Every Task is in the Default Context until the owner can add others.
     const workingHours = defaultContext().windows;
@@ -980,7 +985,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
           declined,
           timeZone,
           workingHours,
-          buffers: { before: 0, after: taskBufferAfterMinutes },
+          buffers: { before: taskBufferBeforeMinutes, after: taskBufferAfterMinutes },
         }),
         busy,
         pinnedBlocks: [...inProgress.filter((b) => b.pinned), ...pinnedAhead],
@@ -1225,7 +1230,14 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     createTask(input: TaskInput): TaskResult {
       const errors = validateTask(input);
       if (errors) return { ok: false, errors };
-      const row = { id: randomUUID(), createdAt: clock.now(), contextId: defaultContext().id, ...taskRow(input) };
+      const row = {
+        id: randomUUID(),
+        createdAt: clock.now(),
+        contextId: defaultContext().id,
+        ...taskRow(input),
+        bufferBeforeMinutes: input.bufferBeforeMinutes ?? null,
+        bufferAfterMinutes: input.bufferAfterMinutes ?? null,
+      };
       db.insert(tasks).values(row).run();
       recalculateAutomatically();
       return { ok: true, task: toTask(row) };

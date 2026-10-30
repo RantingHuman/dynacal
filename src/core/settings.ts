@@ -20,12 +20,19 @@ export interface Settings {
   countFreeEvents: boolean;
   /** Whether all-day Events count as busy time. */
   countAllDayEvents: boolean;
-  /** The Buffer after Tasks, in minutes: one of `BUFFER_MINUTES`. */
+  /** The Buffer before Tasks, in minutes: one of `BUFFER_MINUTES`. A Task's own Buffer before overrides it. */
+  taskBufferBeforeMinutes: number;
+  /** The Buffer after Tasks, in minutes: one of `BUFFER_MINUTES`. A Task's own Buffer after overrides it. */
   taskBufferAfterMinutes: number;
 }
 
 /** The lengths a Buffer may be, in minutes: the planning grid's steps up to an hour. */
 export const BUFFER_MINUTES = [0, 15, 30, 45, 60] as const;
+
+/** Whether `minutes` is one of the lengths a Buffer may be. */
+export function isBufferMinutes(minutes: number): boolean {
+  return (BUFFER_MINUTES as readonly number[]).includes(minutes);
+}
 
 const nineToFive = (): TimeWindow[] => [{ start: 9 * 60, end: 17 * 60 }];
 
@@ -46,6 +53,7 @@ export const DEFAULT_SETTINGS: Settings = {
   reminderLeadMinutes: 10,
   countFreeEvents: false,
   countAllDayEvents: false,
+  taskBufferBeforeMinutes: 0,
   taskBufferAfterMinutes: 15,
 };
 
@@ -58,6 +66,7 @@ export interface SettingsErrors {
   timeZone?: string;
   minimumBlockMinutes?: string;
   reminderLeadMinutes?: string;
+  taskBufferBeforeMinutes?: string;
   taskBufferAfterMinutes?: string;
 }
 
@@ -136,7 +145,10 @@ export function validateSettings(settings: Settings): SettingsErrors | null {
   if (!Number.isInteger(reminderLeadMinutes) || reminderLeadMinutes < 0 || reminderLeadMinutes > DAY_MINUTES) {
     errors.reminderLeadMinutes = "Reminder lead time must be a whole number of minutes from 0 to 1440.";
   }
-  if (!(BUFFER_MINUTES as readonly number[]).includes(settings.taskBufferAfterMinutes)) {
+  if (!isBufferMinutes(settings.taskBufferBeforeMinutes)) {
+    errors.taskBufferBeforeMinutes = "Before Tasks must be 0, 15, 30, 45 or 60 minutes.";
+  }
+  if (!isBufferMinutes(settings.taskBufferAfterMinutes)) {
     errors.taskBufferAfterMinutes = "After Tasks must be 0, 15, 30, 45 or 60 minutes.";
   }
   return Object.keys(errors).length ? errors : null;

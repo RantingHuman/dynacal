@@ -17,6 +17,8 @@ export function taskItem(overrides: Partial<TaskListItem> = {}): TaskListItem {
     earliestStart: null,
     priority: "medium",
     splittable: false,
+    bufferBeforeMinutes: null,
+    bufferAfterMinutes: null,
     completedAt: null,
     declinedTimes: [],
     checkIns: [],

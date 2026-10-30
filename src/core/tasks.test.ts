@@ -21,7 +21,16 @@ describe("Tasks", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(commands.listTasks()).toEqual([
-      { id: result.task.id, ...minimal, remainingMinutes: 90, completedAt: null, declinedTimes: [], checkIns: [] },
+      {
+        id: result.task.id,
+        ...minimal,
+        bufferBeforeMinutes: null,
+        bufferAfterMinutes: null,
+        remainingMinutes: 90,
+        completedAt: null,
+        declinedTimes: [],
+        checkIns: [],
+      },
     ]);
   });
 
@@ -67,6 +76,8 @@ describe("Tasks", () => {
       earliestStart: { date: "2026-11-09", time: "08:15" },
       priority: "high",
       splittable: true,
+      bufferBeforeMinutes: 30,
+      bufferAfterMinutes: 0,
     };
 
     const result = commands.updateTask(created.task.id, edited);
