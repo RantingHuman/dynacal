@@ -75,6 +75,17 @@ describe("the headline", () => {
     expect(standfirstText(atRisk)).toBe("Board memo needs more time than its deadline allows.");
   });
 
+  it("names the Context whose time is short, for a Task outside the Default Context", () => {
+    const named = { taskTitle: "Write essay", context: "Deep work" };
+    const one = (state: "at-risk" | "unscheduled") =>
+      standfirstText(writeHeadline(summary({ state, counts: { ...summary().counts, [state]: 1 }, named }), A_DAY));
+
+    expect(one("at-risk")).toBe("Write essay needs more Deep work time than its deadline allows.");
+    expect(one("unscheduled")).toBe(
+      "There's no Deep work time for Write essay before its deadline. Free up time or move its deadline.",
+    );
+  });
+
   it("speaks of next week once the summary has rolled over", () => {
     expect(headlineText(writeHeadline(summary({ nextWeek: true, tasks: 3 }), A_DAY))).toBe(
       "Next week: three Tasks, *everything fits.*",

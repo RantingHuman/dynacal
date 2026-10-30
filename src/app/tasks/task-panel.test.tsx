@@ -234,6 +234,40 @@ describe("a Task's Context on its row", () => {
   });
 });
 
+describe("a row's message when a Task won't fit before its deadline", () => {
+  // Tuesday 27 October 2026, so a Friday deadline reads "Fri".
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-27T14:00:00Z"));
+  });
+  afterEach(() => vi.useRealTimers());
+  const byFriday = { date: "2026-10-30", time: null };
+  // Splittable, so the row has no "Allow splitting" button after its text.
+  const meta = (row: HTMLElement) => row.textContent?.replace(/^.*?(\d+h|\d+m)/, "$1");
+
+  it("names the Task's Context, saying whether its time is short or there's none", () => {
+    const essay = taskItem({ title: "Write essay", contextId: "deep", deadline: byFriday, splittable: true });
+    const draft = taskItem({ title: "Draft talk", contextId: "deep", deadline: byFriday, splittable: true });
+    renderPanel([essay, draft], { [essay.id]: "at-risk", [draft.id]: "unscheduled" }, [workContext, deepWorkContext]);
+
+    const [essayRow, draftRow] = taskList().getAllByRole("listitem");
+    expect(meta(essayRow)).toBe("1h left · Too little Deep work time before Fri");
+    expect(meta(draftRow)).toBe("1h left · No Deep work time before Fri");
+    // Still an alarm.
+    expect(within(essayRow).getByText("Too little Deep work time before Fri", { exact: false }).closest("em")).toBeTruthy();
+  });
+
+  it("stays the flag for a Task in the Default Context", () => {
+    const memo = taskItem({ title: "Board memo", deadline: byFriday, splittable: true });
+    const talk = taskItem({ title: "Plan talk", deadline: byFriday, splittable: true });
+    renderPanel([memo, talk], { [memo.id]: "at-risk", [talk.id]: "unscheduled" });
+
+    const [memoRow, talkRow] = taskList().getAllByRole("listitem");
+    expect(meta(memoRow)).toBe("1h left · due Fri · At Risk");
+    expect(meta(talkRow)).toBe("1h left · due Fri · Unscheduled");
+  });
+});
+
 describe("allowing a Task that won't fit to split", () => {
   beforeEach(() => vi.mocked(allowSplitting).mockReset());
   const memo = taskItem({ title: "Board memo" });
