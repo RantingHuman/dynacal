@@ -19,6 +19,9 @@ import {
   type ContextErrors,
   type ContextInput,
   type CreateContextResult,
+  type DeleteContextResult,
+  type MakeDefaultContextResult,
+  type RenameContextResult,
   type SetContextWindowsResult,
   type SetUpWeekResult,
 } from "./contexts";
@@ -1336,6 +1339,47 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       const context = { id: randomUUID(), name: input.name.trim(), windows: input.windows, isDefault: false };
       db.insert(contexts).values(context).run();
       return { ok: true, context };
+    },
+
+    /** Renames a Context by the same rules as creating one; where its Tasks go doesn't change. */
+    renameContext(id: string, name: string): RenameContextResult {
+      const all = commands.listContexts();
+      if (!all.some((c) => c.id === id)) return { ok: false, notFound: true };
+      const others = all.filter((c) => c.id !== id);
+      const nameError = contextNameError(name, others);
+      if (nameError) return { ok: false, errors: { name: nameError } };
+      const context = db.update(contexts).set({ name: name.trim() }).where(eq(contexts.id, id)).returning().get()!;
+      return { ok: true, context };
+    },
+
+    /**
+     * Makes a Context the Default Context, which Tasks added without one join from now on. Tasks already in a
+     * Context stay in it, so nothing needs replanning.
+     */
+    makeDefaultContext(id: string): MakeDefaultContextResult {
+      if (!db.select({ id: contexts.id }).from(contexts).where(eq(contexts.id, id)).get()) return { ok: false, notFound: true };
+      db.transaction((tx) => {
+        // The old default is cleared first: only one row may be the default at a time.
+        tx.update(contexts).set({ isDefault: false }).where(eq(contexts.isDefault, true)).run();
+        tx.update(contexts).set({ isDefault: true }).where(eq(contexts.id, id)).run();
+      });
+      return { ok: true };
+    },
+
+    /**
+     * Deletes a Context, first moving its Tasks, complete or not, to the Default Context, then replans them there.
+     * The Default Context can't be deleted: there's always one.
+     */
+    deleteContext(id: string): DeleteContextResult {
+      const context = db.select().from(contexts).where(eq(contexts.id, id)).get();
+      if (!context) return { ok: false, notFound: true };
+      if (context.isDefault) return { ok: false, error: `Make another Context the default before deleting ${context.name}.` };
+      db.transaction((tx) => {
+        tx.update(tasks).set({ contextId: defaultContext(tx).id }).where(eq(tasks.contextId, id)).run();
+        tx.delete(contexts).where(eq(contexts.id, id)).run();
+      });
+      recalculateAutomatically();
+      return { ok: true };
     },
 
     /** Changes a Context's windows, then replans: its Tasks go only in the new windows. */

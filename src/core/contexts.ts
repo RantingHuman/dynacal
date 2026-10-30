@@ -29,6 +29,11 @@ export type ContextErrors = { name?: string; windows?: WindowsErrors };
 
 export type CreateContextResult = { ok: true; context: Context } | { ok: false; errors: ContextErrors };
 
+export type RenameContextResult =
+  | { ok: true; context: Context }
+  | { ok: false; notFound: true }
+  | { ok: false; errors: { name: string } };
+
 /** Why a name can't be a Context's, or null: names are trimmed, non-empty, short and unique ignoring case. */
 export function contextNameError(name: string, others: Pick<Context, "name">[]): string | null {
   const trimmed = name.trim();
@@ -37,6 +42,10 @@ export function contextNameError(name: string, others: Pick<Context, "name">[]):
   const same = others.find((c) => c.name.toLowerCase() === trimmed.toLowerCase());
   return same ? `There's already a Context called ${same.name}.` : null;
 }
+
+export type MakeDefaultContextResult = { ok: true } | { ok: false; notFound: true };
+
+export type DeleteContextResult = { ok: true } | { ok: false; notFound: true } | { ok: false; error: string };
 
 export type SetUpWeekResult = { ok: true } | { ok: false; errors: { timeZone?: string; windows?: WindowsErrors } };
 

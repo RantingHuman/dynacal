@@ -4,7 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import { contextNameError, type Context, type ContextErrors } from "@/core/contexts";
 import { DEFAULT_WINDOWS, validateSettings, validateWindows, type Settings, type WeeklyWindows } from "@/core/settings";
 import { settingsToSave, windowsToSave } from "@/core/settings-draft";
-import { addContext, saveBusyCalendars, saveContextWindows, saveSettings } from "./actions";
+import {
+  addContext,
+  deleteContext,
+  makeDefaultContext,
+  renameContext,
+  saveBusyCalendars,
+  saveContextWindows,
+  saveSettings,
+} from "./actions";
 import { BusyCalendarsValue, toggled } from "./busy-calendars-value";
 import type { CalendarView } from "./calendar-view";
 import { BufferChips, MinutesEditor } from "./editors";
@@ -122,7 +130,14 @@ export function SettingsProse({
 
       <h2 className={styles.kicker}>Contexts</h2>
       {contexts.map((context) => (
-        <ContextParagraph key={context.id} context={context} open={open} onOpen={setOpen} onSaved={show} />
+        <ContextParagraph
+          key={context.id}
+          context={context}
+          contexts={contexts}
+          open={open}
+          onOpen={setOpen}
+          onSaved={show}
+        />
       ))}
       <NewContext contexts={contexts} open={open} onOpen={setOpen} onAdded={show} />
 
@@ -256,21 +271,26 @@ export function SettingsProse({
 
 /**
  * "Work, the default. Monday to Friday, 09:00–17:00. Saturday and Sunday are off." A Context's windows save as you
- * go too, each invalid day held at its last saved windows (see `windowsToSave`).
+ * go too, each invalid day held at its last saved windows (see `windowsToSave`). Under it: Rename, Make default
+ * (unless it's the default already) and Delete.
  */
 function ContextParagraph({
   context,
+  contexts,
   open,
   onOpen,
   onSaved,
 }: {
   context: Context;
+  /** Every Context, the Default Context first: a new name is checked against the others. */
+  contexts: Context[];
   open: OpenValue;
   onOpen: (open: OpenValue) => void;
   onSaved: (message: string) => void;
 }) {
   const [draft, setDraft] = useState(context.windows);
   const [saved, setSaved] = useState(context.windows);
+  const manage = useManageContext(context, contexts, onSaved);
   // Each Context's editors are told apart by its id: "<id>/hours:mon,tue".
   const prefix = `${context.id}/`;
 
@@ -296,19 +316,187 @@ function ContextParagraph({
     // `onSaved` only sets state, so it's safe to leave out.
   }, [context.id, draft, saved]);
 
+  // Gone until the page reloads its Contexts without it.
+  if (manage.deleted) return null;
   return (
-    <p className={styles.prose}>
-      <strong>{context.name}</strong>
-      {context.isDefault && ", the default"}.
-      <WindowsSentences
-        windows={draft}
-        saved={saved}
-        held={validateWindows(draft)}
-        onChange={setDraft}
-        open={open?.startsWith(prefix) ? open.slice(prefix.length) : null}
-        onOpen={(o) => onOpen(o && prefix + o)}
-      />
-    </p>
+    <>
+      <p className={styles.prose}>
+        {manage.renaming ? (
+          <input
+            className={styles.nameInput}
+            aria-label={`New name for ${manage.name}`}
+            value={manage.newName}
+            autoFocus
+            onChange={(e) => manage.setNewName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") manage.rename();
+              if (e.key === "Escape") manage.cancel();
+            }}
+          />
+        ) : (
+          <strong>{manage.name}</strong>
+        )}
+        {context.isDefault && ", the default"}.
+        <WindowsSentences
+          windows={draft}
+          saved={saved}
+          held={validateWindows(draft)}
+          onChange={setDraft}
+          open={open?.startsWith(prefix) ? open.slice(prefix.length) : null}
+          onOpen={(o) => onOpen(o && prefix + o)}
+        />
+      </p>
+      <ContextActions context={context} defaultName={contexts[0].name} manage={manage} />
+    </>
+  );
+}
+
+/**
+ * Renaming, making default and deleting one Context: its name as shown, what's being done to it, and the refusal
+ * if there is one. A new name is checked here by the same rules as adding, then on the server.
+ */
+function useManageContext(context: Context, contexts: Context[], onDone: (message: string) => void) {
+  const [name, setName] = useState(context.name);
+  const [doing, setDoing] = useState<"renaming" | "deleting" | null>(null);
+  const [newName, setNewName] = useState(context.name);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const [deleted, setDeleted] = useState(false);
+
+  function cancel() {
+    setDoing(null);
+    setError(null);
+  }
+
+  async function run(work: () => Promise<string | null>, failed: string) {
+    setPending(true);
+    try {
+      const refusal = await work();
+      setError(refusal);
+      if (!refusal) setDoing(null);
+    } catch (e) {
+      console.error(`${failed}:`, e);
+      onDone(`${failed}. Check your connection.`);
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return {
+    name,
+    newName,
+    setNewName,
+    error,
+    pending,
+    deleted,
+    renaming: doing === "renaming",
+    deleting: doing === "deleting",
+    cancel,
+    startRenaming() {
+      setNewName(name);
+      setError(null);
+      setDoing("renaming");
+    },
+    startDeleting() {
+      setError(context.isDefault ? `Make another Context the default before deleting ${name}.` : null);
+      if (!context.isDefault) setDoing("deleting");
+    },
+    rename() {
+      const nameError = contextNameError(newName, contexts.filter((c) => c.id !== context.id));
+      if (nameError) return setError(nameError);
+      return run(async () => {
+        const result = await renameContext(context.id, newName);
+        if (!result.ok) return "errors" in result ? result.errors.name : "That Context no longer exists.";
+        setName(result.context.name);
+        onDone(`Renamed to ${result.context.name}`);
+        return null;
+      }, "The Context wasn't renamed");
+    },
+    makeDefault() {
+      return run(async () => {
+        const result = await makeDefaultContext(context.id);
+        if (!result.ok) return "That Context no longer exists.";
+        onDone(`${name} is the default`);
+        return null;
+      }, "The default wasn't changed");
+    },
+    remove() {
+      return run(async () => {
+        const result = await deleteContext(context.id);
+        if (!result.ok) return "error" in result ? result.error : "That Context no longer exists.";
+        setDeleted(true);
+        onDone(`${name} deleted`);
+        return null;
+      }, "The Context wasn't deleted");
+    },
+  };
+}
+
+/** "Rename · Make default · Delete" under a Context, or what one of them asks next: short enough for a phone. */
+function ContextActions({
+  context,
+  defaultName,
+  manage,
+}: {
+  context: Context;
+  defaultName: string;
+  manage: ReturnType<typeof useManageContext>;
+}) {
+  const alert = manage.error && (
+    <span className={styles.alert} role="alert">
+      {manage.error}
+    </span>
+  );
+  if (manage.renaming) {
+    return (
+      <div className={styles.contextActions}>
+        {alert}
+        <button type="button" className="button" disabled={manage.pending} onClick={manage.rename}>
+          Save
+        </button>
+        <button type="button" className="link" onClick={manage.cancel}>
+          Cancel
+        </button>
+      </div>
+    );
+  }
+  if (manage.deleting) {
+    return (
+      <div className={styles.contextActions}>
+        <span className={styles.ask}>
+          Delete {manage.name}? Its Tasks move to {defaultName}.
+        </span>
+        {alert}
+        <button type="button" className="button" disabled={manage.pending} onClick={manage.remove}>
+          Yes, delete
+        </button>
+        <button type="button" className="link" onClick={manage.cancel}>
+          Cancel
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className={styles.contextActions}>
+      {alert}
+      <button type="button" className="link" aria-label={`Rename ${manage.name}`} onClick={manage.startRenaming}>
+        Rename
+      </button>
+      {!context.isDefault && (
+        <button
+          type="button"
+          className="link"
+          aria-label={`Make ${manage.name} the default`}
+          disabled={manage.pending}
+          onClick={manage.makeDefault}
+        >
+          Make default
+        </button>
+      )}
+      <button type="button" className="link" aria-label={`Delete ${manage.name}`} onClick={manage.startDeleting}>
+        Delete
+      </button>
+    </div>
   );
 }
 

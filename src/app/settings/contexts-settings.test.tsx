@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Context } from "@/core/contexts";
 import { DEFAULT_SETTINGS, DEFAULT_WINDOWS, type Settings, type WeeklyWindows } from "@/core/settings";
 import { renderGuarded } from "../testing/render";
-import { addContext, saveContextWindows, saveSettings } from "./actions";
+import { addContext, deleteContext, makeDefaultContext, renameContext, saveContextWindows, saveSettings } from "./actions";
 import { SettingsProse } from "./settings-prose";
 
 vi.mock("./actions", () => ({
@@ -14,6 +14,9 @@ vi.mock("./actions", () => ({
   saveBusyCalendars: vi.fn(),
   saveContextWindows: vi.fn(),
   addContext: vi.fn(),
+  renameContext: vi.fn(),
+  makeDefaultContext: vi.fn(),
+  deleteContext: vi.fn(),
 }));
 
 const initial: Settings = { ...DEFAULT_SETTINGS, timeZone: "Europe/London" };
@@ -167,5 +170,89 @@ describe("adding a Context in Settings", () => {
 
     expect((await form.findByRole("alert")).textContent).toBe("There's already a Context called Errands.");
     expect(screen.getByRole("form", { name: "New Context" })).toBeTruthy();
+  });
+});
+
+describe("renaming, making default and deleting a Context in Settings", () => {
+  const deep: Context = { id: "deep", name: "Deep work", windows: DEFAULT_WINDOWS, isDefault: false };
+
+  beforeEach(() => {
+    vi.mocked(renameContext).mockReset();
+    vi.mocked(renameContext).mockImplementation(async (id, name) => ({ ok: true, context: { ...deep, id, name: name.trim() } }));
+    vi.mocked(makeDefaultContext).mockReset();
+    vi.mocked(makeDefaultContext).mockResolvedValue({ ok: true });
+    vi.mocked(deleteContext).mockReset();
+    vi.mocked(deleteContext).mockResolvedValue({ ok: true });
+    renderGuarded(<SettingsProse initial={initial} contexts={[work, deep]} calendar={{ status: "unreachable" }} />);
+  });
+
+  it("shows Make default only on the Contexts that aren't the default, and Rename and Delete on each", () => {
+    expect(screen.getAllByRole("button", { name: /^Make .* the default$/ }).map((b) => b.getAttribute("aria-label"))).toEqual([
+      "Make Deep work the default",
+    ]);
+    expect(screen.getByRole("button", { name: "Make Deep work the default" }).textContent).toBe("Make default");
+    for (const name of ["Work", "Deep work"]) {
+      expect(screen.getByRole("button", { name: `Rename ${name}` }).textContent).toBe("Rename");
+      expect(screen.getByRole("button", { name: `Delete ${name}` }).textContent).toBe("Delete");
+    }
+  });
+
+  it("renames one, showing the new name", async () => {
+    await userEvent.click(screen.getByRole("button", { name: "Rename Deep work" }));
+    const name = screen.getByRole("textbox", { name: "New name for Deep work" });
+    await userEvent.clear(name);
+    await userEvent.type(name, "Focus");
+
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(renameContext).toHaveBeenCalledWith("deep", "Focus");
+    await waitFor(() => expect(screen.getByRole("status").textContent).toBe("Renamed to Focus"));
+    expect(screen.getByText("Focus").tagName).toBe("STRONG");
+    expect(screen.queryByRole("textbox", { name: "New name for Deep work" })).toBeNull();
+  });
+
+  it("refuses a new name by the same rules as adding, saving nothing", async () => {
+    await userEvent.click(screen.getByRole("button", { name: "Rename Deep work" }));
+    const name = screen.getByRole("textbox", { name: "New name for Deep work" });
+    await userEvent.clear(name);
+    await userEvent.type(name, "work");
+
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(screen.getByRole("alert").textContent).toBe("There's already a Context called Work.");
+    expect(renameContext).not.toHaveBeenCalled();
+  });
+
+  it("makes another the default", async () => {
+    await userEvent.click(screen.getByRole("button", { name: "Make Deep work the default" }));
+
+    expect(makeDefaultContext).toHaveBeenCalledWith("deep");
+    await waitFor(() => expect(screen.getByRole("status").textContent).toBe("Deep work is the default"));
+  });
+
+  it("deletes one after asking, saying its Tasks move to the default", async () => {
+    await userEvent.click(screen.getByRole("button", { name: "Delete Deep work" }));
+    expect(screen.getByText("Delete Deep work? Its Tasks move to Work.")).toBeTruthy();
+
+    await userEvent.click(screen.getByRole("button", { name: "Yes, delete" }));
+
+    expect(deleteContext).toHaveBeenCalledWith("deep");
+    await waitFor(() => expect(screen.getByRole("status").textContent).toBe("Deep work deleted"));
+  });
+
+  it("keeps one when deleting is cancelled", async () => {
+    await userEvent.click(screen.getByRole("button", { name: "Delete Deep work" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByText(/^Delete Deep work\?/)).toBeNull();
+    expect(deleteContext).not.toHaveBeenCalled();
+  });
+
+  it("refuses to delete the default, saying to make another the default first", async () => {
+    await userEvent.click(screen.getByRole("button", { name: "Delete Work" }));
+
+    expect(screen.getByRole("alert").textContent).toBe("Make another Context the default before deleting Work.");
+    expect(deleteContext).not.toHaveBeenCalled();
   });
 });

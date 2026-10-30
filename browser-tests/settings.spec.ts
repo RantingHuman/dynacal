@@ -64,3 +64,30 @@ test("adds a Context on a phone, and places a Task moved into it only in its win
     await expect(page.getByRole("button", { name: /^Write essay, 14:00, 1h/ })).toBeVisible();
   });
 });
+
+test("renames a Context, makes it the default and deletes the old one on a phone", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/settings");
+    await page.getByRole("button", { name: "+ Context" }).click();
+    await page.getByRole("form", { name: "New Context" }).getByRole("textbox", { name: "Name" }).fill("Deep work");
+    await page.getByRole("button", { name: "Add" }).click();
+    await expect(page.getByRole("button", { name: "Make Deep work the default" })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+
+    await page.getByRole("button", { name: "Rename Deep work" }).click();
+    await page.getByRole("textbox", { name: "New name for Deep work" }).fill("Focus");
+    await page.getByRole("button", { name: "Save" }).click();
+    await expect(page.getByRole("status")).toHaveText("Renamed to Focus");
+
+    await page.getByRole("button", { name: "Make Focus the default" }).click();
+    await expect(page.locator("p", { hasText: "Focus, the default." })).toBeVisible();
+
+    await page.getByRole("button", { name: "Delete Work" }).click();
+    await page.getByRole("button", { name: "Yes, delete" }).click();
+    await expect(page.getByRole("status")).toHaveText("Work deleted");
+    await page.reload();
+    await expect(page.getByRole("button", { name: "Delete Work" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /^Make .* the default$/ })).toHaveCount(0);
+  });
+});

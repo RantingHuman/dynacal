@@ -3,7 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { SetBusyCalendarsResult } from "@/core/commands";
-import type { CreateContextResult, SetContextWindowsResult, SetUpWeekResult } from "@/core/contexts";
+import type {
+  CreateContextResult,
+  DeleteContextResult,
+  MakeDefaultContextResult,
+  RenameContextResult,
+  SetContextWindowsResult,
+  SetUpWeekResult,
+} from "@/core/contexts";
 import { WEEKDAYS, type UpdateSettingsResult } from "@/core/settings";
 import { getRuntime } from "@/server/runtime";
 import { requireOwner } from "@/server/session";
@@ -56,6 +63,27 @@ export async function addContext(input: unknown): Promise<CreateContextResult> {
   await requireOwner();
   const parsed = z.object({ name: z.string(), windows: windowsSchema }).parse(input);
   const result = getRuntime().commands.createContext(parsed);
+  revalidatePath("/", "layout");
+  return result;
+}
+
+export async function renameContext(id: string, name: string): Promise<RenameContextResult> {
+  await requireOwner();
+  const result = getRuntime().commands.renameContext(z.string().parse(id), z.string().parse(name));
+  revalidatePath("/", "layout");
+  return result;
+}
+
+export async function makeDefaultContext(id: string): Promise<MakeDefaultContextResult> {
+  await requireOwner();
+  const result = getRuntime().commands.makeDefaultContext(z.string().parse(id));
+  revalidatePath("/", "layout");
+  return result;
+}
+
+export async function deleteContext(id: string): Promise<DeleteContextResult> {
+  await requireOwner();
+  const result = getRuntime().commands.deleteContext(z.string().parse(id));
   revalidatePath("/", "layout");
   return result;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { coveredWindows } from "./contexts";
+import { contextTag, coveredWindows } from "./contexts";
 import type { WeeklyWindows } from "./settings";
 import type { TaskInput } from "./tasks";
 import { createTestApp, setDefaultWindows } from "./testing";
@@ -219,6 +219,75 @@ describe("a Context the owner creates", () => {
   });
 });
 
+describe("renaming a Context", () => {
+  it("gives it the new name, trimmed, keeping its windows and Tasks, which are tagged with it", () => {
+    const { commands } = createTestApp();
+    const created = commands.createContext({ name: "Deep work", windows: deepMornings });
+    if (!created.ok) throw new Error("Deep work refused");
+    commands.createTask({ ...twoHours, contextId: created.context.id });
+
+    const result = commands.renameContext(created.context.id, "  Focus ");
+
+    expect(result).toEqual({ ok: true, context: { ...created.context, name: "Focus" } });
+    expect(commands.listContexts().map((c) => c.name)).toEqual(["Work", "Focus"]);
+    const [task] = commands.listTasks();
+    expect(contextTag(commands.listContexts(), task.contextId)).toBe("Focus");
+  });
+
+  it("can change only the case of its own name", () => {
+    const { commands } = createTestApp();
+
+    expect(commands.renameContext(work(commands).id, "WORK")).toMatchObject({ ok: true, context: { name: "WORK" } });
+  });
+
+  it("is refused by the same name rules as creating, saving nothing", () => {
+    const { commands } = createTestApp();
+    const created = commands.createContext({ name: "Deep work", windows: deepMornings });
+    if (!created.ok) throw new Error("Deep work refused");
+
+    expect(commands.renameContext(created.context.id, " ")).toEqual({ ok: false, errors: { name: "Give the Context a name." } });
+    expect(commands.renameContext(created.context.id, "Errands around the town")).toEqual({
+      ok: false,
+      errors: { name: "Keep the name to 20 characters or fewer." },
+    });
+    expect(commands.renameContext(created.context.id, "work")).toEqual({
+      ok: false,
+      errors: { name: "There's already a Context called Work." },
+    });
+    expect(commands.listContexts().map((c) => c.name)).toEqual(["Work", "Deep work"]);
+  });
+
+  it("can't rename a Context that doesn't exist", () => {
+    const { commands } = createTestApp();
+
+    expect(commands.renameContext("nope", "Focus")).toEqual({ ok: false, notFound: true });
+  });
+});
+
+describe("making another Context the default", () => {
+  it("leaves exactly one default, and a Task added with no Context joins it", () => {
+    const { commands } = createTestApp();
+    const created = commands.createContext({ name: "Home", windows: deepMornings });
+    if (!created.ok) throw new Error("Home refused");
+
+    const result = commands.makeDefaultContext(created.context.id);
+
+    expect(result).toEqual({ ok: true });
+    expect(commands.listContexts().map((c) => [c.name, c.isDefault])).toEqual([
+      ["Home", true],
+      ["Work", false],
+    ]);
+    expect(commands.createTask(twoHours)).toMatchObject({ ok: true, task: { contextId: created.context.id } });
+  });
+
+  it("can't make a Context that doesn't exist the default", () => {
+    const { commands } = createTestApp();
+
+    expect(commands.makeDefaultContext("nope")).toEqual({ ok: false, notFound: true });
+    expect(work(commands).isDefault).toBe(true);
+  });
+});
+
 describe("the time every Context covers", () => {
   it("is where the headline looks for free time", () => {
     const { commands } = createTestApp();
@@ -353,5 +422,73 @@ describe("a Task in a Context", () => {
 
     expect(blocks(commands)).toEqual([["Write essay", "2026-01-05T14:00:00.000Z", "2026-01-05T15:00:00.000Z"]]);
     expect(view(commands).flags[created.task.id]).toBeNull();
+  });
+});
+
+describe("deleting a Context", () => {
+  /** London, Monday 06:00, with Work Mon 06:00–17:00 and Deep work Mon 08:00–11:00; no Buffer after Tasks. */
+  function appWithDeepWork() {
+    const app = createTestApp();
+    app.clock.set(new Date("2026-01-05T06:00:00Z"));
+    app.commands.updateSettings({ timeZone: "Europe/London", taskBufferAfterMinutes: 0 });
+    setDefaultWindows(app.commands, { mon: [{ start: 6 * 60, end: 17 * 60 }] });
+    const result = app.commands.createContext({ name: "Deep work", windows: deepMornings });
+    if (!result.ok) throw new Error("Deep work refused");
+    return { ...app, work: work(app.commands), deep: result.context };
+  }
+
+  const oneHour = (title: string, contextId: string): TaskInput => ({
+    ...twoHours,
+    title,
+    estimatedMinutes: 60,
+    splittable: false,
+    contextId,
+  });
+
+  it("moves all its Tasks, complete or not, to the Default Context and replans them in its windows", () => {
+    const { commands, work, deep } = appWithDeepWork();
+    const done = commands.createTask(oneHour("Read paper", deep.id));
+    if (!done.ok) throw new Error("Task refused");
+    commands.completeTask(done.task.id);
+    commands.createTask(oneHour("Write essay", deep.id));
+    expect(blocks(commands)).toEqual([["Write essay", "2026-01-05T08:00:00.000Z", "2026-01-05T09:00:00.000Z"]]);
+
+    const result = commands.deleteContext(deep.id);
+
+    expect(result).toEqual({ ok: true });
+    expect(commands.listContexts().map((c) => c.name)).toEqual(["Work"]);
+    expect(commands.listTasks().map((t) => [t.title, t.contextId])).toEqual([
+      ["Write essay", work.id],
+      ["Read paper", work.id],
+    ]);
+    expect(blocks(commands)).toEqual([["Write essay", "2026-01-05T06:00:00.000Z", "2026-01-05T07:00:00.000Z"]]);
+  });
+
+  it("moves its Tasks to whichever Context is now the default", () => {
+    const { commands, deep } = appWithDeepWork();
+    const home = commands.createContext({ name: "Home", windows: deepMornings });
+    if (!home.ok) throw new Error("Home refused");
+    commands.makeDefaultContext(home.context.id);
+    commands.createTask(oneHour("Write essay", deep.id));
+
+    commands.deleteContext(deep.id);
+
+    expect(commands.listTasks().map((t) => t.contextId)).toEqual([home.context.id]);
+  });
+
+  it("is refused for the Default Context, saying to make another the default first", () => {
+    const { commands, work } = appWithDeepWork();
+
+    expect(commands.deleteContext(work.id)).toEqual({
+      ok: false,
+      error: "Make another Context the default before deleting Work.",
+    });
+    expect(commands.listContexts().map((c) => c.name)).toEqual(["Work", "Deep work"]);
+  });
+
+  it("can't delete a Context that doesn't exist", () => {
+    const { commands } = appWithDeepWork();
+
+    expect(commands.deleteContext("nope")).toEqual({ ok: false, notFound: true });
   });
 });

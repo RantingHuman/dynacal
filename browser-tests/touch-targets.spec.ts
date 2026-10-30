@@ -50,6 +50,8 @@ test("gives the phone's small controls a 44px tap area without overlapping", asy
     await page.goto("/settings");
     await expectTappable(page.getByRole("link", { name: "← Back to the week" }));
     await expectTappable(page.getByRole("button", { name: "Sign out" }));
+    await expectTappable(page.getByRole("button", { name: "Rename Work" }));
+    await expectTappable(page.getByRole("button", { name: "Delete Work" }));
   });
 });
 

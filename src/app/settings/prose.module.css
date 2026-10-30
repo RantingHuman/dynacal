@@ -403,3 +403,26 @@ form.prose .alert {
   margin-top: var(--space-2);
   font: var(--text-body) / 1.5 var(--font-sans);
 }
+
+/* Under each Context: Rename, Make default and Delete, or what one of them asks next. Wraps on a phone. */
+.contextActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  align-items: center;
+  margin: var(--space-1) 0 var(--space-3);
+  font: var(--text-meta) / 1.5 var(--font-sans);
+}
+
+.contextActions .alert,
+.contextActions .ask {
+  flex-basis: 100%;
+}
+
+/* Room for each link's 44px tap area, so it never reaches the sentence above or a wrapped row. */
+@media (pointer: coarse) {
+  .contextActions {
+    row-gap: var(--space-5);
+    margin: var(--space-4) 0 var(--space-5);
+  }
+}
