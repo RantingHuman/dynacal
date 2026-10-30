@@ -15,7 +15,7 @@ import { ErrorScreen } from "./states/error-screen";
 import { TaskEditorProvider, TaskEditorSlot } from "./tasks/task-editor-slot";
 import { TaskPanel } from "./tasks/task-panel";
 import { blockWording } from "./testing/block-wording";
-import { taskItem } from "./testing/fixtures";
+import { taskItem, workContext } from "./testing/fixtures";
 import { renderGuarded } from "./testing/render";
 
 vi.mock("./schedule/actions", () => ({
@@ -102,7 +102,7 @@ describe("the owner never sees the word Block", () => {
   it("on the desktop home, its calendar and a pinned time's label", async () => {
     renderGuarded(
       <TaskEditorProvider>
-        <TaskPanel tasks={tasks()} flags={{}} timeZone="Europe/London" />
+        <TaskPanel contexts={[workContext]} tasks={tasks()} flags={{}} timeZone="Europe/London" />
         <Calendar
           timeZone="Europe/London"
           horizon={horizon}
@@ -123,7 +123,7 @@ describe("the owner never sees the word Block", () => {
   it("on the phone's week list and its sheets", async () => {
     renderGuarded(
       <TaskEditorProvider>
-        <TaskPanel tasks={tasks()} flags={{}} timeZone="Europe/London" />
+        <TaskPanel contexts={[workContext]} tasks={tasks()} flags={{}} timeZone="Europe/London" />
         <PhoneSchedule
           timeZone="Europe/London"
           horizon={horizon}
@@ -147,7 +147,7 @@ describe("the owner never sees the word Block", () => {
   it("in the Task editor, with a Declined Time", async () => {
     renderGuarded(
       <TaskEditorProvider>
-        <TaskPanel tasks={tasks()} flags={{}} timeZone="Europe/London" />
+        <TaskPanel contexts={[workContext]} tasks={tasks()} flags={{}} timeZone="Europe/London" />
         <TaskEditorSlot>
           <div>Calendar</div>
         </TaskEditorSlot>

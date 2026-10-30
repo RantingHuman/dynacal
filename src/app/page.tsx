@@ -3,6 +3,7 @@ import { getRuntime } from "@/server/runtime";
 import { currentSession } from "@/server/session";
 import { ForgetReminderLink } from "./reminders/forget-reminder-link";
 import { RemindersToggle } from "./reminders/reminders-toggle";
+import { coveredWindows } from "@/core/contexts";
 import type { DynacalEvent } from "@/core/dynacal-events";
 import { toWireTiming } from "@/core/event-timing";
 import { writeHeadline } from "@/core/headline";
@@ -97,6 +98,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   const lead = <Lead headline={writeHeadline(week, week.today)} state={week.state} />;
   const taskPanel = (
     <TaskPanel
+      contexts={commands.listContexts()}
       tasks={commands.listTasks()}
       flags={scheduleView.status === "ready" ? scheduleView.flags : {}}
       timeZone={scheduleView.status === "ready" ? scheduleView.timeZone : null}
@@ -139,7 +141,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
                   {schedule ? (
                     <Calendar
                       {...schedule}
-                      workingHours={commands.listContexts()[0].windows}
+                      workingHours={coveredWindows(commands.listContexts())}
                       connectionBroken={connectionBroken}
                     />
                   ) : (

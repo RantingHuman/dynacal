@@ -8,7 +8,7 @@ import { DEFAULT_WINDOWS } from "@/core/settings";
 import { checkIn } from "../tasks/actions";
 import { TaskEditorProvider } from "../tasks/task-editor-slot";
 import { TaskPanel } from "../tasks/task-panel";
-import { deferred, taskItem } from "../testing/fixtures";
+import { deferred, taskItem, workContext } from "../testing/fixtures";
 import { renderGuarded } from "../testing/render";
 import { Calendar, type CalendarBlock } from "./calendar";
 
@@ -50,7 +50,7 @@ const packing = () =>
 function renderDesktop(tasks: TaskListItem[] = [packing()]) {
   renderGuarded(
     <TaskEditorProvider>
-      <TaskPanel tasks={tasks} flags={{}} timeZone="Europe/London" />
+      <TaskPanel contexts={[workContext]} tasks={tasks} flags={{}} timeZone="Europe/London" />
       <Calendar
         timeZone="Europe/London"
         horizon={{ start: NOW, end: "2026-11-10T14:00:00.000Z" }}

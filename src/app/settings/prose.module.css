@@ -363,3 +363,29 @@
     overflow-y: auto;
   }
 }
+
+/* A new Context's name, written into its sentence: underlined like a value, as wide as a 20-character name. */
+.nameInput {
+  width: 11ch;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  border-bottom: var(--hairline) solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+}
+
+/* Under a new Context: why it was refused, then Add and Cancel. */
+form.prose .alert {
+  display: block;
+  margin-top: var(--space-2);
+}
+
+.formActions {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  margin-top: var(--space-2);
+  font: var(--text-body) / 1.5 var(--font-sans);
+}

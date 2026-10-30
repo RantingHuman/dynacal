@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { TaskListItem } from "@/core/commands";
+import type { Context as TaskContext } from "@/core/contexts";
 import type { TaskFlag } from "@/core/scheduler";
 import type { TaskChange } from "@/core/task-list";
 import type { TaskInput } from "@/core/tasks";
@@ -26,6 +27,7 @@ export type ActOnTasks = (change: TaskChange | null, perform: () => Promise<stri
 
 /** What the Tasks column knows and the editor needs, kept current by the Tasks column. */
 export interface TaskColumnData {
+  contexts: TaskContext[];
   tasks: TaskListItem[];
   flags: Record<string, TaskFlag | null>;
   timeZone: string | null;
@@ -121,6 +123,7 @@ export function TaskEditorSlot({ children }: { children: ReactNode }) {
           key={open.taskId ?? `new:${JSON.stringify(open.initial)}`}
           task={task}
           initial={open.initial}
+          contexts={column.contexts}
           flag={task ? (column.flags[task.id] ?? null) : null}
           timeZone={column.timeZone}
           today={column.today}

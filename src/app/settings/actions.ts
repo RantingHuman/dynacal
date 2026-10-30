@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { SetBusyCalendarsResult } from "@/core/commands";
-import type { SetContextWindowsResult, SetUpWeekResult } from "@/core/contexts";
+import type { CreateContextResult, SetContextWindowsResult, SetUpWeekResult } from "@/core/contexts";
 import { WEEKDAYS, type UpdateSettingsResult } from "@/core/settings";
 import { getRuntime } from "@/server/runtime";
 import { requireOwner } from "@/server/session";
@@ -44,6 +44,14 @@ export async function saveSettings(input: unknown): Promise<UpdateSettingsResult
 export async function saveContextWindows(id: string, windows: unknown): Promise<SetContextWindowsResult> {
   await requireOwner();
   const result = getRuntime().commands.setContextWindows(z.string().parse(id), windowsSchema.parse(windows));
+  revalidatePath("/", "layout");
+  return result;
+}
+
+export async function addContext(input: unknown): Promise<CreateContextResult> {
+  await requireOwner();
+  const parsed = z.object({ name: z.string(), windows: windowsSchema }).parse(input);
+  const result = getRuntime().commands.createContext(parsed);
   revalidatePath("/", "layout");
   return result;
 }

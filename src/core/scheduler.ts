@@ -13,13 +13,21 @@ export interface ScheduledBlock extends Interval {
   taskId: string;
 }
 
+/** A Context as the scheduler sees it: its weekly windows, which only its own Tasks may be placed in. */
+export interface SchedulerContext {
+  id: string;
+  windows: WeeklyWindows;
+}
+
 export interface SchedulerTask {
   id: string;
+  /** The Context whose windows this Task is placed in, and only them. */
+  contextId: string;
   /** Remaining Duration, in minutes. */
   remainingMinutes: number;
-  /** Already resolved to an instant (date-only values become the end of that day's Working Hours). */
+  /** Already resolved to an instant (date-only values become the end of that day's windows in the Task's Context). */
   deadline: Date | null;
-  /** Already resolved to an instant (date-only values become the start of that day's Working Hours). */
+  /** Already resolved to an instant (date-only values become the start of that day's windows in the Task's Context). */
   earliestStart: Date | null;
   priority: Priority;
   /** A Splittable Task may be placed in several Blocks; any other Task is placed whole, never split. */
@@ -31,7 +39,7 @@ export interface SchedulerTask {
 export interface SchedulerInput {
   now: Date;
   timeZone: string;
-  workingHours: WeeklyWindows;
+  contexts: SchedulerContext[];
   minimumBlockMinutes: number;
   planningHorizonDays: number;
   /** In a stable order; it breaks any remaining ties. */
@@ -70,34 +78,53 @@ function minutesOf(time: string): number {
   return h * 60 + m;
 }
 
-/** A deadline as an instant: a date only means the end of that day's Working Hours (or of the day, if it has none). */
-export function resolveDeadline(value: DateOrDateTime, timeZone: string, workingHours: WeeklyWindows): Date {
+/** A deadline as an instant: a date only means the end of that day's windows (or of the day, if it has none). */
+export function resolveDeadline(value: DateOrDateTime, timeZone: string, windows: WeeklyWindows): Date {
   if (value.time !== null) return fromZoned({ date: value.date, minutes: minutesOf(value.time) }, timeZone);
-  const ends = workingHours[weekdayOf(value.date)].map((w) => w.end);
+  const ends = windows[weekdayOf(value.date)].map((w) => w.end);
   return fromZoned({ date: value.date, minutes: ends.length ? Math.max(...ends) : DAY_MINUTES }, timeZone);
 }
 
-/** An Earliest Start as an instant: a date only means the start of that day's Working Hours (or of the day, if it has none). */
-export function resolveEarliestStart(value: DateOrDateTime, timeZone: string, workingHours: WeeklyWindows): Date {
+/** An Earliest Start as an instant: a date only means the start of that day's windows (or of the day, if it has none). */
+export function resolveEarliestStart(value: DateOrDateTime, timeZone: string, windows: WeeklyWindows): Date {
   if (value.time !== null) return fromZoned({ date: value.date, minutes: minutesOf(value.time) }, timeZone);
-  const starts = workingHours[weekdayOf(value.date)].map((w) => w.start);
+  const starts = windows[weekdayOf(value.date)].map((w) => w.start);
   return fromZoned({ date: value.date, minutes: starts.length ? Math.min(...starts) : 0 }, timeZone, "later");
 }
 
 /** Free time as [start, end) in epoch ms. */
 type Span = [number, number];
 
-function workingSpans(input: SchedulerInput, from: number, to: number): Span[] {
+/** A Context's windows between `from` and `to`, as spans in time order. */
+function windowSpans(windows: WeeklyWindows, timeZone: string, from: number, to: number): Span[] {
   const spans: Span[] = [];
-  const lastDate = toZoned(new Date(to), input.timeZone).date;
-  for (let date = addDays(toZoned(new Date(from), input.timeZone).date, -1); date <= lastDate; date = addDays(date, 1)) {
-    for (const window of input.workingHours[weekdayOf(date)]) {
-      const start = Math.max(from, fromZoned({ date, minutes: window.start }, input.timeZone, "later").getTime());
-      const end = Math.min(to, fromZoned({ date, minutes: window.end }, input.timeZone).getTime());
+  const lastDate = toZoned(new Date(to), timeZone).date;
+  for (let date = addDays(toZoned(new Date(from), timeZone).date, -1); date <= lastDate; date = addDays(date, 1)) {
+    for (const window of windows[weekdayOf(date)]) {
+      const start = Math.max(from, fromZoned({ date, minutes: window.start }, timeZone, "later").getTime());
+      const end = Math.min(to, fromZoned({ date, minutes: window.end }, timeZone).getTime());
       if (end > start) spans.push([start, end]);
     }
   }
   return spans.sort((a, b) => a[0] - b[0]);
+}
+
+/** Spans merged where they overlap or touch, so time any of them covers appears once. */
+function union(spans: Span[]): Span[] {
+  const merged: Span[] = [];
+  for (const [a, b] of [...spans].sort((x, y) => x[0] - y[0])) {
+    const last = merged.at(-1);
+    if (last && a <= last[1]) last[1] = Math.max(last[1], b);
+    else merged.push([a, b]);
+  }
+  return merged;
+}
+
+/** The time both `free` and `windows` cover. */
+function intersect(free: Span[], windows: Span[]): Span[] {
+  return free.flatMap(([a, b]) =>
+    windows.map(([c, d]): Span => [Math.max(a, c), Math.min(b, d)]).filter(([s, e]) => e > s),
+  );
 }
 
 /** Removes `taken` from `free`, then rounds each remaining span inward to the grid. */
@@ -123,6 +150,7 @@ export function schedule(input: SchedulerInput): SchedulerOutput {
   const to = input.now.getTime() + input.planningHorizonDays * DAY_MS;
   const now = input.now.getTime();
   const pinnedOrStarted = [...input.pinnedBlocks, ...input.startedBlocks].filter((b) => b.end.getTime() > now);
+  const windows = new Map(input.contexts.map((c) => [c.id, windowSpans(c.windows, input.timeZone, from, to)]));
   const state: PlanningState = {
     now,
     from,
@@ -130,7 +158,9 @@ export function schedule(input: SchedulerInput): SchedulerOutput {
     minimum: input.minimumBlockMinutes * MINUTE_MS,
     pinnedOrStarted,
     awaiting: input.awaitingBlocks,
-    free: subtract(workingSpans(input, from, to), [...input.busy, ...pinnedOrStarted]),
+    // One record of occupied time, shared by every Context: where two Contexts' windows overlap, their Tasks share it.
+    free: subtract(union([...windows.values()].flat()), [...input.busy, ...pinnedOrStarted]),
+    windows,
   };
 
   const order = chooseOrder(state, input.tasks);
@@ -174,8 +204,10 @@ interface PlanningState {
   pinnedOrStarted: ScheduledBlock[];
   /** Past Blocks waiting for a Check-in: they count toward their Tasks too. */
   awaiting: ScheduledBlock[];
-  /** Free time before any Task is placed. */
+  /** Free time before any Task is placed, over every Context's windows. */
   free: Span[];
+  /** Each Context's windows in the Planning Horizon, by Context id. */
+  windows: Map<string, Span[]>;
 }
 
 interface Placement {
@@ -239,7 +271,8 @@ function place(state: PlanningState, order: SchedulerTask[]): Placement[] {
     const covered = counted.reduce((sum, b) => sum + b.end.getTime() - b.start.getTime(), 0);
     const need = Math.max(0, remainingMs(task) - covered);
     const earliest = task.earliestStart ? roundUp(task.earliestStart.getTime()) : state.from;
-    const available = subtract(startingFrom(free, earliest), task.declinedTimes ?? []);
+    const own = intersect(startingFrom(free, earliest), state.windows.get(task.contextId) ?? []);
+    const available = subtract(own, task.declinedTimes ?? []);
     const pieces = task.splittable ? placeSplit(available, need, state.minimum) : placeWhole(available, need);
     for (const [start, end] of pieces) take(free, start, end);
     const flag = flagFor(task, need, pieces, counted, state);

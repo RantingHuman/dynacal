@@ -1,6 +1,19 @@
 /** Sample data for component tests, built from the same types the pages receive. */
 
 import type { TaskListItem } from "@/core/commands";
+import type { Context } from "@/core/contexts";
+import { DEFAULT_WINDOWS } from "@/core/settings";
+
+/** The Default Context every Task in the fixtures belongs to. */
+export const workContext: Context = { id: "work", name: "Work", windows: DEFAULT_WINDOWS, isDefault: true };
+
+/** A second Context: Deep work, Mondays 08:00–11:00. */
+export const deepWorkContext: Context = {
+  id: "deep",
+  name: "Deep work",
+  windows: { mon: [{ start: 8 * 60, end: 11 * 60 }], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] },
+  isDefault: false,
+};
 
 let next = 0;
 
@@ -17,6 +30,7 @@ export function taskItem(overrides: Partial<TaskListItem> = {}): TaskListItem {
     earliestStart: null,
     priority: "medium",
     splittable: false,
+    contextId: "work",
     completedAt: null,
     declinedTimes: [],
     checkIns: [],

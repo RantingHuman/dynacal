@@ -31,10 +31,13 @@ export interface TaskInput {
   priority: Priority;
   /** A Splittable Task, which may be scheduled in several Blocks. */
   splittable: boolean;
+  /** The Context the Task belongs to; the Default Context when missing. */
+  contextId?: string | null;
 }
 
 export interface Task extends TaskInput {
   id: string;
+  contextId: string;
 }
 
 export type TaskResult = { ok: true; task: Task } | { ok: false; errors: TaskErrors };

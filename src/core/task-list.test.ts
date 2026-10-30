@@ -36,7 +36,7 @@ describe("an optimistic change to the Task list", () => {
     const before = app.commands.listTasks();
 
     const added = { ...oneHour, title: "Plan offsite", priority: "high" as const };
-    const shown = applyTaskChange(before, { kind: "add", id: "pending-1", input: added }, new Date());
+    const shown = applyTaskChange(before, { kind: "add", id: "pending-1", input: added }, new Date(), "work");
     app.commands.createTask(added);
 
     expect(titles(shown)).toEqual(titles(app.commands.listTasks()));
@@ -53,7 +53,7 @@ describe("an optimistic change to the Task list", () => {
     app.commands.completeTask(inbox.id);
     const before = app.commands.listTasks();
 
-    const shown = applyTaskChange(before, { kind: "complete", id: memo.id }, new Date());
+    const shown = applyTaskChange(before, { kind: "complete", id: memo.id }, new Date(), "work");
     app.commands.completeTask(memo.id);
 
     expect(titles(shown)).toEqual(titles(app.commands.listTasks()));
@@ -68,7 +68,7 @@ describe("an optimistic change to the Task list", () => {
     const before = app.commands.listTasks();
     expect(before[0].checkIns).toHaveLength(1);
 
-    const shown = applyTaskChange(before, { kind: "complete", id: before[0].id }, new Date());
+    const shown = applyTaskChange(before, { kind: "complete", id: before[0].id }, new Date(), "work");
 
     expect(shown[0].checkIns).toEqual([]);
   });
@@ -90,7 +90,7 @@ describe("an optimistic change to the Task list", () => {
     const [first] = before[0].checkIns;
     const change = { kind: "more-time", id: before[0].id, blockId: first.blockId, minutes: 180 } as const;
 
-    const shown = applyTaskChange(before, change, new Date());
+    const shown = applyTaskChange(before, change, new Date(), "work");
     app.commands.checkIn(first.blockId, { answer: "more-time", minutes: 180 });
 
     expect(shown[0].checkIns).toEqual(app.commands.listTasks()[0].checkIns);
@@ -108,7 +108,7 @@ describe("an optimistic change to the Task list", () => {
     app.commands.completeTask(inbox.id);
     const before = app.commands.listTasks();
 
-    const shown = applyTaskChange(before, { kind: "reopen", id: memo.id }, new Date());
+    const shown = applyTaskChange(before, { kind: "reopen", id: memo.id }, new Date(), "work");
     app.commands.reopenTask(memo.id);
 
     expect(titles(shown)).toEqual(titles(app.commands.listTasks()));
@@ -126,7 +126,7 @@ describe("an optimistic change to the Task list", () => {
     const before = app.commands.listTasks();
 
     const edited = { ...oneHour, title: "Tidy inbox ", estimatedMinutes: 30, deadline: { date: "2026-01-06", time: null } };
-    const shown = applyTaskChange(before, { kind: "update", id: inbox.id, input: edited }, new Date());
+    const shown = applyTaskChange(before, { kind: "update", id: inbox.id, input: edited }, new Date(), "work");
     app.commands.updateTask(inbox.id, edited);
 
     expect(titles(shown)).toEqual(titles(app.commands.listTasks()));

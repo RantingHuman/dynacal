@@ -106,6 +106,12 @@
   font-style: italic;
 }
 
+/* A Task's Context, when it isn't the Default Context: its name, kept on one line (names are at most 20 characters). */
+.tag {
+  color: var(--ink);
+  white-space: nowrap;
+}
+
 /* "Allow splitting", at the end of a flagged row, level with the title. */
 .allowSplitting {
   flex: none;

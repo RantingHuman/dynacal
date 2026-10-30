@@ -3,7 +3,7 @@
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { taskItem, deferred } from "../testing/fixtures";
+import { deepWorkContext, taskItem, deferred, workContext } from "../testing/fixtures";
 import { renderGuarded } from "../testing/render";
 import { clearDeclinedTime, deleteTask, updateTask } from "./actions";
 import { TaskEditorProvider, TaskEditorSlot } from "./task-editor-slot";
@@ -15,10 +15,10 @@ vi.mock("./actions", () => ({
 
 const task = taskItem({ id: "task-1", title: "Write planning doc" });
 
-function renderPage(item = task) {
+function renderPage(item = task, contexts = [workContext]) {
   return renderGuarded(
     <TaskEditorProvider>
-      <TaskPanel tasks={[item]} flags={{}} timeZone="Europe/London" />
+      <TaskPanel contexts={contexts} tasks={[item]} flags={{}} timeZone="Europe/London" />
       <TaskEditorSlot><div>Calendar</div></TaskEditorSlot>
     </TaskEditorProvider>,
   );
@@ -52,7 +52,7 @@ describe("the full-page Task editor", () => {
     expect(updateTask).toHaveBeenCalledWith("task-1", expect.objectContaining({ title: "Write the annual plan" }));
     page.rerender(
       <TaskEditorProvider>
-        <TaskPanel tasks={[{ ...task, title: "Write the annual plan" }]} flags={{}} timeZone="Europe/London" />
+        <TaskPanel contexts={[workContext]} tasks={[{ ...task, title: "Write the annual plan" }]} flags={{}} timeZone="Europe/London" />
         <TaskEditorSlot><div>Calendar</div></TaskEditorSlot>
       </TaskEditorProvider>,
     );
@@ -118,7 +118,7 @@ describe("the full-page Task editor", () => {
     await waitFor(() => expect(screen.queryByRole("form", { name: "Edit Task" })).toBeNull());
     page.rerender(
       <TaskEditorProvider>
-        <TaskPanel tasks={[]} flags={{}} timeZone="Europe/London" />
+        <TaskPanel contexts={[workContext]} tasks={[]} flags={{}} timeZone="Europe/London" />
         <TaskEditorSlot><div>Calendar</div></TaskEditorSlot>
       </TaskEditorProvider>,
     );
@@ -171,5 +171,47 @@ describe("the full-page Task editor", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("a Task's Context in the editor", () => {
+  beforeEach(() => vi.mocked(updateTask).mockReset());
+
+  it("is a row of chips, one per Context, the Default Context first", async () => {
+    renderPage(task, [workContext, deepWorkContext]);
+    const editor = await openEditor();
+
+    const chips = within(editor.getByRole("radiogroup", { name: "Context" })).getAllByRole("radio");
+
+    expect(chips.map((c) => [c.textContent, c.getAttribute("aria-checked")])).toEqual([
+      ["Work", "true"],
+      ["Deep work", "false"],
+    ]);
+  });
+
+  it("moves the Task to the chosen Context when saved", async () => {
+    vi.mocked(updateTask).mockResolvedValue({ ok: true, task: { ...task, contextId: "deep" } });
+    renderPage(task, [workContext, deepWorkContext]);
+    const editor = await openEditor();
+
+    await userEvent.click(editor.getByRole("radio", { name: "Deep work" }));
+    await userEvent.click(editor.getByRole("button", { name: "Save" }));
+
+    expect(updateTask).toHaveBeenCalledWith("task-1", expect.objectContaining({ contextId: "deep" }));
+    await waitFor(() => expect(updateTask).toHaveReturned());
+  });
+
+  it("is named as a tag beside the time left, for a Context other than the default", async () => {
+    renderPage({ ...task, contextId: "deep" }, [workContext, deepWorkContext]);
+    const editor = await openEditor();
+
+    expect(editor.getByText(/^1h left/).textContent).toBe("1h left · Deep work");
+  });
+
+  it("isn't tagged for the Default Context", async () => {
+    renderPage(task, [workContext, deepWorkContext]);
+    const editor = await openEditor();
+
+    expect(editor.getByText(/^1h left/).textContent).toBe("1h left");
   });
 });

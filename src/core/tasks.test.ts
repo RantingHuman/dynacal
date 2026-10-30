@@ -21,7 +21,15 @@ describe("Tasks", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(commands.listTasks()).toEqual([
-      { id: result.task.id, ...minimal, remainingMinutes: 90, completedAt: null, declinedTimes: [], checkIns: [] },
+      {
+        id: result.task.id,
+        ...minimal,
+        contextId: commands.listContexts()[0].id,
+        remainingMinutes: 90,
+        completedAt: null,
+        declinedTimes: [],
+        checkIns: [],
+      },
     ]);
   });
 
@@ -71,9 +79,10 @@ describe("Tasks", () => {
 
     const result = commands.updateTask(created.task.id, edited);
 
-    expect(result).toEqual({ ok: true, task: { id: created.task.id, ...edited } });
+    const contextId = commands.listContexts()[0].id;
+    expect(result).toEqual({ ok: true, task: { id: created.task.id, ...edited, contextId } });
     expect(commands.listTasks()).toEqual([
-      { id: created.task.id, ...edited, remainingMinutes: 180, completedAt: null, declinedTimes: [], checkIns: [] },
+      { id: created.task.id, ...edited, contextId, remainingMinutes: 180, completedAt: null, declinedTimes: [], checkIns: [] },
     ]);
   });
 

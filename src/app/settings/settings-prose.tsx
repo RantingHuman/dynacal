@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Context } from "@/core/contexts";
-import { validateSettings, validateWindows, type Settings } from "@/core/settings";
+import { contextNameError, type Context, type ContextErrors } from "@/core/contexts";
+import { DEFAULT_WINDOWS, validateSettings, validateWindows, type Settings, type WeeklyWindows } from "@/core/settings";
 import { settingsToSave, windowsToSave } from "@/core/settings-draft";
-import { saveBusyCalendars, saveContextWindows, saveSettings } from "./actions";
+import { addContext, saveBusyCalendars, saveContextWindows, saveSettings } from "./actions";
 import { BusyCalendarsValue, toggled } from "./busy-calendars-value";
 import type { CalendarView } from "./calendar-view";
 import { MinutesEditor } from "./editors";
@@ -115,6 +115,7 @@ export function SettingsProse({
       {contexts.map((context) => (
         <ContextParagraph key={context.id} context={context} open={open} onOpen={setOpen} onSaved={show} />
       ))}
+      <NewContext contexts={contexts} open={open} onOpen={setOpen} onAdded={show} />
 
       <h2 className={styles.kicker}>Your Tasks</h2>
       <p className={styles.prose}>
@@ -241,6 +242,103 @@ function ContextParagraph({
         onOpen={(o) => onOpen(o && prefix + o)}
       />
     </p>
+  );
+}
+
+/**
+ * "+ Context" opens a paragraph for a new one: its name, then its windows as week sentences, starting at weekdays
+ * 09:00–17:00. Add checks the name and windows here first, then on the server; either way a refusal says why.
+ */
+function NewContext({
+  contexts,
+  open,
+  onOpen,
+  onAdded,
+}: {
+  contexts: Context[];
+  open: OpenValue;
+  onOpen: (open: OpenValue) => void;
+  onAdded: (message: string) => void;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState("");
+  const [windows, setWindows] = useState<WeeklyWindows>(DEFAULT_WINDOWS);
+  const [errors, setErrors] = useState<ContextErrors>({});
+  const [pending, setPending] = useState(false);
+  // The new Context's editors are told apart from the others' as "new/hours:mon,tue".
+  const prefix = "new/";
+
+  function reset() {
+    setAdding(false);
+    setName("");
+    setWindows(DEFAULT_WINDOWS);
+    setErrors({});
+  }
+
+  async function add(event: React.FormEvent) {
+    event.preventDefault();
+    const nameError = contextNameError(name, contexts);
+    // Windows that can't be saved are already held, with their message, in the sentences.
+    if (nameError || validateWindows(windows)) return setErrors(nameError ? { name: nameError } : {});
+    setPending(true);
+    try {
+      const result = await addContext({ name, windows });
+      if (result.ok) {
+        reset();
+        onAdded(`${result.context.name} added`);
+      } else {
+        setErrors(result.errors);
+      }
+    } catch (e) {
+      console.error("Adding a Context failed:", e);
+      onAdded("The Context wasn't added. Check your connection.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  if (!adding) {
+    return (
+      <p className={styles.muted}>
+        <button type="button" className="link" onClick={() => setAdding(true)}>
+          + Context
+        </button>
+      </p>
+    );
+  }
+  return (
+    <form className={styles.prose} aria-label="New Context" onSubmit={add}>
+      <input
+        className={styles.nameInput}
+        aria-label="Name"
+        placeholder="Name"
+        value={name}
+        autoFocus
+        onChange={(e) => setName(e.target.value)}
+      />
+      .
+      <WindowsSentences
+        windows={windows}
+        saved={DEFAULT_WINDOWS}
+        held={validateWindows(windows)}
+        onChange={setWindows}
+        open={open?.startsWith(prefix) ? open.slice(prefix.length) : null}
+        onOpen={(o) => onOpen(o && prefix + o)}
+      />
+      {errors.name && (
+        <span className={styles.alert} role="alert">
+          {errors.name}
+        </span>
+      )}
+      <span className={styles.formActions}>
+        <button type="submit" className="button" disabled={pending}>
+          Add
+        </button>
+        <button type="button" className="link" onClick={reset}>
+          Cancel
+        </button>
+      </span>
+    </form>
   );
 }
 

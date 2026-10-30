@@ -8,7 +8,7 @@ import type { CalendarBlock } from "../../schedule/calendar";
 import { checkIn } from "../../tasks/actions";
 import { TaskEditorProvider } from "../../tasks/task-editor-slot";
 import { TaskPanel } from "../../tasks/task-panel";
-import { deferred, taskItem } from "../../testing/fixtures";
+import { deferred, taskItem, workContext } from "../../testing/fixtures";
 import { renderGuarded } from "../../testing/render";
 import { PhoneSchedule } from "./phone-schedule";
 
@@ -47,7 +47,7 @@ const memo = () => taskItem({ id: "t2", title: "Board memo" });
 function renderPhone(tasks: TaskListItem[] = [packing(), memo()], blocks: CalendarBlock[] = [past, ahead]) {
   renderGuarded(
     <TaskEditorProvider>
-      <TaskPanel tasks={tasks} flags={{}} timeZone="Europe/London" />
+      <TaskPanel contexts={[workContext]} tasks={tasks} flags={{}} timeZone="Europe/London" />
       <section aria-label="Schedule">
         <PhoneSchedule
           timeZone="Europe/London"

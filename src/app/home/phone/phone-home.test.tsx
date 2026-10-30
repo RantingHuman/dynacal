@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { checkInHref } from "@/core/headline";
 import { TaskEditorProvider } from "../../tasks/task-editor-slot";
 import { TaskPanel } from "../../tasks/task-panel";
-import { taskItem } from "../../testing/fixtures";
+import { taskItem, workContext } from "../../testing/fixtures";
 import { renderGuarded } from "../../testing/render";
 import { PhoneHome } from "./phone-home";
 
@@ -65,7 +65,7 @@ describe("the home screen on a phone", () => {
     });
     renderPhone(
       <a href={checkInHref("pack")}>Check in</a>,
-      <TaskPanel tasks={[waiting]} flags={{}} timeZone="Europe/London" />,
+      <TaskPanel contexts={[workContext]} tasks={[waiting]} flags={{}} timeZone="Europe/London" />,
     );
 
     await userEvent.click(screen.getByRole("link", { name: "Check in" }));

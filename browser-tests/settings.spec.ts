@@ -33,3 +33,34 @@ test("shows Work under Contexts on a phone, and keeps its edited windows after r
     await expect(page.locator("p", { hasText: "Work, the default." })).toContainText("Monday to Friday, 09:00–16:00.");
   });
 });
+
+test("adds a Context on a phone, and places a Task moved into it only in its windows, tagged", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/settings");
+    await page.getByRole("button", { name: "+ Context" }).click();
+    const form = page.getByRole("form", { name: "New Context" });
+    await form.getByRole("textbox", { name: "Name" }).fill("Deep work");
+    await form.getByRole("button", { name: "09:00–17:00" }).click();
+    await form.getByLabel("Monday to Friday window 1 start").fill("14:00");
+    await form.getByRole("button", { name: "Add" }).click();
+    await expect(page.getByRole("status")).toHaveText("Deep work added");
+    await expect(page.locator("p", { hasText: "Deep work." })).toContainText("Monday to Friday, 14:00–17:00.");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+
+    await page.goto("/");
+    await page.getByRole("tab", { name: "Tasks" }).click();
+    await page.getByRole("textbox", { name: "Add a Task" }).fill("Write essay 1h");
+    await page.getByRole("textbox", { name: "Add a Task" }).press("Enter");
+    await page.getByRole("button", { name: /^Write essay/ }).click();
+    const editor = page.getByRole("form", { name: "Edit Task" });
+    await editor.getByRole("radio", { name: "Deep work" }).click();
+    await editor.getByRole("button", { name: "Save", exact: true }).click();
+
+    const row = page.getByRole("listitem").filter({ hasText: "Write essay" });
+    await expect(row).toContainText("1h left · Deep work");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+    await page.getByRole("tab", { name: "Schedule" }).click();
+    await expect(page.getByRole("button", { name: /^Write essay, 14:00, 1h/ })).toBeVisible();
+  });
+});

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import type { TaskListItem } from "@/core/commands";
+import { contextTag, type Context } from "@/core/contexts";
 import type { TaskFlag } from "@/core/scheduler";
 import {
   PRIORITIES,
@@ -31,6 +32,7 @@ const DURATIONS = [15, 30, 45, 60, 90, 120, 180, 240];
 export function TaskEditor({
   task,
   initial,
+  contexts,
   flag,
   timeZone,
   today,
@@ -42,6 +44,8 @@ export function TaskEditor({
   /** The Task being edited, or null for a new one. */
   task: TaskListItem | null;
   initial: TaskInput;
+  /** Every Context, the Default Context first. */
+  contexts: Context[];
   flag: TaskFlag | null;
   timeZone: string | null;
   today: string;
@@ -52,7 +56,9 @@ export function TaskEditor({
   /** A new Task was added. */
   onAdded?: () => void;
 }) {
-  const [input, setInput] = useState<TaskInput>(initial);
+  // A Task added without a Context goes to the Default Context, so its chip starts chosen.
+  const [input, setInput] = useState<TaskInput>({ ...initial, contextId: initial.contextId ?? contexts[0].id });
+  const tag = task && contextTag(contexts, task.contextId);
   const [errors, setErrors] = useState<TaskErrors>({});
   const [pending, startTransition] = useTransition();
   const slow = useSlow(pending);
@@ -131,6 +137,12 @@ export function TaskEditor({
         {task && (
           <p className={styles.dek}>
             {task.completedAt ? "Complete" : left(task)}
+            {tag && (
+              <>
+                {" · "}
+                <span className={styles.tag}>{tag}</span>
+              </>
+            )}
             {flag &&
               !task.completedAt &&
               (isAlarm(flag) ? <em> · {FLAG_LABELS[flag]}</em> : ` · ${FLAG_LABELS[flag]}`)}
@@ -172,6 +184,12 @@ export function TaskEditor({
           <dd>
             <PriorityField value={input.priority} onChange={(priority) => update({ priority })} />
             {errors.priority && <p className="field-error">{errors.priority}</p>}
+          </dd>
+
+          <dt>Context</dt>
+          <dd>
+            <ContextField contexts={contexts} value={input.contextId} onChange={(contextId) => update({ contextId })} />
+            {errors.contextId && <p className="field-error">{errors.contextId}</p>}
           </dd>
 
           <dt>Splitting</dt>
@@ -335,6 +353,34 @@ function PriorityField({ value, onChange }: { value: Priority; onChange: (priori
           onClick={() => onChange(priority)}
         >
           {PRIORITY_LABELS[priority]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** One chip per Context, the Default Context first: one tap moves the Task, which is replanned when saved. */
+function ContextField({
+  contexts,
+  value,
+  onChange,
+}: {
+  contexts: Context[];
+  value: string | null | undefined;
+  onChange: (contextId: string) => void;
+}) {
+  return (
+    <div className={styles.chips} role="radiogroup" aria-label="Context">
+      {contexts.map((context) => (
+        <button
+          key={context.id}
+          type="button"
+          role="radio"
+          aria-checked={value === context.id}
+          className={styles.chip}
+          onClick={() => onChange(context.id)}
+        >
+          {context.name}
         </button>
       ))}
     </div>

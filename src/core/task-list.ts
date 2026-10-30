@@ -31,8 +31,16 @@ function place(tasks: TaskListItem[], task: TaskListItem): TaskListItem[] {
   return at === -1 ? [...tasks, task] : [...tasks.slice(0, at), task, ...tasks.slice(at)];
 }
 
-/** The Task list as it will be once the server has made the change, so the page can show it straight away. */
-export function applyTaskChange(tasks: TaskListItem[], change: TaskChange, now: Date): TaskListItem[] {
+/**
+ * The Task list as it will be once the server has made the change, so the page can show it straight away. A Task
+ * saved without a Context goes to the Default Context, as on the server.
+ */
+export function applyTaskChange(
+  tasks: TaskListItem[],
+  change: TaskChange,
+  now: Date,
+  defaultContextId: string,
+): TaskListItem[] {
   if (change.kind === "complete") {
     const task = tasks.find((t) => t.id === change.id);
     if (!task || task.completedAt) return tasks;
@@ -75,11 +83,18 @@ export function applyTaskChange(tasks: TaskListItem[], change: TaskChange, now: 
     return place(
       tasks.filter((t) => t !== task),
       // The duration the editor saves is the Task's Remaining Duration.
-      { ...task, ...change.input, title: change.input.title.trim(), remainingMinutes: change.input.estimatedMinutes },
+      {
+        ...task,
+        ...change.input,
+        contextId: change.input.contextId ?? defaultContextId,
+        title: change.input.title.trim(),
+        remainingMinutes: change.input.estimatedMinutes,
+      },
     );
   }
   const task: TaskListItem = {
     ...change.input,
+    contextId: change.input.contextId ?? defaultContextId,
     title: change.input.title.trim(),
     id: change.id,
     remainingMinutes: change.input.estimatedMinutes,

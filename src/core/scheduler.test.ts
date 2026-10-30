@@ -11,7 +11,7 @@ function input(change: Partial<SchedulerInput> = {}): SchedulerInput {
   return {
     now: MONDAY_9AM,
     timeZone: "Europe/London",
-    workingHours: DEFAULT_WINDOWS,
+    contexts: [{ id: "work", windows: DEFAULT_WINDOWS }],
     minimumBlockMinutes: 30,
     planningHorizonDays: 14,
     tasks: [],
@@ -27,6 +27,7 @@ function input(change: Partial<SchedulerInput> = {}): SchedulerInput {
 function task(id: string, change: Partial<SchedulerTask> = {}): SchedulerTask {
   return {
     id,
+    contextId: "work",
     remainingMinutes: 60,
     deadline: null,
     earliestStart: null,
@@ -592,7 +593,7 @@ describe("scheduler", () => {
       const result = schedule(
         input({
           now: new Date("2026-03-28T12:00:00Z"),
-          workingHours: { ...DEFAULT_WINDOWS, sat: [], sun: [{ start: 30, end: 90 }] },
+          contexts: [{ id: "work", windows: { ...DEFAULT_WINDOWS, sat: [], sun: [{ start: 30, end: 90 }] } }],
           tasks: [task("a", { remainingMinutes: 60 })],
           minimumBlockMinutes: 15,
         }),
@@ -651,7 +652,7 @@ describe("scheduler", () => {
       const result = input({
         now,
         timeZone: r.pick(["Europe/London", "America/New_York", "Australia/Sydney", "Asia/Kathmandu", "UTC"]),
-        workingHours,
+        contexts: [{ id: "work", windows: workingHours }],
         minimumBlockMinutes: quarter(15, 120),
         tasks,
         busy,
@@ -724,7 +725,7 @@ describe("scheduler", () => {
         for (const block of schedule(given).blocks) {
           for (let t = block.start.getTime(); t < block.end.getTime(); t += GRID) {
             const { date, minutes } = toZoned(new Date(t), given.timeZone);
-            const inside = given.workingHours[weekdayOf(date)].some((w) => w.start <= minutes && minutes + 15 <= w.end);
+            const inside = given.contexts[0].windows[weekdayOf(date)].some((w) => w.start <= minutes && minutes + 15 <= w.end);
             expect(inside, `seed ${seed}: ${new Date(t).toISOString()} in ${given.timeZone}`).toBe(true);
           }
         }

@@ -1,6 +1,5 @@
 import type { tasks } from "./db/schema";
-import { resolveDeadline, resolveEarliestStart, type SchedulerTask } from "./scheduler";
-import type { WeeklyWindows } from "./settings";
+import { resolveDeadline, resolveEarliestStart, type SchedulerContext, type SchedulerTask } from "./scheduler";
 import type { Interval } from "./time";
 
 /**
@@ -14,26 +13,31 @@ export function schedulerTasks({
   taskRows,
   declined,
   timeZone,
-  workingHours,
+  contexts,
 }: {
   taskRows: TaskRow[];
   declined: (Interval & { taskId: string })[];
   timeZone: string;
-  workingHours: WeeklyWindows;
+  contexts: SchedulerContext[];
 }): SchedulerTask[] {
-  return taskRows.map((row) => ({
+  return taskRows.map((row) => {
+    // Date-only values resolve against the Task's own Context's windows.
+    const windows = contexts.find((c) => c.id === row.contextId)!.windows;
+    return {
     id: row.id,
+    contextId: row.contextId,
     remainingMinutes: row.estimatedMinutes,
     deadline:
       row.deadlineDate === null
         ? null
-        : resolveDeadline({ date: row.deadlineDate, time: row.deadlineTime }, timeZone, workingHours),
+        : resolveDeadline({ date: row.deadlineDate, time: row.deadlineTime }, timeZone, windows),
     earliestStart:
       row.earliestStartDate === null
         ? null
-        : resolveEarliestStart({ date: row.earliestStartDate, time: row.earliestStartTime }, timeZone, workingHours),
+        : resolveEarliestStart({ date: row.earliestStartDate, time: row.earliestStartTime }, timeZone, windows),
     priority: row.priority,
     splittable: row.splittable,
     declinedTimes: declined.filter((t) => t.taskId === row.id).map(({ start, end }) => ({ start, end })),
-  }));
+  };
+  });
 }

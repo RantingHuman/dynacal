@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { checkInHref } from "@/core/headline";
 import type { TaskFlag } from "@/core/scheduler";
 import type { TaskResult } from "@/core/tasks";
-import { deferred, taskItem } from "../testing/fixtures";
+import { deepWorkContext, deferred, taskItem, workContext } from "../testing/fixtures";
 import { renderGuarded } from "../testing/render";
 import { OFFLINE_REASON } from "../states/use-online";
 import { allowSplitting, checkIn, completeTask, createTask, reopenTask } from "./actions";
@@ -24,10 +24,14 @@ vi.mock("./actions", () => ({
   checkIn: vi.fn(),
 }));
 
-function renderPanel(tasks = [taskItem({ title: "Write Q4 planning doc" })], flags: Record<string, TaskFlag | null> = {}) {
+function renderPanel(
+  tasks = [taskItem({ title: "Write Q4 planning doc" })],
+  flags: Record<string, TaskFlag | null> = {},
+  contexts = [workContext],
+) {
   return renderGuarded(
     <TaskEditorProvider>
-      <TaskPanel tasks={tasks} flags={flags} timeZone="Europe/London" />
+      <TaskPanel contexts={contexts} tasks={tasks} flags={flags} timeZone="Europe/London" />
     </TaskEditorProvider>,
   );
 }
@@ -91,7 +95,7 @@ describe("adding a Task through the full form", () => {
   function renderWithEditor() {
     return renderGuarded(
       <TaskEditorProvider>
-        <TaskPanel tasks={[]} flags={{}} timeZone="Europe/London" />
+        <TaskPanel contexts={[workContext]} tasks={[]} flags={{}} timeZone="Europe/London" />
         <TaskEditorSlot>
           <p>The calendar</p>
         </TaskEditorSlot>
@@ -215,6 +219,21 @@ describe("a Later Task's row", () => {
   });
 });
 
+describe("a Task's Context on its row", () => {
+  it("is a tag naming a Context other than the default, and nothing for the Default Context", () => {
+    renderPanel(
+      [taskItem({ title: "Write essay", contextId: "deep" }), taskItem({ title: "Email Sam" })],
+      {},
+      [workContext, deepWorkContext],
+    );
+
+    const [essay, email] = taskList().getAllByRole("listitem");
+    expect(within(essay).getByText("Deep work")).toBeTruthy();
+    expect(within(email).queryByText("Work")).toBeNull();
+    expect(within(email).queryByText("Deep work")).toBeNull();
+  });
+});
+
 describe("allowing a Task that won't fit to split", () => {
   beforeEach(() => vi.mocked(allowSplitting).mockReset());
   const memo = taskItem({ title: "Board memo" });
@@ -321,7 +340,7 @@ describe("a Task waiting for a Check-in", () => {
     renderGuarded(
       <TaskEditorProvider>
         <a href={checkInHref("pack")}>Check in</a>
-        <TaskPanel tasks={[{ ...packing(), id: "pack" }]} flags={{}} timeZone="Europe/London" />
+        <TaskPanel contexts={[workContext]} tasks={[{ ...packing(), id: "pack" }]} flags={{}} timeZone="Europe/London" />
       </TaskEditorProvider>,
     );
 

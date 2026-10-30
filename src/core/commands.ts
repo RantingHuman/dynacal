@@ -11,7 +11,17 @@ import {
   type GoogleCalendar,
 } from "./calendar-gateway";
 import type { Clock } from "./clock";
-import { FIRST_CONTEXT_NAME, type Context, type SetContextWindowsResult, type SetUpWeekResult } from "./contexts";
+import {
+  FIRST_CONTEXT_NAME,
+  contextNameError,
+  coveredWindows,
+  type Context,
+  type ContextErrors,
+  type ContextInput,
+  type CreateContextResult,
+  type SetContextWindowsResult,
+  type SetUpWeekResult,
+} from "./contexts";
 import { connectionProblem, unlessRefused, watchConnectionHealth } from "./connection-health";
 import {
   awaitsCheckIn,
@@ -127,6 +137,7 @@ import {
   validateTask,
   type DateOrDateTime,
   type Task,
+  type TaskErrors,
   type TaskInput,
   type TaskResult,
   type UpdateTaskResult,
@@ -378,7 +389,18 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       earliestStart: dateOrDateTime(row.earliestStartDate, row.earliestStartTime),
       priority: row.priority,
       splittable: row.splittable,
+      contextId: row.contextId,
     };
+  }
+
+  /** The Task's input checked, its Context included: a missing one means the Default Context. */
+  function checkTask(input: TaskInput): { errors: TaskErrors } | { errors: null; contextId: string } {
+    const errors = validateTask(input) ?? {};
+    const contextId = input.contextId ?? defaultContext().id;
+    if (!db.select({ id: contexts.id }).from(contexts).where(eq(contexts.id, contextId)).get()) {
+      errors.contextId = "That Context no longer exists.";
+    }
+    return Object.keys(errors).length ? { errors } : { errors: null, contextId };
   }
 
   /** The Events last read from Busy Calendars. */
@@ -942,8 +964,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     const current = getSettings();
     const { timeZone, minimumBlockMinutes } = current;
     if (timeZone === null) return { ok: false, reason: "needs-time-zone" };
-    // Every Task is in the Default Context until the owner can add others.
-    const workingHours = defaultContext().windows;
+    const allContexts = commands.listContexts();
     const busy = busyTime(current, timeZone);
     const now = clock.now();
     db.transaction((tx) => {
@@ -972,10 +993,10 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       const result = schedule({
         now,
         timeZone,
-        workingHours,
+        contexts: allContexts,
         minimumBlockMinutes,
         planningHorizonDays: PLANNING_HORIZON_DAYS,
-        tasks: schedulerTasks({ taskRows, declined, timeZone, workingHours }),
+        tasks: schedulerTasks({ taskRows, declined, timeZone, contexts: allContexts }),
         busy,
         pinnedBlocks: [...inProgress.filter((b) => b.pinned), ...pinnedAhead],
         startedBlocks: inProgress.filter((b) => !b.pinned),
@@ -1217,9 +1238,9 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     },
 
     createTask(input: TaskInput): TaskResult {
-      const errors = validateTask(input);
-      if (errors) return { ok: false, errors };
-      const row = { id: randomUUID(), createdAt: clock.now(), contextId: defaultContext().id, ...taskRow(input) };
+      const checked = checkTask(input);
+      if (checked.errors) return { ok: false, errors: checked.errors };
+      const row = { id: randomUUID(), createdAt: clock.now(), contextId: checked.contextId, ...taskRow(input) };
       db.insert(tasks).values(row).run();
       recalculateAutomatically();
       return { ok: true, task: toTask(row) };
@@ -1227,9 +1248,14 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
 
     updateTask(id: string, input: TaskInput): UpdateTaskResult {
       if (!db.select({ id: tasks.id }).from(tasks).where(eq(tasks.id, id)).get()) return { ok: false, notFound: true };
-      const errors = validateTask(input);
-      if (errors) return { ok: false, errors };
-      const row = db.update(tasks).set(taskRow(input)).where(eq(tasks.id, id)).returning().get();
+      const checked = checkTask(input);
+      if (checked.errors) return { ok: false, errors: checked.errors };
+      const row = db
+        .update(tasks)
+        .set({ ...taskRow(input), contextId: checked.contextId })
+        .where(eq(tasks.id, id))
+        .returning()
+        .get();
       recalculateAutomatically();
       return { ok: true, task: toTask(row) };
     },
@@ -1275,6 +1301,19 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       const first = defaultContext();
       const others = db.select().from(contexts).where(eq(contexts.isDefault, false)).orderBy(contexts.name).all();
       return [first, ...others];
+    },
+
+    /** Adds a Context. It has no Tasks yet, so nothing needs replanning. */
+    createContext(input: ContextInput): CreateContextResult {
+      const errors: ContextErrors = {};
+      const nameError = contextNameError(input.name, commands.listContexts());
+      if (nameError) errors.name = nameError;
+      const windowsErrors = validateWindows(input.windows);
+      if (windowsErrors) errors.windows = windowsErrors;
+      if (Object.keys(errors).length) return { ok: false, errors };
+      const context = { id: randomUUID(), name: input.name.trim(), windows: input.windows, isDefault: false };
+      db.insert(contexts).values(context).run();
+      return { ok: true, context };
     },
 
     /** Changes a Context's windows, then replans: its Tasks go only in the new windows. */
@@ -1635,7 +1674,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     return summariseWeek({
       now: clock.now(),
       timeZone,
-      workingHours: defaultContext().windows,
+      workingHours: coveredWindows(commands.listContexts()),
       connection: getGoogleConnection(),
       blocks: schedule.status === "ready" ? schedule.blocks : [],
       busy: schedule.status === "ready" ? schedule.events.filter((e) => e.countsAsBusy) : [],
