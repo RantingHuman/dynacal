@@ -244,7 +244,7 @@ interface Placement {
   task: SchedulerTask;
   pieces: Span[];
   flag: TaskFlag | null;
-  /** The Task can't get all of its Remaining Duration in before its (future) deadline. */
+  /** The Task can't get all of its Remaining Duration in before its (future) deadline, which is in the Planning Horizon. */
   misses: boolean;
 }
 
@@ -310,8 +310,10 @@ function place(state: PlanningState, order: SchedulerTask[]): Placement[] {
     const pieces = task.splittable ? placeSplit(available, need, state.minimum, gap) : placeWhole(available, need);
     for (const [start, end] of pieces) taken.push(neighbour({ start: new Date(start), end: new Date(end) }, buffers));
     const flag = flagFor(task, need, pieces, counted, state);
-    const unplaced = flag === "unscheduled" || flag === "later";
-    return { task, pieces, flag, misses: flag === "at-risk" || (unplaced && task.deadline !== null) };
+    // Only a deadline within the Planning Horizon can be missed here: one beyond it has time after the horizon.
+    const dueInHorizon = task.deadline !== null && task.deadline.getTime() <= state.to;
+    const misses = dueInHorizon && (flag === "at-risk" || flag === "unscheduled" || flag === "later");
+    return { task, pieces, flag, misses };
   });
 }
 

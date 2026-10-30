@@ -320,6 +320,22 @@ describe("scheduler", () => {
       expect(result.flags).toEqual({ a: "later", b: "later" });
     });
 
+    it("Later doesn't count as missing a deadline: a Task due beyond the Planning Horizon yields to one due in it", () => {
+      const result = schedule(
+        input({
+          tasks: [
+            task("due in 6 weeks", { priority: "critical", deadline: new Date("2026-02-16T17:00:00Z") }),
+            task("due tomorrow", { priority: "low", deadline: new Date("2026-01-06T17:00:00Z") }),
+          ],
+          // One free hour in the whole Planning Horizon: Monday 09:00–10:00.
+          busy: [{ start: new Date("2026-01-05T10:00:00Z"), end: new Date("2026-01-20T00:00:00Z") }],
+        }),
+      );
+
+      expect(blocksOf(result)).toEqual([["due tomorrow", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"]]);
+      expect(result.flags).toEqual({ "due in 6 weeks": "later", "due tomorrow": null });
+    });
+
     it("Later: a Task whose Earliest Start is beyond the Planning Horizon", () => {
       const result = schedule(
         input({ tasks: [task("a", { earliestStart: new Date("2026-01-20T09:00:00Z") })] }),
