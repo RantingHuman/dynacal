@@ -22,6 +22,11 @@ function sameSet(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
 }
 
 /** A quiet note that fades after a moment: "Settings saved". */
+/** A Buffer's length as the prose says it: "no time", "15 minutes", "1 hour". */
+function bufferPhrase(minutes: number): string {
+  return minutes === 0 ? "no time" : minutes === 60 ? "1 hour" : `${minutes} minutes`;
+}
+
 function useToast() {
   const [toast, setToast] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -85,6 +90,8 @@ export function SettingsProse({
   const lead = draft.reminderLeadMinutes;
   const minimum = draft.minimumBlockMinutes;
   const after = draft.taskBufferAfterMinutes;
+  const beforeEvents = draft.eventBufferBeforeMinutes;
+  const afterEvents = draft.eventBufferAfterMinutes;
 
   return (
     <>
@@ -172,7 +179,7 @@ export function SettingsProse({
             <BufferChips label="After Tasks" value={after} onChange={(taskBufferAfterMinutes) => update({ taskBufferAfterMinutes })} />
           }
         >
-          {after === 0 ? "no time" : after === 60 ? "1 hour" : `${after} minutes`}
+          {bufferPhrase(after)}
         </Value>{" "}
         free after each Task.
       </p>
@@ -187,7 +194,43 @@ export function SettingsProse({
         <FlipValue label="Count all-day Events" on={draft.countAllDayEvents} onFlip={() => update({ countAllDayEvents: !draft.countAllDayEvents })}>
           {draft.countAllDayEvents ? "do" : "don't"}
         </FlipValue>
-        .
+        . Keep{" "}
+        <Value
+          label="Before Events"
+          open={open === "before-events"}
+          onOpenChange={toggleOpen("before-events")}
+          editor={
+            <>
+              <BufferChips
+                label="Before Events"
+                value={beforeEvents}
+                onChange={(eventBufferBeforeMinutes) => update({ eventBufferBeforeMinutes })}
+              />
+              <span className={styles.editorHint}>Not for all-day Events.</span>
+            </>
+          }
+        >
+          {bufferPhrase(beforeEvents)} before
+        </Value>{" "}
+        and{" "}
+        <Value
+          label="After Events"
+          open={open === "after-events"}
+          onOpenChange={toggleOpen("after-events")}
+          editor={
+            <>
+              <BufferChips
+                label="After Events"
+                value={afterEvents}
+                onChange={(eventBufferAfterMinutes) => update({ eventBufferAfterMinutes })}
+              />
+              <span className={styles.editorHint}>Not for all-day Events.</span>
+            </>
+          }
+        >
+          {bufferPhrase(afterEvents)} after
+        </Value>{" "}
+        busy Events free.
       </p>
       <p className={styles.muted}>Any single Event can still be overridden from its details.</p>
 

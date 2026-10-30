@@ -22,6 +22,8 @@ const settingsInput = z.object({
   countFreeEvents: z.boolean(),
   countAllDayEvents: z.boolean(),
   taskBufferAfterMinutes: z.number(),
+  eventBufferBeforeMinutes: z.number(),
+  eventBufferAfterMinutes: z.number(),
 });
 
 export async function saveBusyCalendars(calendarIds: string[]): Promise<SetBusyCalendarsResult> {
