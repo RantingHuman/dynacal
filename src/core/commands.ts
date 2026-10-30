@@ -933,6 +933,14 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     return next?.start ?? null;
   }
 
+  /** Where a Task went after Didn't start: its next start, or none, and then whether it's Later rather than Unscheduled. */
+  function whereItWent(taskId: string): CheckInResult & { ok: true } {
+    const start = nextStart(taskId);
+    if (start) return { ok: true, nextStart: start };
+    const row = db.select({ flag: tasks.scheduleFlag }).from(tasks).where(eq(tasks.id, taskId)).get();
+    return row?.flag === "later" ? { ok: true, nextStart: null, later: true } : { ok: true, nextStart: null };
+  }
+
   /**
    * The Recalculate button: regenerates the Schedule, then writes it to Google in the background. It works
    * even while the Google connection is broken, planning around the Events dynacal last saw; the write is
@@ -1553,7 +1561,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         case "didnt-start":
           db.delete(blocks).where(eq(blocks.id, blockId)).run();
           if (!recalculateAutomatically().ok) return { ok: true, recalculationPaused: true };
-          return { ok: true, nextStart: nextStart(found.block.taskId) };
+          return whereItWent(found.block.taskId);
       }
       recalculateAutomatically();
       return { ok: true };

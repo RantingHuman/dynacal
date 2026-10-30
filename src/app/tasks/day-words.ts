@@ -42,9 +42,12 @@ export function spanWords(span: { start: Date; end: Date }, today: string, timeZ
   return start.date === today ? times : `${dayWord(start.date, today)} ${times}`;
 }
 
-/** Where a Task went after Didn't start: e.g. "Moved to Thu 09:00", or "Nothing fits: Unscheduled" with no start. */
-export function movedWords(start: Date | null, today: string, timeZone: string): string {
-  if (!start) return "Nothing fits: Unscheduled";
+/**
+ * Where a Task went after Didn't start: e.g. "Moved to Thu 09:00"; with no start, "Moved to Later" if it isn't needed
+ * in the Planning Horizon, else "Nothing fits: Unscheduled".
+ */
+export function movedWords(start: Date | null, later: boolean, today: string, timeZone: string): string {
+  if (!start) return later ? "Moved to Later" : "Nothing fits: Unscheduled";
   const at = toZoned(start, timeZone);
   return `Moved to ${dayWord(at.date, today)} ${formatMinutes(at.minutes)}`;
 }

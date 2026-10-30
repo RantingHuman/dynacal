@@ -173,6 +173,19 @@ describe("answering a Check-in Didn't start", () => {
     expect(commands.getSchedule()).toMatchObject({ flags: { [task.id]: "unscheduled" } });
   });
 
+  it("says when nothing fits but the Task isn't needed in the Planning Horizon, leaving it Later", () => {
+    const { commands, clock } = appInLondon();
+    const task = createTask(commands);
+    at(clock, "2026-01-05T10:05:00Z");
+    // Ten hours in one piece is longer than a working day, and it has no deadline.
+    commands.updateTask(task.id, { ...oneHour, estimatedMinutes: 600 });
+
+    const result = commands.checkIn(firstCheckIn(commands, task.id).blockId, { answer: "didnt-start" });
+
+    expect(result).toEqual({ ok: true, nextStart: null, later: true });
+    expect(commands.getSchedule()).toMatchObject({ flags: { [task.id]: "later" } });
+  });
+
   it("keeps a Task whose deadline has passed Overdue, and still places it", () => {
     const { commands, clock } = appInLondon();
     const task = createTask(commands, { deadline: { date: "2026-01-05", time: "12:00" } });

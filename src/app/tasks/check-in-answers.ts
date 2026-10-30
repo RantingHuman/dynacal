@@ -54,7 +54,7 @@ export function useCheckInAnswers(act: ActOnTasks, timeZone: string | null, noti
           notify(
             "recalculationPaused" in result
               ? NOT_PLACED_WORDS
-              : movedWords(result.nextStart ?? null, todayIn(timeZone), zone),
+              : movedWords(result.nextStart ?? null, "later" in result, todayIn(timeZone), zone),
           ),
         ),
       );

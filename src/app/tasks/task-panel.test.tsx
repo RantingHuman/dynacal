@@ -440,6 +440,17 @@ describe("a Task waiting for a Check-in", () => {
     expect(await screen.findByText("Nothing fits: Unscheduled")).toBeTruthy();
   });
 
+  it("answered Didn't start, says the Task moved to Later when it isn't needed soon", async () => {
+    vi.mocked(checkIn).mockResolvedValue({ ok: true, nextStart: null, later: true });
+    renderPanel([packing()]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Finished? ›" }));
+    await userEvent.click(within(sheet()).getByRole("button", { name: "Didn't start" }));
+
+    expect(await screen.findByText("Moved to Later")).toBeTruthy();
+    expect(screen.queryByText("Nothing fits: Unscheduled")).toBeNull();
+  });
+
   it("answered Didn't start while Google needs reconnecting, says the Task isn't placed yet", async () => {
     vi.mocked(checkIn).mockResolvedValue({ ok: true, recalculationPaused: true });
     renderPanel([packing()]);
