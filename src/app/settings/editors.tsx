@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BUFFER_MINUTES, formatMinutes, type TimeWindow } from "@/core/settings";
+import { BUFFER_MINUTES, bufferChipLabel, formatMinutes, type TimeWindow } from "@/core/settings";
 import { DAY_MINUTES } from "@/core/time";
 import styles from "./prose.module.css";
 
@@ -155,12 +155,6 @@ export function MinutesEditor({
       {unit}
     </span>
   );
-}
-
-/** A Buffer's length as a short chip label: "0", "15m", "1h". */
-export function bufferChipLabel(minutes: number): string {
-  if (minutes === 0) return "0";
-  return minutes % 60 === 0 ? `${minutes / 60}h` : `${minutes}m`;
 }
 
 /** One chip per Buffer length, of which exactly one is chosen. */

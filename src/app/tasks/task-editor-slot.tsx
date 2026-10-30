@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { TaskListItem } from "@/core/commands";
-import type { TaskFlag } from "@/core/scheduler";
+import type { Buffers, TaskFlag } from "@/core/scheduler";
 import type { TaskChange } from "@/core/task-list";
 import type { TaskInput } from "@/core/tasks";
 import { CompletionProvider } from "./completion";
@@ -30,6 +30,7 @@ export interface TaskColumnData {
   flags: Record<string, TaskFlag | null>;
   timeZone: string | null;
   today: string;
+  defaultBuffers: Buffers;
   act: ActOnTasks;
 }
 
@@ -124,6 +125,7 @@ export function TaskEditorSlot({ children }: { children: ReactNode }) {
           flag={task ? (column.flags[task.id] ?? null) : null}
           timeZone={column.timeZone}
           today={column.today}
+          defaultBuffers={column.defaultBuffers}
           act={column.act}
           onClose={close}
           onSaved={markSaved}

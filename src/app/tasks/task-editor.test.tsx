@@ -18,7 +18,7 @@ const task = taskItem({ id: "task-1", title: "Write planning doc" });
 function renderPage(item = task) {
   return renderGuarded(
     <TaskEditorProvider>
-      <TaskPanel tasks={[item]} flags={{}} timeZone="Europe/London" />
+      <TaskPanel tasks={[item]} flags={{}} timeZone="Europe/London" defaultBuffers={{ before: 0, after: 15 }} />
       <TaskEditorSlot><div>Calendar</div></TaskEditorSlot>
     </TaskEditorProvider>,
   );
@@ -171,5 +171,28 @@ describe("the full-page Task editor", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("offers the default and each step for the Buffers, and saves null for the default", async () => {
+    vi.mocked(updateTask).mockResolvedValue({ ok: true, task });
+    renderPage({ ...task, bufferAfterMinutes: 30 });
+    const editor = await openEditor();
+    const before = within(editor.getByRole("radiogroup", { name: "Buffer before" }));
+    const after = within(editor.getByRole("radiogroup", { name: "Buffer after" }));
+
+    expect(before.getAllByRole("radio").map((c) => c.textContent)).toEqual(["Default (0)", "0", "15m", "30m", "45m", "1h"]);
+    expect(after.getAllByRole("radio").map((c) => c.textContent)).toEqual(["Default (15m)", "0", "15m", "30m", "45m", "1h"]);
+    expect(before.getByRole("radio", { name: "Default (0)" }).getAttribute("aria-checked")).toBe("true");
+    expect(after.getByRole("radio", { name: "30m" }).getAttribute("aria-checked")).toBe("true");
+
+    await userEvent.click(before.getByRole("radio", { name: "15m" }));
+    await userEvent.click(after.getByRole("radio", { name: "Default (15m)" }));
+    await userEvent.click(editor.getByRole("button", { name: "Save" }));
+
+    expect(updateTask).toHaveBeenCalledWith(
+      "task-1",
+      expect.objectContaining({ bufferBeforeMinutes: 15, bufferAfterMinutes: null }),
+    );
+    await waitFor(() => expect(updateTask).toHaveReturned());
   });
 });

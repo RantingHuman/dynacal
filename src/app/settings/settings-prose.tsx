@@ -84,6 +84,7 @@ export function SettingsProse({
 
   const lead = draft.reminderLeadMinutes;
   const minimum = draft.minimumBlockMinutes;
+  const before = draft.taskBufferBeforeMinutes;
   const after = draft.taskBufferAfterMinutes;
 
   return (
@@ -165,6 +166,17 @@ export function SettingsProse({
         </Value>{" "}
         each Task starts. Keep{" "}
         <Value
+          label="Before Tasks"
+          open={open === "before"}
+          onOpenChange={toggleOpen("before")}
+          editor={
+            <BufferChips label="Before Tasks" value={before} onChange={(taskBufferBeforeMinutes) => update({ taskBufferBeforeMinutes })} />
+          }
+        >
+          {bufferWords(before)}
+        </Value>{" "}
+        free before and{" "}
+        <Value
           label="After Tasks"
           open={open === "after"}
           onOpenChange={toggleOpen("after")}
@@ -172,7 +184,7 @@ export function SettingsProse({
             <BufferChips label="After Tasks" value={after} onChange={(taskBufferAfterMinutes) => update({ taskBufferAfterMinutes })} />
           }
         >
-          {after === 0 ? "no time" : after === 60 ? "1 hour" : `${after} minutes`}
+          {bufferWords(after)}
         </Value>{" "}
         free after each Task.
       </p>
@@ -329,4 +341,9 @@ function YourCalendar({
       )}
     </p>
   );
+}
+
+/** A Buffer's length in a sentence: "no time", "15 minutes", "1 hour". */
+function bufferWords(minutes: number): string {
+  return minutes === 0 ? "no time" : minutes === 60 ? "1 hour" : `${minutes} minutes`;
 }

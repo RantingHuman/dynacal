@@ -42,6 +42,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   const scheduleView = commands.getSchedule();
   const connection = commands.getGoogleConnection();
   const week = commands.getWeekSummary();
+  const settings = commands.getSettings();
   const { block: reminded } = await searchParams;
   const remindedBlock =
     scheduleView.status === "ready" ? blockForReminderLink(reminded ?? null, scheduleView.blocks) : null;
@@ -100,6 +101,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       tasks={commands.listTasks()}
       flags={scheduleView.status === "ready" ? scheduleView.flags : {}}
       timeZone={scheduleView.status === "ready" ? scheduleView.timeZone : null}
+      defaultBuffers={{ before: settings.taskBufferBeforeMinutes, after: settings.taskBufferAfterMinutes }}
     />
   );
 

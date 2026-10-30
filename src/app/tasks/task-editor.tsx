@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import type { TaskListItem } from "@/core/commands";
-import type { TaskFlag } from "@/core/scheduler";
+import type { Buffers, TaskFlag } from "@/core/scheduler";
+import { BUFFER_MINUTES, bufferChipLabel } from "@/core/settings";
 import {
   PRIORITIES,
   PRIORITY_LABELS,
@@ -34,6 +35,7 @@ export function TaskEditor({
   flag,
   timeZone,
   today,
+  defaultBuffers,
   act,
   onClose,
   onSaved,
@@ -45,6 +47,8 @@ export function TaskEditor({
   flag: TaskFlag | null;
   timeZone: string | null;
   today: string;
+  /** The Buffers in Settings, which a Task without its own follows. */
+  defaultBuffers: Buffers;
   act: ActOnTasks;
   onClose: () => void;
   /** An existing Task was saved: its row sweeps a highlighter and says so. */
@@ -188,6 +192,28 @@ export function TaskEditor({
               </span>
               Can be split
             </button>
+          </dd>
+
+          <dt>Before</dt>
+          <dd>
+            <BufferField
+              label="Buffer before"
+              value={input.bufferBeforeMinutes ?? null}
+              fallback={defaultBuffers.before}
+              onChange={(bufferBeforeMinutes) => update({ bufferBeforeMinutes })}
+            />
+            {errors.bufferBeforeMinutes && <p className="field-error">{errors.bufferBeforeMinutes}</p>}
+          </dd>
+
+          <dt>After</dt>
+          <dd>
+            <BufferField
+              label="Buffer after"
+              value={input.bufferAfterMinutes ?? null}
+              fallback={defaultBuffers.after}
+              onChange={(bufferAfterMinutes) => update({ bufferAfterMinutes })}
+            />
+            {errors.bufferAfterMinutes && <p className="field-error">{errors.bufferAfterMinutes}</p>}
           </dd>
 
           <dt>
@@ -335,6 +361,40 @@ function PriorityField({ value, onChange }: { value: Priority; onChange: (priori
           onClick={() => onChange(priority)}
         >
           {PRIORITY_LABELS[priority]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** "Default (…)", following Settings, then the Task's own choice of each Buffer length. Null is the default. */
+function BufferField({
+  label,
+  value,
+  fallback,
+  onChange,
+}: {
+  label: string;
+  value: number | null;
+  /** The default it follows, for the label. */
+  fallback: number;
+  onChange: (minutes: number | null) => void;
+}) {
+  return (
+    <div className={styles.chips} role="radiogroup" aria-label={label}>
+      <button type="button" role="radio" aria-checked={value === null} className={styles.chip} onClick={() => onChange(null)}>
+        Default ({bufferChipLabel(fallback)})
+      </button>
+      {BUFFER_MINUTES.map((minutes) => (
+        <button
+          key={minutes}
+          type="button"
+          role="radio"
+          aria-checked={value === minutes}
+          className={styles.chip}
+          onClick={() => onChange(minutes)}
+        >
+          {bufferChipLabel(minutes)}
         </button>
       ))}
     </div>

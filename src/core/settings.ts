@@ -29,6 +29,12 @@ export interface Settings {
 /** The lengths a Buffer may be, in minutes: the planning grid's steps up to an hour. */
 export const BUFFER_MINUTES = [0, 15, 30, 45, 60] as const;
 
+/** A Buffer's length as a short chip label: "0", "15m", "1h". */
+export function bufferChipLabel(minutes: number): string {
+  if (minutes === 0) return "0";
+  return minutes % 60 === 0 ? `${minutes / 60}h` : `${minutes}m`;
+}
+
 /** Whether `minutes` is one of the lengths a Buffer may be. */
 export function isBufferMinutes(minutes: number): boolean {
   return (BUFFER_MINUTES as readonly number[]).includes(minutes);

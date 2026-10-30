@@ -5,7 +5,8 @@ import type { TaskListItem } from "@/core/commands";
 import { heldOrder } from "@/core/motion";
 import { applyTaskChange, type TaskChange } from "@/core/task-list";
 import { formatDuration, type TaskInput } from "@/core/tasks";
-import type { TaskFlag } from "@/core/scheduler";
+import type { Buffers, TaskFlag } from "@/core/scheduler";
+import { DEFAULT_SETTINGS } from "@/core/settings";
 import { Toast } from "../schedule/toast";
 import { Squiggle } from "../states/squiggle";
 import statesStyles from "../states/states.module.css";
@@ -23,9 +24,16 @@ import { TASK_LINE_ID, TaskLineAdd } from "./task-line-add";
 import styles from "./task-panel.module.css";
 
 /** The editable fields of a Task. */
-function inputOf({ title, notes, estimatedMinutes, deadline, earliestStart, priority, splittable }: TaskInput): TaskInput {
-  return { title, notes, estimatedMinutes, deadline, earliestStart, priority, splittable };
+function inputOf(task: TaskInput): TaskInput {
+  const { title, notes, estimatedMinutes, deadline, earliestStart, priority, splittable } = task;
+  const { bufferBeforeMinutes = null, bufferAfterMinutes = null } = task;
+  return { title, notes, estimatedMinutes, deadline, earliestStart, priority, splittable, bufferBeforeMinutes, bufferAfterMinutes };
 }
+
+const SETTINGS_BUFFERS: Buffers = {
+  before: DEFAULT_SETTINGS.taskBufferBeforeMinutes,
+  after: DEFAULT_SETTINGS.taskBufferAfterMinutes,
+};
 
 /** A Task shown before the server has added it: it can't be opened or completed yet. */
 const isPending = (task: TaskListItem) => task.id.startsWith("pending-");
@@ -68,11 +76,14 @@ export function TaskPanel({
   tasks,
   flags,
   timeZone,
+  defaultBuffers = SETTINGS_BUFFERS,
 }: {
   tasks: TaskListItem[];
   flags: Record<string, TaskFlag | null>;
   /** The owner's time zone, for dates and Declined Times; null until it's saved. */
   timeZone: string | null;
+  /** The Buffers before and after Tasks in Settings, which the editor offers as "Default"; Settings' own if absent. */
+  defaultBuffers?: Buffers;
 }) {
   const { open, openTask, setColumn, saved } = useTaskEditor();
   const { ticked, holding } = useCompletion();
@@ -106,8 +117,8 @@ export function TaskPanel({
   }, [showChange]);
   // The editor, in the calendar column, works from the same Tasks.
   useEffect(
-    () => setColumn({ tasks: shown, flags, timeZone, today, act }),
-    [setColumn, shown, flags, timeZone, today, act],
+    () => setColumn({ tasks: shown, flags, timeZone, today, defaultBuffers, act }),
+    [setColumn, shown, flags, timeZone, today, defaultBuffers, act],
   );
 
   // The Task whose Check-in sheet is open; it asks about the Task's oldest waiting time.
