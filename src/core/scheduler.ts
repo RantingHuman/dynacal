@@ -61,7 +61,8 @@ export interface SchedulerInput {
   previousSchedule: ScheduledBlock[];
 }
 
-export type TaskFlag = "at-risk" | "overdue" | "unscheduled";
+/** "later" is no alarm: the Task has no time in the Planning Horizon, but isn't needed there. Nothing counts it. */
+export type TaskFlag = "at-risk" | "overdue" | "unscheduled" | "later";
 
 /** A Conflict: an Event (busy time) overlapping a Pinned Block. Only the owner can resolve it. */
 export interface Conflict<B extends ScheduledBlock = ScheduledBlock, E extends Interval = Interval> {
@@ -139,6 +140,7 @@ export function schedule(input: SchedulerInput): SchedulerOutput {
   const state: PlanningState = {
     now,
     from,
+    to,
     minimum: input.minimumBlockMinutes * MINUTE_MS,
     pinnedOrStarted,
     awaiting: input.awaitingBlocks,
@@ -182,6 +184,8 @@ interface PlanningState {
   now: number;
   /** The first grid mark a new Block may start at. */
   from: number;
+  /** The end of the Planning Horizon. */
+  to: number;
   /** Minimum Block Length, in ms. */
   minimum: number;
   /** Pinned and started Blocks that haven't ended: they stay where they are, and count toward their Tasks. */
@@ -293,8 +297,9 @@ function place(state: PlanningState, order: SchedulerTask[]): Placement[] {
     const gap = Math.max(buffers.before, buffers.after) * MINUTE_MS;
     const pieces = task.splittable ? placeSplit(available, need, state.minimum, gap) : placeWhole(available, need);
     for (const [start, end] of pieces) taken.push(neighbour({ start: new Date(start), end: new Date(end) }, buffers));
-    const flag = flagFor(task, need, pieces, counted, state.now);
-    return { task, pieces, flag, misses: flag === "at-risk" || (flag === "unscheduled" && task.deadline !== null) };
+    const flag = flagFor(task, need, pieces, counted, state);
+    const unplaced = flag === "unscheduled" || flag === "later";
+    return { task, pieces, flag, misses: flag === "at-risk" || (unplaced && task.deadline !== null) };
   });
 }
 
@@ -338,17 +343,24 @@ function chooseOrder(state: PlanningState, tasks: SchedulerTask[]): SchedulerTas
   return chosen;
 }
 
-/** Overdue outranks Unscheduled, which outranks At Risk. */
+/**
+ * Overdue outranks Unscheduled, which outranks At Risk. A Task with no time that isn't needed in the Planning Horizon
+ * (no deadline in it, or an Earliest Start beyond it) is Later instead of Unscheduled.
+ */
 function flagFor(
   task: SchedulerTask,
   need: number,
   pieces: Span[],
   counted: ScheduledBlock[],
-  now: number,
+  state: PlanningState,
 ): TaskFlag | null {
   const deadline = task.deadline?.getTime() ?? null;
-  if (deadline !== null && deadline <= now) return "overdue";
-  if (need > 0 && pieces.length === 0 && counted.length === 0) return "unscheduled";
+  if (deadline !== null && deadline <= state.now) return "overdue";
+  if (need > 0 && pieces.length === 0 && counted.length === 0) {
+    const neededHere = deadline !== null && deadline <= state.to;
+    const startsBeyond = task.earliestStart !== null && task.earliestStart.getTime() >= state.to;
+    return neededHere && !startsBeyond ? "unscheduled" : "later";
+  }
   if (deadline !== null) {
     // Only time before the deadline counts toward meeting it, a Pinned Block's included.
     const held = counted.map((b): Span => [b.start.getTime(), b.end.getTime()]);

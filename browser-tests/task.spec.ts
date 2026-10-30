@@ -39,8 +39,8 @@ test("splits a one-piece Task that won't fit once splitting is allowed, and keep
   await withApp(browser, async (page) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto("/");
-    // Longer than a working day, so in one piece it fits nowhere.
-    await page.getByRole("textbox", { name: "Add a Task" }).fill("Offsite plan 10h");
+    // Longer than a working day, so in one piece it fits nowhere, and due this week, so it's Unscheduled.
+    await page.getByRole("textbox", { name: "Add a Task" }).fill("Offsite plan 10h by fri");
     await page.getByRole("textbox", { name: "Add a Task" }).press("Enter");
     const row = page.getByRole("listitem").filter({ hasText: "Offsite plan" });
     const allow = row.getByRole("button", { name: "Allow splitting “Offsite plan”" });

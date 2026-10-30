@@ -31,8 +31,8 @@ test("gives the phone's small controls a 44px tap area without overlapping", asy
 
     await page.getByRole("tab", { name: "Tasks" }).click();
     await expectTappable(page.getByRole("button", { name: "+ Task" }));
-    // A one-piece Task longer than a working day won't fit, so its row offers "Allow splitting".
-    await page.getByRole("textbox", { name: "Add a Task" }).fill("Offsite plan 10h");
+    // A one-piece Task longer than a working day, due this week, won't fit, so its row offers "Allow splitting".
+    await page.getByRole("textbox", { name: "Add a Task" }).fill("Offsite plan 10h by fri");
     await page.getByRole("textbox", { name: "Add a Task" }).press("Enter");
     await expectTappable(page.getByRole("button", { name: "Allow splitting “Offsite plan”" }));    const menu = page.getByRole("button", { name: "Menu" });
     await expectTappable(menu);

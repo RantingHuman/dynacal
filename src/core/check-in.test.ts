@@ -163,8 +163,8 @@ describe("answering a Check-in Didn't start", () => {
     const { commands, clock } = appInLondon();
     const task = createTask(commands);
     at(clock, "2026-01-05T10:05:00Z");
-    // Ten hours in one piece is longer than a working day.
-    commands.updateTask(task.id, { ...oneHour, estimatedMinutes: 600 });
+    // Ten hours in one piece is longer than a working day, and it's due this week.
+    commands.updateTask(task.id, { ...oneHour, estimatedMinutes: 600, deadline: { date: "2026-01-09", time: null } });
 
     const result = commands.checkIn(firstCheckIn(commands, task.id).blockId, { answer: "didnt-start" });
 
