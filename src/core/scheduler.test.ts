@@ -757,3 +757,31 @@ describe("Declined Times", () => {
     ]);
   });
 });
+
+describe("Buffers", () => {
+  it("separate neighbours by the longer of the facing Buffers, never their sum", () => {
+    const result = schedule(
+      input({
+        tasks: [task("a", { buffers: { before: 0, after: 15 } }), task("b", { buffers: { before: 30, after: 15 } })],
+      }),
+    );
+
+    expect(blocksOf(result)).toEqual([
+      ["a", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"],
+      ["b", "2026-01-05T10:30:00.000Z", "2026-01-05T11:30:00.000Z"],
+    ]);
+  });
+
+  it("keep a Task clear of a Pinned Block's own Buffer before", () => {
+    const pinned = { taskId: "b", start: new Date("2026-01-05T10:00:00Z"), end: new Date("2026-01-05T11:00:00Z") };
+    const result = schedule(
+      input({
+        tasks: [task("a", { remainingMinutes: 45 }), task("b", { buffers: { before: 30, after: 0 } })],
+        pinnedBlocks: [pinned],
+      }),
+    );
+
+    // 09:00–09:45 would end within b's 30 minutes before.
+    expect(blocksOf(result)).toEqual([["a", "2026-01-05T11:00:00.000Z", "2026-01-05T11:45:00.000Z"]]);
+  });
+});

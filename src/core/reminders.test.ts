@@ -28,6 +28,7 @@ function appWithSubscription() {
   app.commands.updateSettings({
     timeZone: "Europe/London",
     workingHours: { ...workingHours, mon: [{ start: 10 * 60, end: 17 * 60 }] },
+    taskBufferAfterMinutes: 0,
   });
   app.commands.subscribeToPush(subscription);
   return app;

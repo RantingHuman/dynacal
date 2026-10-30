@@ -1,5 +1,5 @@
 import type { tasks } from "./db/schema";
-import { resolveDeadline, resolveEarliestStart, type SchedulerTask } from "./scheduler";
+import { resolveDeadline, resolveEarliestStart, type Buffers, type SchedulerTask } from "./scheduler";
 import type { WeeklyWindows } from "./settings";
 import type { Interval } from "./time";
 
@@ -15,11 +15,14 @@ export function schedulerTasks({
   declined,
   timeZone,
   workingHours,
+  buffers,
 }: {
   taskRows: TaskRow[];
   declined: (Interval & { taskId: string })[];
   timeZone: string;
   workingHours: WeeklyWindows;
+  /** Every Task's Buffers: the defaults from Settings. */
+  buffers: Buffers;
 }): SchedulerTask[] {
   return taskRows.map((row) => ({
     id: row.id,
@@ -35,5 +38,6 @@ export function schedulerTasks({
     priority: row.priority,
     splittable: row.splittable,
     declinedTimes: declined.filter((t) => t.taskId === row.id).map(({ start, end }) => ({ start, end })),
+    buffers,
   }));
 }

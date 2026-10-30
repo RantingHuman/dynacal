@@ -913,7 +913,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
    */
   function recalculateSchedule(): RecalculateResult {
     const current = getSettings();
-    const { timeZone, workingHours, minimumBlockMinutes } = current;
+    const { timeZone, workingHours, minimumBlockMinutes, taskBufferAfterMinutes } = current;
     if (timeZone === null) return { ok: false, reason: "needs-time-zone" };
     const busy = busyTime(current, timeZone);
     const now = clock.now();
@@ -946,7 +946,13 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         workingHours,
         minimumBlockMinutes,
         planningHorizonDays: PLANNING_HORIZON_DAYS,
-        tasks: schedulerTasks({ taskRows, declined, timeZone, workingHours }),
+        tasks: schedulerTasks({
+          taskRows,
+          declined,
+          timeZone,
+          workingHours,
+          buffers: { before: 0, after: taskBufferAfterMinutes },
+        }),
         busy,
         pinnedBlocks: [...inProgress.filter((b) => b.pinned), ...pinnedAhead],
         startedBlocks: inProgress.filter((b) => !b.pinned),
