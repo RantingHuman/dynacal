@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_SETTINGS, type TimeWindow, type WorkingHours } from "./settings";
+import { DEFAULT_SETTINGS, type TimeWindow, type WeeklyWindows } from "./settings";
 import { runDays, runHours, setRunHours, workingHoursRuns } from "./working-hours-runs";
 
 const window = (startHour: number, endHour: number): TimeWindow => ({ start: startHour * 60, end: endHour * 60 });
@@ -15,7 +15,7 @@ describe("Working Hours runs", () => {
   });
 
   it("gives a day with different hours its own run, and doesn't join matching days that aren't adjacent", () => {
-    const hours: WorkingHours = {
+    const hours: WeeklyWindows = {
       ...weekdaysNineToFive,
       wed: [window(9, 12), window(13, 17)],
       sat: [window(9, 17)],
@@ -30,7 +30,7 @@ describe("Working Hours runs", () => {
   });
 
   it("treats the same windows in a different order as the same hours", () => {
-    const hours: WorkingHours = {
+    const hours: WeeklyWindows = {
       ...weekdaysNineToFive,
       mon: [window(13, 17), window(9, 12)],
       tue: [window(9, 12), window(13, 17)],
@@ -40,7 +40,7 @@ describe("Working Hours runs", () => {
   });
 
   it("reads a week with every day off as one run", () => {
-    const off: WorkingHours = { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] };
+    const off: WeeklyWindows = { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] };
 
     expect(workingHoursRuns(off)).toEqual([{ days: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"], windows: [] }]);
   });

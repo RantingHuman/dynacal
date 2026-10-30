@@ -1,5 +1,5 @@
 import { WEEKDAY_NAMES } from "./day-labels";
-import { WEEKDAYS, formatMinutes, type TimeWindow, type Weekday, type WorkingHours } from "./settings";
+import { WEEKDAYS, formatMinutes, type TimeWindow, type Weekday, type WeeklyWindows } from "./settings";
 
 /** Adjacent days, Monday to Sunday, that share the same Working Hours windows. */
 export interface WorkingHoursRun {
@@ -12,7 +12,7 @@ function sameWindows(a: TimeWindow[], b: TimeWindow[]): boolean {
 }
 
 /** Groups Working Hours into runs of adjacent days with identical windows, so the week reads as a few sentences. */
-export function workingHoursRuns(workingHours: WorkingHours): WorkingHoursRun[] {
+export function workingHoursRuns(workingHours: WeeklyWindows): WorkingHoursRun[] {
   const runs: WorkingHoursRun[] = [];
   for (const day of WEEKDAYS) {
     // Sorted, so the same windows entered in a different order still read as the same hours.
@@ -28,7 +28,7 @@ export function workingHoursRuns(workingHours: WorkingHours): WorkingHoursRun[] 
  * Gives every day in a run the same windows, each day its own copy. Passing a single day gives that day its own
  * hours, splitting it off its run; this replaces "Copy to…", since copying hours is just editing a run.
  */
-export function setRunHours(workingHours: WorkingHours, days: readonly Weekday[], windows: TimeWindow[]): WorkingHours {
+export function setRunHours(workingHours: WeeklyWindows, days: readonly Weekday[], windows: TimeWindow[]): WeeklyWindows {
   const next = { ...workingHours };
   for (const day of days) next[day] = windows.map((w) => ({ ...w }));
   return next;

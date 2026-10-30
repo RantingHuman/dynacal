@@ -1,7 +1,7 @@
 import { integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import type { BlockReview } from "../completion";
 import type { TaskFlag } from "../scheduler";
-import type { WorkingHours } from "../settings";
+import type { WeeklyWindows } from "../settings";
 import type { Priority } from "../tasks";
 
 export const sessions = sqliteTable("sessions", {
@@ -14,7 +14,7 @@ export const sessions = sqliteTable("sessions", {
 /** A single row (id = 1) holding the owner's settings; absent until they're first saved. */
 export const settings = sqliteTable("settings", {
   id: integer("id").primaryKey(),
-  workingHours: text("working_hours", { mode: "json" }).notNull().$type<WorkingHours>(),
+  workingHours: text("working_hours", { mode: "json" }).notNull().$type<WeeklyWindows>(),
   timeZone: text("time_zone"),
   minimumBlockMinutes: integer("minimum_block_minutes").notNull(),
   reminderLeadMinutes: integer("reminder_lead_minutes").notNull(),

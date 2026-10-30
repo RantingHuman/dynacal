@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { schedule, type SchedulerInput, type SchedulerTask } from "./scheduler";
-import { DEFAULT_SETTINGS, WEEKDAYS, type WorkingHours } from "./settings";
+import { DEFAULT_SETTINGS, WEEKDAYS, type WeeklyWindows } from "./settings";
 import { PRIORITIES } from "./tasks";
 import { toZoned, weekdayOf } from "./time-zone";
 
@@ -630,7 +630,7 @@ describe("scheduler", () => {
           const lunch = start + quarter(30, end - start - 60);
           return [day, [{ start, end: lunch }, { start: lunch + 30, end }]];
         }),
-      ) as WorkingHours;
+      ) as WeeklyWindows;
       // Spread "now" over the year so some runs cross daylight-saving changes.
       const now = new Date(Date.UTC(2026, 0, 1) + r.int(0, 364 * 24 * 60) * 60_000 + r.int(0, 59_999));
       const hours = (h: number) => h * 3_600_000;

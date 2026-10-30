@@ -1,6 +1,6 @@
 import type { tasks } from "./db/schema";
 import { resolveDeadline, resolveEarliestStart, type SchedulerTask } from "./scheduler";
-import type { WorkingHours } from "./settings";
+import type { WeeklyWindows } from "./settings";
 import type { Interval } from "./time";
 
 /**
@@ -19,7 +19,7 @@ export function schedulerTasks({
   taskRows: TaskRow[];
   declined: (Interval & { taskId: string })[];
   timeZone: string;
-  workingHours: WorkingHours;
+  workingHours: WeeklyWindows;
 }): SchedulerTask[] {
   return taskRows.map((row) => ({
     id: row.id,

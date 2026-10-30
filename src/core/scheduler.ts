@@ -1,4 +1,4 @@
-import type { WorkingHours } from "./settings";
+import type { WeeklyWindows } from "./settings";
 import { PRIORITIES, type DateOrDateTime, type Priority } from "./tasks";
 import { addDays, fromZoned, toZoned, weekdayOf } from "./time-zone";
 import { DAY_MINUTES, DAY_MS, GRID_MS, MINUTE_MS, type Interval } from "./time";
@@ -31,7 +31,7 @@ export interface SchedulerTask {
 export interface SchedulerInput {
   now: Date;
   timeZone: string;
-  workingHours: WorkingHours;
+  workingHours: WeeklyWindows;
   minimumBlockMinutes: number;
   planningHorizonDays: number;
   /** In a stable order; it breaks any remaining ties. */
@@ -71,14 +71,14 @@ function minutesOf(time: string): number {
 }
 
 /** A deadline as an instant: a date only means the end of that day's Working Hours (or of the day, if it has none). */
-export function resolveDeadline(value: DateOrDateTime, timeZone: string, workingHours: WorkingHours): Date {
+export function resolveDeadline(value: DateOrDateTime, timeZone: string, workingHours: WeeklyWindows): Date {
   if (value.time !== null) return fromZoned({ date: value.date, minutes: minutesOf(value.time) }, timeZone);
   const ends = workingHours[weekdayOf(value.date)].map((w) => w.end);
   return fromZoned({ date: value.date, minutes: ends.length ? Math.max(...ends) : DAY_MINUTES }, timeZone);
 }
 
 /** An Earliest Start as an instant: a date only means the start of that day's Working Hours (or of the day, if it has none). */
-export function resolveEarliestStart(value: DateOrDateTime, timeZone: string, workingHours: WorkingHours): Date {
+export function resolveEarliestStart(value: DateOrDateTime, timeZone: string, workingHours: WeeklyWindows): Date {
   if (value.time !== null) return fromZoned({ date: value.date, minutes: minutesOf(value.time) }, timeZone);
   const starts = workingHours[weekdayOf(value.date)].map((w) => w.start);
   return fromZoned({ date: value.date, minutes: starts.length ? Math.min(...starts) : 0 }, timeZone, "later");
@@ -123,7 +123,7 @@ export function schedule(input: SchedulerInput): SchedulerOutput {
   const to = input.now.getTime() + input.planningHorizonDays * DAY_MS;
   const now = input.now.getTime();
   const pinnedOrStarted = [...input.pinnedBlocks, ...input.startedBlocks].filter((b) => b.end.getTime() > now);
-  const ctx: Context = {
+  const state: PlanningState = {
     now,
     from,
     to,
@@ -133,8 +133,8 @@ export function schedule(input: SchedulerInput): SchedulerOutput {
     free: subtract(workingSpans(input, from, to), [...input.busy, ...pinnedOrStarted]),
   };
 
-  const order = chooseOrder(ctx, input.tasks);
-  const placed = closestToPrevious(ctx, order, input.previousSchedule);
+  const order = chooseOrder(state, input.tasks);
+  const placed = closestToPrevious(state, order, input.previousSchedule);
   const flags: Record<string, TaskFlag | null> = {};
   for (const p of placed) flags[p.task.id] = p.flag;
   const blocks = placed.flatMap((p) =>
@@ -162,7 +162,7 @@ export function findConflicts<B extends ScheduledBlock, E extends Interval>(pinn
   );
 }
 
-interface Context {
+interface PlanningState {
   now: number;
   /** The first grid mark a new Block may start at. */
   from: number;
@@ -191,10 +191,10 @@ interface Placement {
  * Make whichever such swaps keep more of the previous Schedule's Blocks where they were, without
  * flagging more Tasks.
  */
-function closestToPrevious(ctx: Context, order: SchedulerTask[], previous: ScheduledBlock[]): Placement[] {
+function closestToPrevious(state: PlanningState, order: SchedulerTask[], previous: ScheduledBlock[]): Placement[] {
   const tied = (a: SchedulerTask, b: SchedulerTask) =>
     a.priority === b.priority && (a.deadline?.getTime() ?? null) === (b.deadline?.getTime() ?? null);
-  let best = place(ctx, order);
+  let best = place(state, order);
   if (previous.length === 0) return best;
   let bestOverlap = overlapWithPrevious(best, previous);
   for (let improved = true; improved; ) {
@@ -203,7 +203,7 @@ function closestToPrevious(ctx: Context, order: SchedulerTask[], previous: Sched
       if (!tied(order[i], order[i + 1])) continue;
       const swapped = [...order];
       [swapped[i], swapped[i + 1]] = [swapped[i + 1], swapped[i]];
-      const placed = place(ctx, swapped);
+      const placed = place(state, swapped);
       const overlap = overlapWithPrevious(placed, previous);
       if (overlap > bestOverlap && flagged(placed) <= flagged(best)) {
         [order, best, bestOverlap, improved] = [swapped, placed, overlap, true];
@@ -230,19 +230,19 @@ function overlapWithPrevious(placed: Placement[], previous: ScheduledBlock[]): n
 }
 
 /** Places Tasks one at a time in `order`, each in the earliest free time those before it left. */
-function place(ctx: Context, order: SchedulerTask[]): Placement[] {
-  const free = ctx.free.map((s): Span => [s[0], s[1]]);
+function place(state: PlanningState, order: SchedulerTask[]): Placement[] {
+  const free = state.free.map((s): Span => [s[0], s[1]]);
   return order.map((task) => {
     // Each Block that counts toward the Task counts in full, an in-progress one too: the Remaining Duration is what
     // the owner says is left, and includes them.
-    const counted = [...ctx.pinnedOrStarted, ...ctx.awaiting].filter((b) => b.taskId === task.id);
+    const counted = [...state.pinnedOrStarted, ...state.awaiting].filter((b) => b.taskId === task.id);
     const covered = counted.reduce((sum, b) => sum + b.end.getTime() - b.start.getTime(), 0);
     const need = Math.max(0, remainingMs(task) - covered);
-    const earliest = task.earliestStart ? roundUp(task.earliestStart.getTime()) : ctx.from;
+    const earliest = task.earliestStart ? roundUp(task.earliestStart.getTime()) : state.from;
     const available = subtract(startingFrom(free, earliest), task.declinedTimes ?? []);
-    const pieces = task.splittable ? placeSplit(available, need, ctx.minimum) : placeWhole(available, need);
+    const pieces = task.splittable ? placeSplit(available, need, state.minimum) : placeWhole(available, need);
     for (const [start, end] of pieces) take(free, start, end);
-    const flag = flagFor(task, need, pieces, counted, ctx);
+    const flag = flagFor(task, need, pieces, counted, state);
     const unplaced = flag === "unscheduled" || flag === "later";
     return { task, pieces, flag, misses: flag === "at-risk" || (unplaced && task.deadline !== null) };
   });
@@ -260,8 +260,8 @@ function missingDeadlines(placements: Placement[]): Set<string> {
  * slot in the order goes to the highest-Priority Task that can take it without pushing any Task
  * that must make its deadline past it.
  */
-function chooseOrder(ctx: Context, tasks: SchedulerTask[]): SchedulerTask[] {
-  const isOverdue = (t: SchedulerTask) => t.deadline !== null && t.deadline.getTime() <= ctx.now;
+function chooseOrder(state: PlanningState, tasks: SchedulerTask[]): SchedulerTask[] {
+  const isOverdue = (t: SchedulerTask) => t.deadline !== null && t.deadline.getTime() <= state.now;
   const base = placementOrder(tasks);
   const overdue = base.filter(isOverdue);
   const live = base.filter((t) => !isOverdue(t));
@@ -269,7 +269,7 @@ function chooseOrder(ctx: Context, tasks: SchedulerTask[]): SchedulerTask[] {
   const mustMeet = new Set<SchedulerTask>();
   for (const t of live.filter((x) => x.deadline !== null).sort((a, b) => rank(b) - rank(a))) {
     const trial = live.filter((x) => mustMeet.has(x) || x === t);
-    if (missingDeadlines(place(ctx, [...overdue, ...trial])).size === 0) mustMeet.add(t);
+    if (missingDeadlines(place(state, [...overdue, ...trial])).size === 0) mustMeet.add(t);
   }
   const mayMiss = new Set(live.filter((t) => !mustMeet.has(t)).map((t) => t.id));
 
@@ -280,7 +280,7 @@ function chooseOrder(ctx: Context, tasks: SchedulerTask[]): SchedulerTask[] {
     const next =
       candidates.find((c) => {
         const order = [...chosen, c, ...rest.filter((t) => t !== c)];
-        return [...missingDeadlines(place(ctx, order))].every((id) => mayMiss.has(id));
+        return [...missingDeadlines(place(state, order))].every((id) => mayMiss.has(id));
       }) ?? rest[0];
     chosen.push(next);
     rest = rest.filter((t) => t !== next);
@@ -297,13 +297,13 @@ function flagFor(
   need: number,
   pieces: Span[],
   counted: ScheduledBlock[],
-  ctx: Context,
+  state: PlanningState,
 ): TaskFlag | null {
   const deadline = task.deadline?.getTime() ?? null;
-  if (deadline !== null && deadline <= ctx.now) return "overdue";
+  if (deadline !== null && deadline <= state.now) return "overdue";
   if (need > 0 && pieces.length === 0 && counted.length === 0) {
-    const neededHere = deadline !== null && deadline <= ctx.to;
-    const startsBeyond = task.earliestStart !== null && task.earliestStart.getTime() >= ctx.to;
+    const neededHere = deadline !== null && deadline <= state.to;
+    const startsBeyond = task.earliestStart !== null && task.earliestStart.getTime() >= state.to;
     return neededHere && !startsBeyond ? "unscheduled" : "later";
   }
   if (deadline !== null) {

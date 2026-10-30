@@ -9,10 +9,10 @@ export interface TimeWindow {
   end: number;
 }
 
-export type WorkingHours = Record<Weekday, TimeWindow[]>;
+export type WeeklyWindows = Record<Weekday, TimeWindow[]>;
 
 export interface Settings {
-  workingHours: WorkingHours;
+  workingHours: WeeklyWindows;
   /** IANA time zone; null until the owner first chooses one. */
   timeZone: string | null;
   minimumBlockMinutes: number;
@@ -92,7 +92,7 @@ function dayError(windows: TimeWindow[]): string | null {
   return null;
 }
 
-function workingHoursErrors(workingHours: WorkingHours): SettingsErrors["workingHours"] {
+function workingHoursErrors(workingHours: WeeklyWindows): SettingsErrors["workingHours"] {
   const errors: Partial<Record<Weekday, string>> = {};
   for (const day of WEEKDAYS) {
     const error = dayError(workingHours[day]);

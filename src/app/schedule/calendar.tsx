@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useTransition, ViewTransition } from "react";
 import type { BusyOverride, EventRef } from "@/core/busy-override";
 import { dayLabel, rangeLabel } from "@/core/day-labels";
-import { formatMinutes, type WorkingHours } from "@/core/settings";
+import { formatMinutes, type WeeklyWindows } from "@/core/settings";
 import { DAY_MINUTES, GRID_MINUTES, MINUTE_MS } from "@/core/time";
 import { addDays, fromZoned, toZoned, weekdayOf } from "@/core/time-zone";
 import { useScheduleCheckIns } from "../tasks/check-in-answers";
@@ -206,7 +206,7 @@ export function Calendar({
   blocks: CalendarBlock[];
   events: CalendarEvent[];
   conflicts: CalendarConflict[];
-  workingHours: WorkingHours;
+  workingHours: WeeklyWindows;
   /**
    * While Google access is broken, automatic Recalculation is paused; the Recalculate button still works,
    * planning around the Events dynacal last saw.
