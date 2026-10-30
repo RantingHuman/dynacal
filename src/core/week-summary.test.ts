@@ -59,8 +59,13 @@ describe("the week summary's takeover states", () => {
 const overdue = { title: "Invoice", deadline: { date: "2026-01-02", time: null } };
 /** A Task that's At Risk: ten hours of work due by the end of today's Working Hours. */
 const atRisk = { title: "Board memo", estimatedMinutes: 600, deadline: { date: "2026-01-05", time: null } };
-/** A Task that's Unscheduled: nine hours in one go, but no day has more than eight Working Hours. */
-const unscheduled = { title: "Offsite plan", estimatedMinutes: 540, splittable: false };
+/** A Task that's Unscheduled: nine hours in one go, due this week, but no day has more than eight Working Hours. */
+const unscheduled = {
+  title: "Offsite plan",
+  estimatedMinutes: 540,
+  splittable: false,
+  deadline: { date: "2026-01-09", time: null },
+};
 
 describe("which state the week summary speaks for", () => {
   it("is 'no Tasks ever' when there are no Tasks", () => {

@@ -182,7 +182,7 @@ describe("the Schedule", () => {
     expect(view.status === "ready" && view.flags).toEqual({
       [late.id]: "overdue",
       [tight.id]: "at-risk",
-      [far.id]: "unscheduled",
+      [far.id]: "later",
       [fine.id]: null,
     });
   });
