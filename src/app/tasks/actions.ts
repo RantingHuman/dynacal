@@ -19,6 +19,9 @@ const taskInputSchema = z.object({
   priority: z.enum(PRIORITIES),
   splittable: z.boolean(),
   contextId: z.string().nullish(),
+  // Null follows the default; absent keeps the Task's own. The command refuses lengths that aren't a Buffer step.
+  bufferBeforeMinutes: z.number().nullish(),
+  bufferAfterMinutes: z.number().nullish(),
 });
 
 export async function createTask(input: unknown): Promise<TaskResult> {
