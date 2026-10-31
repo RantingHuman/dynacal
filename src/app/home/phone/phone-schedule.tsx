@@ -86,10 +86,15 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
   const newEvent = useNewEvent();
   const online = useOnline();
   // Ticking a Block's Task goes through the Tasks tab's list, so it shows there at once and rolls back if refused.
-  const act = useTaskColumn()?.act ?? null;
+  const column = useTaskColumn();
+  const act = column?.act ?? null;
   // Where Didn't start moved a Task, said here: the Tasks tab, which would say it, is hidden.
   const [notice, setNotice] = useState<string | null>(null);
-  const clearNotice = useCallback(() => setNotice(null), []);
+  const clearFailure = column?.clearFailure;
+  const clearNotice = useCallback(() => {
+    setNotice(null);
+    clearFailure?.();
+  }, [clearFailure]);
   const checkIns = useScheduleCheckIns(timeZone, setNotice);
 
   // The New Event form takes the place of whatever was open.
@@ -255,7 +260,7 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
           </FloatingLabel>
         )}
 
-        <Toast message={notice} tone="info" onDone={clearNotice} />
+        <Toast message={column?.failure ?? notice} tone={column?.failure ? "error" : "info"} onDone={clearNotice} />
       </div>
     </>
   );

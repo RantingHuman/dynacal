@@ -66,3 +66,21 @@ test("answers a past time from the desktop calendar", async ({ browser }) => {
     { seed: "past-times" },
   );
 });
+
+test("says so on the phone's Schedule when an answer can't reach the server", async ({ browser }) => {
+  await withApp(
+    browser,
+    async (page) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto("/");
+      await line(page, "Pack for vegas, 06:00, 1h, Finished?").click();
+      // The browser still believes it's online, as a phone on Wi-Fi does when the server is out of reach.
+      await page.route("**/*", (route) => (route.request().method() === "POST" ? route.abort() : route.continue()));
+      await page.getByRole("complementary", { name: "Pack for vegas" }).getByRole("button", { name: "Finished", exact: true }).click();
+
+      await expect(page.getByText("dynacal couldn't reach the server, so nothing changed.").filter({ visible: true })).toBeVisible();
+      await expect(line(page, "Pack for vegas, 06:00, 1h, Finished?")).toBeVisible();
+    },
+    { seed: "past-times" },
+  );
+});
