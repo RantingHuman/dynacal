@@ -1,6 +1,6 @@
 # Spec: Contexts, Buffers and Later
 
-Status: ready-for-agent
+Status: resolved
 
 ## Problem Statement
 

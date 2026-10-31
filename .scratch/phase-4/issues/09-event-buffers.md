@@ -4,7 +4,7 @@
 
 **Blocked by:** 07
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] With "Before Events" at 15m, no Task is placed to end later than 15m before a busy Event starts (command test).
 - [ ] With "After Events" at 15m and a Task's own Buffer before of 30m, the Task starts 30m after the Event ends, not 45m (command test).

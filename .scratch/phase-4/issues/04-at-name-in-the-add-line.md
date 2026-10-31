@@ -4,7 +4,7 @@
 
 **Blocked by:** 03
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] "Write essay 1h @deep" with a "Deep work" Context gives a Task titled "Write essay", 1h, in Deep work (add-line reader test).
 - [ ] With "Deep" and "Deep work", "@deep" picks "Deep"; with only "Deep work" and "Design", "@de" stays in the title (reader test).

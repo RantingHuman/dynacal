@@ -4,7 +4,7 @@
 
 **Blocked by:** 07
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] With "Before Tasks" at 30m, a Task isn't placed to start within 30m of a busy Event's end or of another Task's end (command test).
 - [ ] A Task with its own Buffer before of 30m after a Task with a 15m Buffer after starts 30m after it, not 45m (command test).

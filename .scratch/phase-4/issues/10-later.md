@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] With the horizon full, a Task with no deadline is Later, not Unscheduled (command test).
 - [ ] A Task due 20 days out that can't be placed is Later; one due in 5 days that can't be placed is Unscheduled (command test).

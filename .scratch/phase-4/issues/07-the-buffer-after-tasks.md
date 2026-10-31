@@ -4,7 +4,7 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] With the default 15m, two 1h Tasks in a 09:00–12:00 window land at 09:00–10:00 and 10:15–11:15 (command test).
 - [ ] A Task isn't placed to end at 10:00 when a busy Event starts at 10:00; with free time from 08:00 it ends by 09:45 (command test).

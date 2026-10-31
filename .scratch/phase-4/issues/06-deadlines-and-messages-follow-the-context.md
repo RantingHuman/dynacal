@@ -4,7 +4,7 @@
 
 **Blocked by:** 03
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] "by fri" on a Deep work Task (Fri 08:00–11:00) resolves to Friday 11:00, not the end of the Default Context's day (command test).
 - [ ] A date-only Earliest Start on a Deep work Task resolves to that day's 08:00 (command test).

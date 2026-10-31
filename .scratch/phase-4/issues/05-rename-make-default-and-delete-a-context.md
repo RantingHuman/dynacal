@@ -4,7 +4,7 @@
 
 **Blocked by:** 03
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] Renaming applies the same name rules as creating, and the new name shows on tags and chips (command and screen tests).
 - [ ] After "Make default" on Home, exactly one Context is default, and a Task added with no Context joins Home (command test).

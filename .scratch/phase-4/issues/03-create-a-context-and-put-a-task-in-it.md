@@ -4,7 +4,7 @@
 
 **Blocked by:** 02
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] Creating a Context refuses an empty name, a name over 20 characters, a name matching another ignoring case, and a Context with no windows, each with a message (command test and screen test).
 - [ ] The editor shows one chip per Context, Default first; choosing one moves the Task and replans it (screen test and command test).

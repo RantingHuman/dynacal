@@ -4,7 +4,7 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] A migration creates "Work" from the saved Working Hours, marks it the Default Context, gives every Task (complete or not) that Context, and removes Working Hours from Settings; a migration test proves it on a database with Tasks and custom hours.
 - [ ] On a fresh install, saving hours in setup creates "Work" as the Default Context.

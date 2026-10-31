@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] No type, interface or variable in the scheduler is named Context unless it means a Context in the glossary's sense.
 - [ ] The weekly-windows type has a name that doesn't mention Working Hours, and every use of the old type name is gone.
