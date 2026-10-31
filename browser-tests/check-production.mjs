@@ -10,7 +10,7 @@ const container = `dynacal-boundary-${suffix}`;
 const docker = (...args) => execFileSync("docker", args, { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] }).trim();
 let started = false;
 try {
-  docker("build", "-t", image, ".");
+  docker("build", "--quiet", "-t", image, ".");
   docker("run", "--rm", "--entrypoint", "sh", image, "-c",
     "test ! -e /app/browser-tests && test ! -e /app/browser-test-bootstrap.cjs && test ! -e /app/network-guard.cjs");
   // Scan the whole app (outside node_modules) for every piece of test-only code: the bootstrap, the network guard,

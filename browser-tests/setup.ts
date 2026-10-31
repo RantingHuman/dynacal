@@ -20,11 +20,15 @@ export default async function setup() {
     await new Promise<void>((ok, fail) => {
       const child = spawn(process.execPath, [join(temp, "node_modules/next/dist/bin/next"), "build"], {
         cwd: temp,
-        stdio: "inherit",
+        stdio: ["ignore", "pipe", "pipe"],
         env: { PATH: process.env.PATH, HOME: temp, NODE_ENV: "production", NEXT_TELEMETRY_DISABLED: "1" },
       });
+      // Only a failed build's output is worth reading.
+      let output = "";
+      child.stdout.on("data", (chunk: Buffer) => { output += chunk.toString(); });
+      child.stderr.on("data", (chunk: Buffer) => { output += chunk.toString(); });
       child.once("error", fail);
-      child.once("exit", (code) => (code === 0 ? ok() : fail(new Error(`Test app build exited ${code}`))));
+      child.once("close", (code) => (code === 0 ? ok() : fail(new Error(`Test app build exited ${code}:\n${output}`))));
     });
     await cp(join(temp, ".next/static"), join(temp, ".next/standalone/.next/static"), { recursive: true });
     await cp(join(temp, "public"), join(temp, ".next/standalone/public"), { recursive: true });
