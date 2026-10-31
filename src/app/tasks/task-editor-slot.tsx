@@ -3,7 +3,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { TaskListItem } from "@/core/commands";
 import type { Context as TaskContext } from "@/core/contexts";
-import type { Buffers, TaskFlag } from "@/core/scheduler";
+import type { TaskFlag } from "@/core/scheduler";
+import type { Buffers } from "@/core/settings";
 import type { TaskChange } from "@/core/task-list";
 import type { TaskInput } from "@/core/tasks";
 import { CompletionProvider } from "./completion";

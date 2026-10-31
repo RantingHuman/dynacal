@@ -1,5 +1,5 @@
 import { monthName } from "./day-labels";
-import { isBufferMinutes } from "./settings";
+import { bufferMessage, isBufferMinutes } from "./settings";
 import { GRID_MINUTES } from "./time";
 
 export const PRIORITIES = ["low", "medium", "high", "critical"] as const;
@@ -142,10 +142,10 @@ export function validateTask(input: TaskInput): TaskErrors | null {
   }
   if (!PRIORITIES.includes(input.priority)) errors.priority = `Priority must be ${listPriorities()}.`;
   if (input.bufferBeforeMinutes != null && !isBufferMinutes(input.bufferBeforeMinutes)) {
-    errors.bufferBeforeMinutes = "Before must be 0, 15, 30, 45 or 60 minutes.";
+    errors.bufferBeforeMinutes = bufferMessage("Before");
   }
   if (input.bufferAfterMinutes != null && !isBufferMinutes(input.bufferAfterMinutes)) {
-    errors.bufferAfterMinutes = "After must be 0, 15, 30, 45 or 60 minutes.";
+    errors.bufferAfterMinutes = bufferMessage("After");
   }
   return Object.keys(errors).length ? errors : null;
 }

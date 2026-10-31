@@ -103,7 +103,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       tasks={commands.listTasks()}
       flags={scheduleView.status === "ready" ? scheduleView.flags : {}}
       timeZone={scheduleView.status === "ready" ? scheduleView.timeZone : null}
-      defaultBuffers={{ before: settings.taskBufferBeforeMinutes, after: settings.taskBufferAfterMinutes }}
+      defaultBuffers={settings.taskBuffers}
     />
   );
 

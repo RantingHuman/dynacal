@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import type { TaskListItem } from "@/core/commands";
 import { contextTag, type Context } from "@/core/contexts";
-import type { Buffers, TaskFlag } from "@/core/scheduler";
-import { BUFFER_MINUTES, bufferChipLabel } from "@/core/settings";
+import type { TaskFlag } from "@/core/scheduler";
+import type { Buffers } from "@/core/settings";
 import {
   PRIORITIES,
   PRIORITY_LABELS,
@@ -15,16 +15,18 @@ import {
   type TaskInput,
   validateTask,
 } from "@/core/tasks";
+import { BufferChips } from "../buffer-chips";
 import { OFFLINE_REASON, useOnline } from "../states/use-online";
 import { useSlow } from "../states/use-slow";
 import { createTask, deleteTask, updateTask } from "./actions";
 import { nextSevenDays, spanWords, weekdayName } from "./day-words";
 import { DeclinedTimes } from "./declined-times";
-import { FLAG_LABELS, isAlarm } from "./flags";
+import { FlagText } from "./flags";
 import type { ActOnTasks } from "./task-editor-slot";
 import styles from "./task-editor.module.css";
 
 const DURATIONS = [15, 30, 45, 60, 90, 120, 180, 240];
+const chipStyles = { chips: styles.chips, chip: styles.chip };
 
 /**
  * The full-page Task editor, shown in place of the calendar column: every field visible, Save and Cancel, and
@@ -144,12 +146,10 @@ export function TaskEditor({
             {tag && (
               <>
                 {" · "}
-                <span className={styles.tag}>{tag}</span>
+                <span className="context-tag">{tag}</span>
               </>
             )}
-            {flag &&
-              !task.completedAt &&
-              (isAlarm(flag) ? <em> · {FLAG_LABELS[flag]}</em> : ` · ${FLAG_LABELS[flag]}`)}
+            {flag && !task.completedAt && <FlagText flag={flag} />}
           </p>
         )}
 
@@ -214,8 +214,9 @@ export function TaskEditor({
 
           <dt>Before</dt>
           <dd>
-            <BufferField
+            <BufferChips
               label="Buffer before"
+              classNames={chipStyles}
               value={input.bufferBeforeMinutes ?? null}
               fallback={defaultBuffers.before}
               onChange={(bufferBeforeMinutes) => update({ bufferBeforeMinutes })}
@@ -225,8 +226,9 @@ export function TaskEditor({
 
           <dt>After</dt>
           <dd>
-            <BufferField
+            <BufferChips
               label="Buffer after"
+              classNames={chipStyles}
               value={input.bufferAfterMinutes ?? null}
               fallback={defaultBuffers.after}
               onChange={(bufferAfterMinutes) => update({ bufferAfterMinutes })}
@@ -407,40 +409,6 @@ function ContextField({
           onClick={() => onChange(context.id)}
         >
           {context.name}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/** "Default (…)", following Settings, then the Task's own choice of each Buffer length. Null is the default. */
-function BufferField({
-  label,
-  value,
-  fallback,
-  onChange,
-}: {
-  label: string;
-  value: number | null;
-  /** The default it follows, for the label. */
-  fallback: number;
-  onChange: (minutes: number | null) => void;
-}) {
-  return (
-    <div className={styles.chips} role="radiogroup" aria-label={label}>
-      <button type="button" role="radio" aria-checked={value === null} className={styles.chip} onClick={() => onChange(null)}>
-        Default ({fallback === 0 ? "none" : bufferChipLabel(fallback)})
-      </button>
-      {BUFFER_MINUTES.map((minutes) => (
-        <button
-          key={minutes}
-          type="button"
-          role="radio"
-          aria-checked={value === minutes}
-          className={styles.chip}
-          onClick={() => onChange(minutes)}
-        >
-          {bufferChipLabel(minutes)}
         </button>
       ))}
     </div>

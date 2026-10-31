@@ -47,7 +47,7 @@ const memo = () => taskItem({ id: "t2", title: "Board memo" });
 function renderPhone(tasks: TaskListItem[] = [packing(), memo()], blocks: CalendarBlock[] = [past, ahead]) {
   renderGuarded(
     <TaskEditorProvider>
-      <TaskPanel contexts={[workContext]} tasks={tasks} flags={{}} timeZone="Europe/London" />
+      <TaskPanel contexts={[workContext]} tasks={tasks} flags={{}} timeZone="Europe/London" defaultBuffers={{ before: 0, after: 15 }} />
       <section aria-label="Schedule">
         <PhoneSchedule
           timeZone="Europe/London"

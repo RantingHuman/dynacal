@@ -97,7 +97,7 @@ describe("the Buffer after Tasks", () => {
 
   it("lets Tasks pack back to back when set to 0", () => {
     const app = appWorking([9, 12]);
-    app.commands.updateSettings({ taskBufferAfterMinutes: 0 });
+    app.commands.updateSettings({ taskBuffers: { after: 0 } });
 
     createTask(app, { title: "First" });
     createTask(app, { title: "Second" });
@@ -113,7 +113,7 @@ describe("the Buffer after Tasks", () => {
     createTask(app, { title: "First" });
     createTask(app, { title: "Second" });
 
-    app.commands.updateSettings({ taskBufferAfterMinutes: 30 });
+    app.commands.updateSettings({ taskBuffers: { after: 30 } });
 
     expect(blocks(app)).toEqual([
       ["First", at("09:00"), at("10:00")],
@@ -124,11 +124,11 @@ describe("the Buffer after Tasks", () => {
   it("is one of 0, 15m, 30m, 45m or 1h", () => {
     const app = appWorking([9, 12]);
 
-    expect(app.commands.updateSettings({ taskBufferAfterMinutes: 20 })).toEqual({
+    expect(app.commands.updateSettings({ taskBuffers: { after: 20 } })).toEqual({
       ok: false,
-      errors: { taskBufferAfterMinutes: "After Tasks must be 0, 15, 30, 45 or 60 minutes." },
+      errors: { taskBuffers: { after: "After Tasks must be 0, 15, 30, 45 or 60 minutes." } },
     });
-    expect(app.commands.getSettings().taskBufferAfterMinutes).toBe(15);
+    expect(app.commands.getSettings().taskBuffers.after).toBe(15);
   });
 
   it("may fall outside the working windows, so a Task can end at a window's end", () => {
@@ -173,14 +173,14 @@ describe("the Buffer after Tasks", () => {
 
 describe("the Buffer before Tasks", () => {
   it("starts at 0", () => {
-    expect(createTestApp().commands.getSettings().taskBufferBeforeMinutes).toBe(0);
+    expect(createTestApp().commands.getSettings().taskBuffers.before).toBe(0);
   });
 
   it("keeps a Task from starting within it of a busy Event's end or another Task's end", async () => {
     const app = appWorking([8, 17]);
     app.clock.set(at("08:00"));
     await connect(app, [{ title: "Stand-up", start: at("08:00"), end: at("09:00") }]);
-    app.commands.updateSettings({ taskBufferBeforeMinutes: 30, taskBufferAfterMinutes: 0 });
+    app.commands.updateSettings({ taskBuffers: { before: 30, after: 0 } });
 
     createTask(app, { title: "First" });
     createTask(app, { title: "Second" });
@@ -194,15 +194,15 @@ describe("the Buffer before Tasks", () => {
   it("is one of 0, 15m, 30m, 45m or 1h", () => {
     const app = appWorking([9, 12]);
 
-    expect(app.commands.updateSettings({ taskBufferBeforeMinutes: 10 })).toEqual({
+    expect(app.commands.updateSettings({ taskBuffers: { before: 10 } })).toEqual({
       ok: false,
-      errors: { taskBufferBeforeMinutes: "Before Tasks must be 0, 15, 30, 45 or 60 minutes." },
+      errors: { taskBuffers: { before: "Before Tasks must be 0, 15, 30, 45 or 60 minutes." } },
     });
   });
 
   it("needs no time before a Task at the start of a window, or right now", () => {
     const app = appWorking([9, 10], [13, 17]);
-    app.commands.updateSettings({ taskBufferBeforeMinutes: 60 });
+    app.commands.updateSettings({ taskBuffers: { before: 60 } });
 
     createTask(app, { title: "Now" });
     createTask(app, { title: "Window", estimatedMinutes: 240 });
@@ -246,7 +246,7 @@ describe("a Task's own Buffers", () => {
     createTask(app, { title: "Default" });
     createTask(app, { title: "Last" });
 
-    app.commands.updateSettings({ taskBufferAfterMinutes: 30 });
+    app.commands.updateSettings({ taskBuffers: { after: 30 } });
 
     expect(blocks(app)).toEqual([
       ["Own", at("09:00"), at("10:00")],
@@ -348,20 +348,20 @@ describe("Event Buffers", () => {
   function appBesideEvents() {
     const app = appWorking([8, 17]);
     app.clock.set(at("08:00"));
-    app.commands.updateSettings({ taskBufferAfterMinutes: 0 });
+    app.commands.updateSettings({ taskBuffers: { after: 0 } });
     return app;
   }
 
   it("start at 0", () => {
     const app = appWorking([9, 12]);
 
-    expect(app.commands.getSettings()).toMatchObject({ eventBufferBeforeMinutes: 0, eventBufferAfterMinutes: 0 });
+    expect(app.commands.getSettings()).toMatchObject({ eventBuffers: { before: 0, after: 0 } });
   });
 
   it("keep a Task from ending within Before Events of a busy Event's start", async () => {
     const app = appBesideEvents();
     await connect(app, [{ title: "Stand-up", start: at("10:00"), end: at("11:00") }]);
-    app.commands.updateSettings({ eventBufferBeforeMinutes: 15 });
+    app.commands.updateSettings({ eventBuffers: { before: 15 } });
 
     createTask(app, { title: "Long", estimatedMinutes: 120 });
     createTask(app, { title: "Short", estimatedMinutes: 105 });
@@ -375,7 +375,7 @@ describe("Event Buffers", () => {
   it("keep a Task from starting within After Events of a busy Event's end", async () => {
     const app = appBesideEvents();
     await connect(app, [{ title: "Stand-up", start: at("08:00"), end: at("09:00") }]);
-    app.commands.updateSettings({ eventBufferAfterMinutes: 15 });
+    app.commands.updateSettings({ eventBuffers: { after: 15 } });
 
     createTask(app);
 
@@ -385,7 +385,7 @@ describe("Event Buffers", () => {
   it("share time with a Task's Buffer after, the longer one winning", async () => {
     const app = appBesideEvents();
     await connect(app, [{ title: "Stand-up", start: at("10:00"), end: at("11:00") }]);
-    app.commands.updateSettings({ taskBufferAfterMinutes: 15, eventBufferBeforeMinutes: 30 });
+    app.commands.updateSettings({ taskBuffers: { after: 15 }, eventBuffers: { before: 30 } });
 
     createTask(app, { estimatedMinutes: 90 });
 
@@ -396,7 +396,7 @@ describe("Event Buffers", () => {
   it("don't apply to a Free Event that doesn't count as busy", async () => {
     const app = appBesideEvents();
     await connect(app, [{ title: "Flight", free: true, start: at("10:00"), end: at("11:00") }]);
-    app.commands.updateSettings({ eventBufferBeforeMinutes: 60, eventBufferAfterMinutes: 60 });
+    app.commands.updateSettings({ eventBuffers: { before: 60, after: 60 } });
 
     createTask(app, { estimatedMinutes: 120 });
 
@@ -408,7 +408,7 @@ describe("Event Buffers", () => {
     app.calendar.addCalendar({ id: "work", name: "Work", primary: true });
     const flight = app.calendar.addEvent("work", { title: "Flight", free: true, start: at("10:00"), end: at("11:00") });
     await connect(app);
-    app.commands.updateSettings({ eventBufferAfterMinutes: 30 });
+    app.commands.updateSettings({ eventBuffers: { after: 30 } });
     createTask(app, { estimatedMinutes: 150 });
 
     app.commands.setBusyOverride({ calendarId: "work", eventId: flight }, "busy");
@@ -421,9 +421,8 @@ describe("Event Buffers", () => {
     app.commands.updateSettings({
       timeZone: "Europe/London",
       countAllDayEvents: true,
-      taskBufferAfterMinutes: 0,
-      eventBufferBeforeMinutes: 60,
-      eventBufferAfterMinutes: 60,
+      taskBuffers: { after: 0 },
+      eventBuffers: { before: 60, after: 60 },
     });
     setDefaultWindows(app.commands, { mon: [], tue: [{ start: 0, end: 2 * 60 }], wed: [], thu: [], fri: [] });
     await connect(app, [{ title: "Offsite", startDate: "2026-01-05", endDate: "2026-01-06" }]);
@@ -436,7 +435,7 @@ describe("Event Buffers", () => {
   it("never move a pinned Task or make a Conflict of it ending right before a busy Event", async () => {
     const app = appWorking([9, 17]);
     await connect(app, [{ title: "Stand-up", start: at("11:00"), end: at("12:00") }]);
-    app.commands.updateSettings({ eventBufferBeforeMinutes: 15 });
+    app.commands.updateSettings({ eventBuffers: { before: 15 } });
     createTask(app, { title: "Pinned" });
     const id = view(app).blocks[0].id;
 
@@ -453,21 +452,23 @@ describe("Event Buffers", () => {
     createTask(app, { estimatedMinutes: 120 });
     expect(blocks(app)).toEqual([["Write report", at("08:00"), at("10:00")]]);
 
-    app.commands.updateSettings({ eventBufferBeforeMinutes: 15 });
+    app.commands.updateSettings({ eventBuffers: { before: 15 } });
     expect(blocks(app)).toEqual([["Write report", at("11:00"), at("13:00")]]);
 
-    app.commands.updateSettings({ eventBufferAfterMinutes: 30 });
+    app.commands.updateSettings({ eventBuffers: { after: 30 } });
     expect(blocks(app)).toEqual([["Write report", at("11:30"), at("13:30")]]);
   });
 
   it("are each one of 0, 15m, 30m, 45m or 1h", () => {
     const app = appWorking([9, 12]);
 
-    expect(app.commands.updateSettings({ eventBufferBeforeMinutes: 10, eventBufferAfterMinutes: 90 })).toEqual({
+    expect(app.commands.updateSettings({ eventBuffers: { before: 10, after: 90 } })).toEqual({
       ok: false,
       errors: {
-        eventBufferBeforeMinutes: "Before Events must be 0, 15, 30, 45 or 60 minutes.",
-        eventBufferAfterMinutes: "After Events must be 0, 15, 30, 45 or 60 minutes.",
+        eventBuffers: {
+          before: "Before Events must be 0, 15, 30, 45 or 60 minutes.",
+          after: "After Events must be 0, 15, 30, 45 or 60 minutes.",
+        },
       },
     });
   });

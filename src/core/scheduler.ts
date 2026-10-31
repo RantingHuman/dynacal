@@ -1,4 +1,4 @@
-import type { WeeklyWindows } from "./settings";
+import type { Buffers, WeeklyWindows } from "./settings";
 import { PRIORITIES, type DateOrDateTime, type Priority } from "./tasks";
 import { addDays, fromZoned, toZoned, weekdayOf } from "./time-zone";
 import { DAY_MINUTES, DAY_MS, GRID_MS, MINUTE_MS, type Interval } from "./time";
@@ -17,15 +17,6 @@ export interface ScheduledBlock extends Interval {
 export interface SchedulerContext {
   id: string;
   windows: WeeklyWindows;
-}
-
-/**
- * Time kept free before and after a Task or Event when placing Tasks, in minutes. Buffers are a separation rule
- * between neighbours, never padding: the gap between two neighbours must be at least the larger of their facing sides.
- */
-export interface Buffers {
-  before: number;
-  after: number;
 }
 
 const NO_BUFFERS: Buffers = { before: 0, after: 0 };

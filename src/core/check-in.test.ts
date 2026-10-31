@@ -19,7 +19,7 @@ type App = ReturnType<typeof createTestApp>;
 
 function appInLondon() {
   const app = createTestApp();
-  app.commands.updateSettings({ timeZone: "Europe/London", taskBufferAfterMinutes: 0 });
+  app.commands.updateSettings({ timeZone: "Europe/London", taskBuffers: { after: 0 } });
   return app;
 }
 

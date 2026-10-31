@@ -58,7 +58,7 @@ describe("the full-page Task editor", () => {
     expect(updateTask).toHaveBeenCalledWith("task-1", expect.objectContaining({ title: "Write the annual plan" }));
     page.rerender(
       <TaskEditorProvider>
-        <TaskPanel contexts={[workContext]} tasks={[{ ...task, title: "Write the annual plan" }]} flags={{}} timeZone="Europe/London" />
+        <TaskPanel contexts={[workContext]} tasks={[{ ...task, title: "Write the annual plan" }]} flags={{}} timeZone="Europe/London" defaultBuffers={{ before: 0, after: 15 }} />
         <TaskEditorSlot><div>Calendar</div></TaskEditorSlot>
       </TaskEditorProvider>,
     );
@@ -124,7 +124,7 @@ describe("the full-page Task editor", () => {
     await waitFor(() => expect(screen.queryByRole("form", { name: "Edit Task" })).toBeNull());
     page.rerender(
       <TaskEditorProvider>
-        <TaskPanel contexts={[workContext]} tasks={[]} flags={{}} timeZone="Europe/London" />
+        <TaskPanel contexts={[workContext]} tasks={[]} flags={{}} timeZone="Europe/London" defaultBuffers={{ before: 0, after: 15 }} />
         <TaskEditorSlot><div>Calendar</div></TaskEditorSlot>
       </TaskEditorProvider>,
     );

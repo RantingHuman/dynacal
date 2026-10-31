@@ -129,6 +129,7 @@ import { DAY_MS, GRID_MS, PLANNING_HORIZON_DAYS, planningHorizonEnd } from "./ti
 import { summariseWeek, type WeekSummary } from "./week-summary";
 import {
   DEFAULT_SETTINGS,
+  applySettingsUpdate,
   DEFAULT_WINDOWS,
   validateSettings,
   validateWindows,
@@ -343,8 +344,25 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
   function getSettings(): Settings {
     const row = db.select().from(settings).get();
     if (!row) return structuredClone(DEFAULT_SETTINGS);
-    const { id: _id, ...saved } = row;
-    return saved;
+    const { id: _id, taskBufferBeforeMinutes, taskBufferAfterMinutes, eventBufferBeforeMinutes, eventBufferAfterMinutes, ...rest } = row;
+    return {
+      ...rest,
+      taskBuffers: { before: taskBufferBeforeMinutes, after: taskBufferAfterMinutes },
+      eventBuffers: { before: eventBufferBeforeMinutes, after: eventBufferAfterMinutes },
+    };
+  }
+
+  /** Saves Settings, each Buffer in its own column. */
+  function writeSettings(tx: Pick<Db, "insert">, next: Settings): void {
+    const { taskBuffers, eventBuffers, ...rest } = next;
+    const row = {
+      ...rest,
+      taskBufferBeforeMinutes: taskBuffers.before,
+      taskBufferAfterMinutes: taskBuffers.after,
+      eventBufferBeforeMinutes: eventBuffers.before,
+      eventBufferAfterMinutes: eventBuffers.after,
+    };
+    tx.insert(settings).values({ id: 1, ...row }).onConflictDoUpdate({ target: settings.id, set: row }).run();
   }
 
   /**
@@ -367,7 +385,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     return db.select({ id: contexts.id }).from(contexts).where(eq(contexts.id, id)).get() !== undefined;
   }
 
-  function saveContextWindows(tx: Pick<Db, "update">, id: string, windows: WeeklyWindows): Context | undefined {
+  function writeContextWindows(tx: Pick<Db, "update">, id: string, windows: WeeklyWindows): Context | undefined {
     return tx.update(contexts).set({ windows }).where(eq(contexts.id, id)).returning().get();
   }
 
@@ -898,7 +916,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
    */
   function busyTime(current: Settings, timeZone: string) {
     const overrides = readBusyOverrides();
-    const buffers = { before: current.eventBufferBeforeMinutes, after: current.eventBufferAfterMinutes };
+    const buffers = current.eventBuffers;
     return allEvents()
       .filter((e) => countsAsBusy(e, current, overrides.get(eventKey(eventRef(e))) ?? null))
       .map((e) => (e.allDay ? eventInterval(e, timeZone) : { ...eventInterval(e, timeZone), buffers }));
@@ -990,7 +1008,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
    */
   function recalculateSchedule(): RecalculateResult {
     const current = getSettings();
-    const { timeZone, minimumBlockMinutes, taskBufferBeforeMinutes, taskBufferAfterMinutes } = current;
+    const { timeZone, minimumBlockMinutes, taskBuffers } = current;
     if (timeZone === null) return { ok: false, reason: "needs-time-zone" };
     const allContexts = commands.listContexts();
     const busy = busyTime(current, timeZone);
@@ -1029,7 +1047,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
           declined,
           timeZone,
           contexts: allContexts,
-          buffers: { before: taskBufferBeforeMinutes, after: taskBufferAfterMinutes },
+          buffers: taskBuffers,
         }),
         busy,
         pinnedBlocks: [...inProgress.filter((b) => b.pinned), ...pinnedAhead],
@@ -1406,7 +1424,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       if (!contextExists(id)) return { ok: false, notFound: true };
       const errors = validateWindows(windows);
       if (errors) return { ok: false, errors };
-      const context = saveContextWindows(db, id, windows)!;
+      const context = writeContextWindows(db, id, windows)!;
       recalculateAutomatically();
       return { ok: true, context };
     },
@@ -1426,24 +1444,18 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         };
       }
       db.transaction((tx) => {
-        tx.insert(settings)
-          .values({ id: 1, ...next })
-          .onConflictDoUpdate({ target: settings.id, set: next })
-          .run();
-        saveContextWindows(tx, defaultContext(tx).id, windows);
+        writeSettings(tx, next);
+        writeContextWindows(tx, defaultContext(tx).id, windows);
       });
       recalculateAutomatically();
       return { ok: true };
     },
 
     updateSettings(update: SettingsUpdate): UpdateSettingsResult {
-      const next = { ...getSettings(), ...update };
+      const next = applySettingsUpdate(getSettings(), update);
       const errors = validateSettings(next);
       if (errors) return { ok: false, errors };
-      db.insert(settings)
-        .values({ id: 1, ...next })
-        .onConflictDoUpdate({ target: settings.id, set: next })
-        .run();
+      writeSettings(db, next);
       recalculateAutomatically();
       return { ok: true, settings: next };
     },

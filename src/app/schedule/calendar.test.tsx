@@ -50,7 +50,7 @@ const packing = () =>
 function renderDesktop(tasks: TaskListItem[] = [packing()]) {
   renderGuarded(
     <TaskEditorProvider>
-      <TaskPanel contexts={[workContext]} tasks={tasks} flags={{}} timeZone="Europe/London" />
+      <TaskPanel contexts={[workContext]} tasks={tasks} flags={{}} timeZone="Europe/London" defaultBuffers={{ before: 0, after: 15 }} />
       <Calendar
         timeZone="Europe/London"
         horizon={{ start: NOW, end: "2026-11-10T14:00:00.000Z" }}

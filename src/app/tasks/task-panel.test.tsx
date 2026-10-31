@@ -31,7 +31,7 @@ function renderPanel(
 ) {
   return renderGuarded(
     <TaskEditorProvider>
-      <TaskPanel contexts={contexts} tasks={tasks} flags={flags} timeZone="Europe/London" />
+      <TaskPanel contexts={contexts} tasks={tasks} flags={flags} timeZone="Europe/London" defaultBuffers={{ before: 0, after: 15 }} />
     </TaskEditorProvider>,
   );
 }
@@ -95,7 +95,7 @@ describe("adding a Task through the full form", () => {
   function renderWithEditor() {
     return renderGuarded(
       <TaskEditorProvider>
-        <TaskPanel contexts={[workContext]} tasks={[]} flags={{}} timeZone="Europe/London" />
+        <TaskPanel contexts={[workContext]} tasks={[]} flags={{}} timeZone="Europe/London" defaultBuffers={{ before: 0, after: 15 }} />
         <TaskEditorSlot>
           <p>The calendar</p>
         </TaskEditorSlot>
@@ -374,7 +374,7 @@ describe("a Task waiting for a Check-in", () => {
     renderGuarded(
       <TaskEditorProvider>
         <a href={checkInHref("pack")}>Check in</a>
-        <TaskPanel contexts={[workContext]} tasks={[{ ...packing(), id: "pack" }]} flags={{}} timeZone="Europe/London" />
+        <TaskPanel contexts={[workContext]} tasks={[{ ...packing(), id: "pack" }]} flags={{}} timeZone="Europe/London" defaultBuffers={{ before: 0, after: 15 }} />
       </TaskEditorProvider>,
     );
 

@@ -14,6 +14,11 @@ export function isAlarm(flag: TaskFlag): boolean {
   return flag !== "later";
 }
 
+/** " · At Risk" after a Task's other details: emphasised for an alarm, plain words for Later. */
+export function FlagText({ flag, className }: { flag: TaskFlag; className?: string }) {
+  return isAlarm(flag) ? <em className={className}> · {FLAG_LABELS[flag]}</em> : <> · {FLAG_LABELS[flag]}</>;
+}
+
 /**
  * What a row says for an At Risk or Unscheduled Task outside the Default Context, in place of its tag, deadline and
  * flag: it's that Context's windows that are short, e.g. "No Deep work time before Fri". Null otherwise, so the row

@@ -23,7 +23,7 @@ function at(time: string, date = "2026-01-05"): Date {
 async function connectedApp(): Promise<{ app: App; dynacal: string }> {
   const app = createTestApp();
   app.calendar.addCalendar({ id: "work", name: "Work", primary: true });
-  app.commands.updateSettings({ timeZone: "Europe/London", taskBufferAfterMinutes: 0 });
+  app.commands.updateSettings({ timeZone: "Europe/London", taskBuffers: { after: 0 } });
   await app.commands.connectGoogle(grant);
   await app.commands.setBusyCalendars(["work"]);
   const dynacal = (await app.calendar.listCalendars()).find((c) => c.name === "dynacal")!.id;

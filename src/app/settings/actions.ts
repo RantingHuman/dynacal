@@ -22,16 +22,16 @@ const windowsSchema = z.object(Object.fromEntries(WEEKDAYS.map((day) => [day, z.
   z.ZodArray<typeof timeWindowSchema>
 >);
 
+const buffersSchema = z.object({ before: z.number(), after: z.number() });
+
 const settingsInput = z.object({
   timeZone: z.string().nullable(),
   minimumBlockMinutes: z.number(),
   reminderLeadMinutes: z.number(),
   countFreeEvents: z.boolean(),
   countAllDayEvents: z.boolean(),
-  taskBufferBeforeMinutes: z.number(),
-  taskBufferAfterMinutes: z.number(),
-  eventBufferBeforeMinutes: z.number(),
-  eventBufferAfterMinutes: z.number(),
+  taskBuffers: buffersSchema,
+  eventBuffers: buffersSchema,
 });
 
 export async function saveBusyCalendars(calendarIds: string[]): Promise<SetBusyCalendarsResult> {

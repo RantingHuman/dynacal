@@ -2,6 +2,7 @@ import {
   WEEKDAYS,
   validateSettings,
   validateWindows,
+  type Buffers,
   type Settings,
   type SettingsErrors,
   type TimeWindow,
@@ -27,6 +28,10 @@ function sameWindows(a: TimeWindow[], b: TimeWindow[]): boolean {
   return a.length === b.length && a.every((w, i) => w.start === b[i].start && w.end === b[i].end);
 }
 
+function sameBuffers(a: Buffers, b: Buffers): boolean {
+  return a.before === b.before && a.after === b.after;
+}
+
 function sameSettings(a: Settings, b: Settings): boolean {
   return (
     a.timeZone === b.timeZone &&
@@ -34,10 +39,8 @@ function sameSettings(a: Settings, b: Settings): boolean {
     a.reminderLeadMinutes === b.reminderLeadMinutes &&
     a.countFreeEvents === b.countFreeEvents &&
     a.countAllDayEvents === b.countAllDayEvents &&
-    a.taskBufferBeforeMinutes === b.taskBufferBeforeMinutes &&
-    a.taskBufferAfterMinutes === b.taskBufferAfterMinutes &&
-    a.eventBufferBeforeMinutes === b.eventBufferBeforeMinutes &&
-    a.eventBufferAfterMinutes === b.eventBufferAfterMinutes
+    sameBuffers(a.taskBuffers, b.taskBuffers) &&
+    sameBuffers(a.eventBuffers, b.eventBuffers)
   );
 }
 

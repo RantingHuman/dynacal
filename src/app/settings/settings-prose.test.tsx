@@ -89,7 +89,7 @@ describe("the Buffers around Tasks", () => {
     await userEvent.click(editor.getByRole("radio", { name: "45m" }));
 
     expect(screen.getByRole("button", { name: "45 minutes" })).toBeTruthy();
-    await waitFor(() => expect(saveSettings).toHaveBeenCalledWith(expect.objectContaining({ taskBufferAfterMinutes: 45 })));
+    await waitFor(() => expect(saveSettings).toHaveBeenCalledWith(expect.objectContaining({ taskBuffers: { before: 0, after: 45 } })));
   });
 
   it("offers the same under Before Tasks, which starts at no time, and saves the one chosen", async () => {
@@ -104,7 +104,7 @@ describe("the Buffers around Tasks", () => {
     await userEvent.click(editor.getByRole("radio", { name: "1h" }));
 
     expect(screen.getByRole("button", { name: "1 hour" })).toBeTruthy();
-    await waitFor(() => expect(saveSettings).toHaveBeenCalledWith(expect.objectContaining({ taskBufferBeforeMinutes: 60 })));
+    await waitFor(() => expect(saveSettings).toHaveBeenCalledWith(expect.objectContaining({ taskBuffers: { before: 60, after: 15 } })));
   });
 });
 
@@ -125,7 +125,7 @@ describe("the Event Buffers", () => {
     await userEvent.click(editor.getByRole("radio", { name: "15m" }));
 
     expect(screen.getByRole("button", { name: "15 minutes before" })).toBeTruthy();
-    await waitFor(() => expect(saveSettings).toHaveBeenCalledWith(expect.objectContaining({ eventBufferBeforeMinutes: 15 })));
+    await waitFor(() => expect(saveSettings).toHaveBeenCalledWith(expect.objectContaining({ eventBuffers: { before: 15, after: 0 } })));
   });
 
   it("offer the five choices under After Events, and save the one chosen", async () => {
@@ -138,6 +138,6 @@ describe("the Event Buffers", () => {
     await userEvent.click(editor.getByRole("radio", { name: "1h" }));
 
     expect(screen.getByRole("button", { name: "1 hour after" })).toBeTruthy();
-    await waitFor(() => expect(saveSettings).toHaveBeenCalledWith(expect.objectContaining({ eventBufferAfterMinutes: 60 })));
+    await waitFor(() => expect(saveSettings).toHaveBeenCalledWith(expect.objectContaining({ eventBuffers: { before: 0, after: 60 } })));
   });
 });

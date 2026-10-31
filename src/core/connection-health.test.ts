@@ -22,7 +22,7 @@ function at(time: string): Date {
 async function connectedApp() {
   const app = createTestApp();
   app.calendar.addCalendar({ id: "work", name: "Work", primary: true });
-  app.commands.updateSettings({ timeZone: "Europe/London", taskBufferAfterMinutes: 0 });
+  app.commands.updateSettings({ timeZone: "Europe/London", taskBuffers: { after: 0 } });
   await app.commands.connectGoogle(grant);
   await app.commands.setBusyCalendars(["work"]);
   return app;

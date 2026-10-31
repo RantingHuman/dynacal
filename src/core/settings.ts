@@ -20,27 +20,41 @@ export interface Settings {
   countFreeEvents: boolean;
   /** Whether all-day Events count as busy time. */
   countAllDayEvents: boolean;
-  /** The Buffer before Tasks, in minutes: one of `BUFFER_MINUTES`. A Task's own Buffer before overrides it. */
-  taskBufferBeforeMinutes: number;
-  /** The Buffer after Tasks, in minutes: one of `BUFFER_MINUTES`. A Task's own Buffer after overrides it. */
-  taskBufferAfterMinutes: number;
-  /** The Buffers before and after timed Events that count as busy, in minutes: each one of `BUFFER_MINUTES`. */
-  eventBufferBeforeMinutes: number;
-  eventBufferAfterMinutes: number;
+  /** The Buffers around Tasks: each one of `BUFFER_MINUTES`. A Task's own Buffer on either side overrides it. */
+  taskBuffers: Buffers;
+  /** The Buffers around timed Events that count as busy: each one of `BUFFER_MINUTES`. */
+  eventBuffers: Buffers;
+}
+
+/**
+ * Time kept free before and after a Task or Event when placing Tasks, in minutes. Buffers are a separation rule
+ * between neighbours, never padding: the gap between two neighbours must be at least the larger of their facing sides.
+ */
+export interface Buffers {
+  before: number;
+  after: number;
 }
 
 /** The lengths a Buffer may be, in minutes: the planning grid's steps up to an hour. */
 export const BUFFER_MINUTES = [0, 15, 30, 45, 60] as const;
+export type BufferMinutes = (typeof BUFFER_MINUTES)[number];
 
-/** A Buffer's length as a short chip label: "0", "15m", "1h". */
-export function bufferChipLabel(minutes: number): string {
-  if (minutes === 0) return "0";
-  return minutes % 60 === 0 ? `${minutes / 60}h` : `${minutes}m`;
+/** A Buffer's length, short for a chip ("0", "15m", "1h") or in words for prose ("no time", "15 minutes", "1 hour"). */
+export function bufferLength(minutes: number, form: "chip" | "words"): string {
+  const hours = minutes / 60;
+  if (form === "chip") return minutes === 0 ? "0" : Number.isInteger(hours) ? `${hours}h` : `${minutes}m`;
+  if (minutes === 0) return "no time";
+  return hours === 1 ? "1 hour" : `${minutes} minutes`;
 }
 
 /** Whether `minutes` is one of the lengths a Buffer may be. */
-export function isBufferMinutes(minutes: number): boolean {
+export function isBufferMinutes(minutes: number): minutes is BufferMinutes {
   return (BUFFER_MINUTES as readonly number[]).includes(minutes);
+}
+
+/** Why a Buffer isn't one of the lengths it may be, e.g. "Before Tasks must be 0, 15, 30, 45 or 60 minutes." */
+export function bufferMessage(label: string): string {
+  return `${label} must be ${BUFFER_MINUTES.slice(0, -1).join(", ")} or ${BUFFER_MINUTES.at(-1)} minutes.`;
 }
 
 const nineToFive = (): TimeWindow[] => [{ start: 9 * 60, end: 17 * 60 }];
@@ -62,13 +76,25 @@ export const DEFAULT_SETTINGS: Settings = {
   reminderLeadMinutes: 10,
   countFreeEvents: false,
   countAllDayEvents: false,
-  taskBufferBeforeMinutes: 0,
-  taskBufferAfterMinutes: 15,
-  eventBufferBeforeMinutes: 0,
-  eventBufferAfterMinutes: 0,
+  taskBuffers: { before: 0, after: 15 },
+  eventBuffers: { before: 0, after: 0 },
 };
 
-export type SettingsUpdate = Partial<Settings>;
+/** Settings to change; a Buffers group may give only one side, keeping the other. */
+export type SettingsUpdate = Partial<Omit<Settings, "taskBuffers" | "eventBuffers">> & {
+  taskBuffers?: Partial<Buffers>;
+  eventBuffers?: Partial<Buffers>;
+};
+
+/** `current` with `update` applied. */
+export function applySettingsUpdate(current: Settings, update: SettingsUpdate): Settings {
+  return {
+    ...current,
+    ...update,
+    taskBuffers: { ...current.taskBuffers, ...update.taskBuffers },
+    eventBuffers: { ...current.eventBuffers, ...update.eventBuffers },
+  };
+}
 
 export type UpdateSettingsResult = { ok: true; settings: Settings } | { ok: false; errors: SettingsErrors };
 
@@ -77,11 +103,12 @@ export interface SettingsErrors {
   timeZone?: string;
   minimumBlockMinutes?: string;
   reminderLeadMinutes?: string;
-  taskBufferBeforeMinutes?: string;
-  taskBufferAfterMinutes?: string;
-  eventBufferBeforeMinutes?: string;
-  eventBufferAfterMinutes?: string;
+  taskBuffers?: BuffersErrors;
+  eventBuffers?: BuffersErrors;
 }
+
+/** One message per side of a Buffers group that isn't a length a Buffer may be. */
+export type BuffersErrors = Partial<Record<keyof Buffers, string>>;
 
 /** Formats minutes after midnight as HH:MM. */
 export function formatMinutes(minutes: number): string {
@@ -89,7 +116,6 @@ export function formatMinutes(minutes: number): string {
   const m = minutes % 60;
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
-
 
 function formatWindow({ start, end }: TimeWindow): string {
   return `${formatMinutes(start)}–${formatMinutes(end)}`;
@@ -158,15 +184,14 @@ export function validateSettings(settings: Settings): SettingsErrors | null {
   if (!Number.isInteger(reminderLeadMinutes) || reminderLeadMinutes < 0 || reminderLeadMinutes > DAY_MINUTES) {
     errors.reminderLeadMinutes = "Reminder lead time must be a whole number of minutes from 0 to 1440.";
   }
-  const buffers = [
-    ["taskBufferBeforeMinutes", "Before Tasks"],
-    ["taskBufferAfterMinutes", "After Tasks"],
-    ["eventBufferBeforeMinutes", "Before Events"],
-    ["eventBufferAfterMinutes", "After Events"],
+  const groups = [
+    ["taskBuffers", "Tasks"],
+    ["eventBuffers", "Events"],
   ] as const;
-  for (const [field, label] of buffers) {
-    if (!isBufferMinutes(settings[field])) {
-      errors[field] = `${label} must be 0, 15, 30, 45 or 60 minutes.`;
+  for (const [group, noun] of groups) {
+    const sides = { before: `Before ${noun}`, after: `After ${noun}` } as const;
+    for (const side of ["before", "after"] as const) {
+      if (!isBufferMinutes(settings[group][side])) (errors[group] ??= {})[side] = bufferMessage(sides[side]);
     }
   }
   return Object.keys(errors).length ? errors : null;

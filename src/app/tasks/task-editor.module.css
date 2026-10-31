@@ -76,12 +76,6 @@
   font-style: normal;
 }
 
-/* A Task's Context, when it isn't the Default Context: its name, kept on one line (names are at most 20 characters). */
-.tag {
-  color: var(--ink);
-  white-space: nowrap;
-}
-
 /* Labels and controls as two columns; on narrow widths the labels stack above their controls. */
 .fields {
   display: grid;

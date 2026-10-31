@@ -65,7 +65,7 @@ describe("the home screen on a phone", () => {
     });
     renderPhone(
       <a href={checkInHref("pack")}>Check in</a>,
-      <TaskPanel contexts={[workContext]} tasks={[waiting]} flags={{}} timeZone="Europe/London" />,
+      <TaskPanel contexts={[workContext]} tasks={[waiting]} flags={{}} timeZone="Europe/London" defaultBuffers={{ before: 0, after: 15 }} />,
     );
 
     await userEvent.click(screen.getByRole("link", { name: "Check in" }));

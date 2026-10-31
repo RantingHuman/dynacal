@@ -488,6 +488,12 @@ input[type="checkbox"]:disabled {
   opacity: 0.45;
 }
 
+/* A Task's Context, when it isn't the Default Context: its name, kept on one line (names are at most 20 characters). */
+.context-tag {
+  color: var(--ink);
+  white-space: nowrap;
+}
+
 .context-window {
   position: absolute;
   left: 0;

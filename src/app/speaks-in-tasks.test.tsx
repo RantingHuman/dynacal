@@ -102,7 +102,7 @@ describe("the owner never sees the word Block", () => {
   it("on the desktop home, its calendar and a pinned time's label", async () => {
     renderGuarded(
       <TaskEditorProvider>
-        <TaskPanel contexts={[workContext]} tasks={tasks()} flags={{}} timeZone="Europe/London" />
+        <TaskPanel contexts={[workContext]} tasks={tasks()} flags={{}} timeZone="Europe/London" defaultBuffers={{ before: 0, after: 15 }} />
         <Calendar
           timeZone="Europe/London"
           horizon={horizon}
@@ -123,7 +123,7 @@ describe("the owner never sees the word Block", () => {
   it("on the phone's week list and its sheets", async () => {
     renderGuarded(
       <TaskEditorProvider>
-        <TaskPanel contexts={[workContext]} tasks={tasks()} flags={{}} timeZone="Europe/London" />
+        <TaskPanel contexts={[workContext]} tasks={tasks()} flags={{}} timeZone="Europe/London" defaultBuffers={{ before: 0, after: 15 }} />
         <PhoneSchedule
           timeZone="Europe/London"
           horizon={horizon}
@@ -147,7 +147,7 @@ describe("the owner never sees the word Block", () => {
   it("in the Task editor, with a Declined Time", async () => {
     renderGuarded(
       <TaskEditorProvider>
-        <TaskPanel contexts={[workContext]} tasks={tasks()} flags={{}} timeZone="Europe/London" />
+        <TaskPanel contexts={[workContext]} tasks={tasks()} flags={{}} timeZone="Europe/London" defaultBuffers={{ before: 0, after: 15 }} />
         <TaskEditorSlot>
           <div>Calendar</div>
         </TaskEditorSlot>

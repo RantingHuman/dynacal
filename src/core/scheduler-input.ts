@@ -1,5 +1,6 @@
 import type { tasks } from "./db/schema";
-import { resolveDeadline, resolveEarliestStart, type Buffers, type SchedulerContext, type SchedulerTask } from "./scheduler";
+import { resolveDeadline, resolveEarliestStart, type SchedulerContext, type SchedulerTask } from "./scheduler";
+import type { Buffers } from "./settings";
 import type { Interval } from "./time";
 
 /**

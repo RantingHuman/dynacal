@@ -11,10 +11,8 @@ describe("settings", () => {
       reminderLeadMinutes: 10,
       countFreeEvents: false,
       countAllDayEvents: false,
-      taskBufferBeforeMinutes: 0,
-      taskBufferAfterMinutes: 15,
-      eventBufferBeforeMinutes: 0,
-      eventBufferAfterMinutes: 0,
+      taskBuffers: { before: 0, after: 15 },
+      eventBuffers: { before: 0, after: 0 },
     });
   });
 

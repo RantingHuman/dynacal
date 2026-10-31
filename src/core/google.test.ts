@@ -30,7 +30,7 @@ async function connect(app: App) {
 
 function appInLondonWithCalendars() {
   const app = appWithCalendars();
-  app.commands.updateSettings({ timeZone: "Europe/London", taskBufferAfterMinutes: 0 });
+  app.commands.updateSettings({ timeZone: "Europe/London", taskBuffers: { after: 0 } });
   return app;
 }
 

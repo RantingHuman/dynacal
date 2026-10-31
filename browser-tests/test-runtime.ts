@@ -28,7 +28,7 @@ function seedPastTimes(commands: ReturnType<typeof createCommands>, clock: FakeC
   clock.set(new Date("2026-01-05T06:00:00Z"));
   setDefaultWindows(commands, { mon: [{ start: 6 * 60, end: 17 * 60 }] });
   // No Buffer after Tasks, so the three times sit back to back at 06:00, 07:00 and 08:00.
-  commands.updateSettings({ taskBufferAfterMinutes: 0 });
+  commands.updateSettings({ taskBuffers: { after: 0 } });
   for (const title of PAST_TIMES) {
     const result = commands.createTask({ title, notes: "", estimatedMinutes: 60, deadline: null, earliestStart: null,
       priority: "medium", splittable: false });

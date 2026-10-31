@@ -55,8 +55,8 @@ export function TaskLineAdd({
   // No "@name" leaves the Context out, so the Task joins the Default Context.
   const contextId = contexts.find((c) => c.name === context)?.id;
   const input: TaskInput = contextId ? { ...parsed.input, contextId } : parsed.input;
-  // The hint shows "@" only once there's a Context other than the Default to pick.
-  const otherContext = contexts.find((c) => !c.isDefault)?.name.split(" ")[0].toLowerCase();
+  // The hint shows "@" with the first other Context as its example, once there is one to pick.
+  const contextExample = contexts.find((c) => !c.isDefault)?.name.split(" ")[0].toLowerCase();
   const picked = (field: (typeof found)[number]) => found.includes(field);
 
   function add(event: React.FormEvent) {
@@ -125,7 +125,7 @@ export function TaskLineAdd({
       ) : (
         <p id="task-line-preview" className={styles.hint}>
           Try “2h”, “by fri at 16:00”, “from mon”, “!high”, “split”
-          {otherContext && `, “@${otherContext}”`}. Enter adds it.
+          {contextExample && `, “@${contextExample}”`}. Enter adds it.
         </p>
       )}
       {errorList.length > 0 && (

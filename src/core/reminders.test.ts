@@ -24,7 +24,7 @@ const subscription = {
 /** An app in London with one push subscription, whose working day starts at 10:00 so Blocks begin an hour from now. */
 function appWithSubscription() {
   const app = createTestApp();
-  app.commands.updateSettings({ timeZone: "Europe/London", taskBufferAfterMinutes: 0 });
+  app.commands.updateSettings({ timeZone: "Europe/London", taskBuffers: { after: 0 } });
   setDefaultWindows(app.commands, { mon: [{ start: 10 * 60, end: 17 * 60 }] });
   app.commands.subscribeToPush(subscription);
   return app;

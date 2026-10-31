@@ -331,7 +331,7 @@ describe("a Task in a Context", () => {
   function appWithDeepWork({ bufferAfter = 0 } = {}) {
     const app = createTestApp();
     app.clock.set(new Date("2026-01-05T06:00:00Z"));
-    app.commands.updateSettings({ timeZone: "Europe/London", taskBufferAfterMinutes: bufferAfter });
+    app.commands.updateSettings({ timeZone: "Europe/London", taskBuffers: { after: bufferAfter } });
     setDefaultWindows(app.commands, { mon: [{ start: 6 * 60, end: 17 * 60 }] });
     const result = app.commands.createContext({ name: "Deep work", windows: deepMornings });
     if (!result.ok) throw new Error("Deep work refused");
@@ -452,7 +452,7 @@ describe("deleting a Context", () => {
   function appWithDeepWork() {
     const app = createTestApp();
     app.clock.set(new Date("2026-01-05T06:00:00Z"));
-    app.commands.updateSettings({ timeZone: "Europe/London", taskBufferAfterMinutes: 0 });
+    app.commands.updateSettings({ timeZone: "Europe/London", taskBuffers: { after: 0 } });
     setDefaultWindows(app.commands, { mon: [{ start: 6 * 60, end: 17 * 60 }] });
     const result = app.commands.createContext({ name: "Deep work", windows: deepMornings });
     if (!result.ok) throw new Error("Deep work refused");
@@ -522,7 +522,7 @@ describe("a date without a time, on a Task in a Context", () => {
   function appWithDeepFridays() {
     const app = createTestApp();
     app.clock.set(new Date("2026-01-05T06:00:00Z"));
-    app.commands.updateSettings({ timeZone: "Europe/London", taskBufferAfterMinutes: 0 });
+    app.commands.updateSettings({ timeZone: "Europe/London", taskBuffers: { after: 0 } });
     const result = app.commands.createContext({ name: "Deep work", windows: deepFridays });
     if (!result.ok) throw new Error("Deep work refused");
     return { ...app, deep: result.context };

@@ -2,7 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { CONTEXT_GONE, contextNameError, type Context, type ContextErrors } from "@/core/contexts";
-import { DEFAULT_WINDOWS, validateSettings, validateWindows, type Settings, type WeeklyWindows } from "@/core/settings";
+import {
+  DEFAULT_WINDOWS,
+  bufferLength,
+  validateSettings,
+  validateWindows,
+  type Settings,
+  type WeeklyWindows,
+} from "@/core/settings";
 import { settingsToSave, windowsToSave } from "@/core/settings-draft";
 import {
   addContext,
@@ -15,7 +22,8 @@ import {
 } from "./actions";
 import { BusyCalendarsValue, toggled } from "./busy-calendars-value";
 import type { CalendarView } from "./calendar-view";
-import { BufferChips, MinutesEditor } from "./editors";
+import { BufferChips } from "../buffer-chips";
+import { MinutesEditor } from "./editors";
 import { connectHref, ConnectError, GoogleTrouble } from "./google-connection";
 import styles from "./prose.module.css";
 import { FlipValue, Value } from "./value";
@@ -24,17 +32,13 @@ import { TimeZoneSentence, WindowsSentences, type OpenValue } from "./week-sente
 /** How long a change settles before it saves. */
 const SETTLE_MS = 700;
 const TOAST_MS = 2000;
+const chipStyles = { chips: styles.chips, chip: styles.chip };
 
 function sameSet(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
   return a.size === b.size && [...a].every((id) => b.has(id));
 }
 
 /** A quiet note that fades after a moment: "Settings saved". */
-/** A Buffer's length as the prose says it: "no time", "15 minutes", "1 hour". */
-function bufferPhrase(minutes: number): string {
-  return minutes === 0 ? "no time" : minutes === 60 ? "1 hour" : `${minutes} minutes`;
-}
-
 function useToast() {
   const [toast, setToast] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -97,10 +101,7 @@ export function SettingsProse({
 
   const lead = draft.reminderLeadMinutes;
   const minimum = draft.minimumBlockMinutes;
-  const before = draft.taskBufferBeforeMinutes;
-  const after = draft.taskBufferAfterMinutes;
-  const beforeEvents = draft.eventBufferBeforeMinutes;
-  const afterEvents = draft.eventBufferAfterMinutes;
+  const { taskBuffers, eventBuffers } = draft;
 
   return (
     <>
@@ -193,10 +194,15 @@ export function SettingsProse({
           open={open === "before"}
           onOpenChange={toggleOpen("before")}
           editor={
-            <BufferChips label="Before Tasks" value={before} onChange={(taskBufferBeforeMinutes) => update({ taskBufferBeforeMinutes })} />
+            <BufferChips
+              label="Before Tasks"
+              classNames={chipStyles}
+              value={taskBuffers.before}
+              onChange={(before) => update({ taskBuffers: { ...taskBuffers, before } })}
+            />
           }
         >
-          {bufferPhrase(before)}
+          {bufferLength(taskBuffers.before, "words")}
         </Value>{" "}
         free before and{" "}
         <Value
@@ -204,10 +210,15 @@ export function SettingsProse({
           open={open === "after"}
           onOpenChange={toggleOpen("after")}
           editor={
-            <BufferChips label="After Tasks" value={after} onChange={(taskBufferAfterMinutes) => update({ taskBufferAfterMinutes })} />
+            <BufferChips
+              label="After Tasks"
+              classNames={chipStyles}
+              value={taskBuffers.after}
+              onChange={(after) => update({ taskBuffers: { ...taskBuffers, after } })}
+            />
           }
         >
-          {bufferPhrase(after)}
+          {bufferLength(taskBuffers.after, "words")}
         </Value>{" "}
         free after each Task.
       </p>
@@ -231,14 +242,15 @@ export function SettingsProse({
             <>
               <BufferChips
                 label="Before Events"
-                value={beforeEvents}
-                onChange={(eventBufferBeforeMinutes) => update({ eventBufferBeforeMinutes })}
+                classNames={chipStyles}
+                value={eventBuffers.before}
+                onChange={(before) => update({ eventBuffers: { ...eventBuffers, before } })}
               />
               <span className={styles.editorHint}>Not for all-day Events.</span>
             </>
           }
         >
-          {bufferPhrase(beforeEvents)} before
+          {bufferLength(eventBuffers.before, "words")} before
         </Value>{" "}
         and{" "}
         <Value
@@ -249,14 +261,15 @@ export function SettingsProse({
             <>
               <BufferChips
                 label="After Events"
-                value={afterEvents}
-                onChange={(eventBufferAfterMinutes) => update({ eventBufferAfterMinutes })}
+                classNames={chipStyles}
+                value={eventBuffers.after}
+                onChange={(after) => update({ eventBuffers: { ...eventBuffers, after } })}
               />
               <span className={styles.editorHint}>Not for all-day Events.</span>
             </>
           }
         >
-          {bufferPhrase(afterEvents)} after
+          {bufferLength(eventBuffers.after, "words")} after
         </Value>{" "}
         busy Events free.
       </p>

@@ -6,8 +6,8 @@ import { contextTag, type Context } from "@/core/contexts";
 import { heldOrder } from "@/core/motion";
 import { applyTaskChange, type TaskChange } from "@/core/task-list";
 import { formatDuration, type TaskInput } from "@/core/tasks";
-import type { Buffers, TaskFlag } from "@/core/scheduler";
-import { DEFAULT_SETTINGS } from "@/core/settings";
+import type { TaskFlag } from "@/core/scheduler";
+import type { Buffers } from "@/core/settings";
 import { Toast } from "../schedule/toast";
 import { Squiggle } from "../states/squiggle";
 import statesStyles from "../states/states.module.css";
@@ -19,7 +19,7 @@ import { CheckInSheet } from "./check-in-sheet";
 import { CompleteTaskButton } from "./complete-task-button";
 import { useCompletion } from "./completion";
 import { deadlineWords, spanWords, todayIn } from "./day-words";
-import { contextShortWords, FLAG_LABELS, isAlarm } from "./flags";
+import { contextShortWords, FlagText } from "./flags";
 import { useTaskEditor, type ActOnTasks } from "./task-editor-slot";
 import { TASK_LINE_ID, TaskLineAdd } from "./task-line-add";
 import styles from "./task-panel.module.css";
@@ -41,11 +41,6 @@ function inputOf(task: TaskInput): TaskInput {
     bufferAfterMinutes,
   };
 }
-
-const SETTINGS_BUFFERS: Buffers = {
-  before: DEFAULT_SETTINGS.taskBufferBeforeMinutes,
-  after: DEFAULT_SETTINGS.taskBufferAfterMinutes,
-};
 
 /** A Task shown before the server has added it: it can't be opened or completed yet. */
 const isPending = (task: TaskListItem) => task.id.startsWith("pending-");
@@ -89,7 +84,7 @@ export function TaskPanel({
   tasks,
   flags,
   timeZone,
-  defaultBuffers = SETTINGS_BUFFERS,
+  defaultBuffers,
 }: {
   /** Every Context, the Default Context first. */
   contexts: Context[];
@@ -97,8 +92,8 @@ export function TaskPanel({
   flags: Record<string, TaskFlag | null>;
   /** The owner's time zone, for dates and Declined Times; null until it's saved. */
   timeZone: string | null;
-  /** The Buffers before and after Tasks in Settings, which the editor offers as "Default"; Settings' own if absent. */
-  defaultBuffers?: Buffers;
+  /** The Buffers around Tasks in Settings, which the editor offers as "Default". */
+  defaultBuffers: Buffers;
 }) {
   const { open, openTask, setColumn, saved } = useTaskEditor();
   const { ticked, holding } = useCompletion();
@@ -221,22 +216,21 @@ export function TaskPanel({
             const waiting = task.completedAt ? null : (task.checkIns[0] ?? null);
             const tag = contextTag(contexts, task.contextId);
             // A Context's time running short says so in one phrase, which keeps the row short at phone width.
-            const short = contextShortWords(flag, tag, task.deadline, today);
+            const contextShort = contextShortWords(flag, tag, task.deadline, today);
             const details = (
               <>
-                {short ? (
-                  <em className={styles.flag}> · {short}</em>
+                {contextShort ? (
+                  <em className={styles.flag}> · {contextShort}</em>
                 ) : (
                   <>
                     {tag && (
                       <>
                         {" · "}
-                        <span className={styles.tag}>{tag}</span>
+                        <span className="context-tag">{tag}</span>
                       </>
                     )}
                     {task.deadline && ` · ${deadlineWords(task.deadline, today)}`}
-                    {flag &&
-                      (isAlarm(flag) ? <em className={styles.flag}> · {FLAG_LABELS[flag]}</em> : ` · ${FLAG_LABELS[flag]}`)}
+                    {flag && <FlagText flag={flag} className={styles.flag} />}
                   </>
                 )}
                 {declined > 0 && ` · ${declined} Declined ${declined === 1 ? "Time" : "Times"}`}
