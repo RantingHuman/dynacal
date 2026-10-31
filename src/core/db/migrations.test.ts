@@ -1,7 +1,7 @@
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -34,6 +34,18 @@ function migratedUpTo(tag: string) {
 }
 
 describe("migrations", () => {
+  // Branches made side by side each generate the next number; merging two of them must renumber one.
+  it("are numbered once each, in order, with a file for every journal entry", () => {
+    const journal = JSON.parse(readFileSync(join(migrationsFolder, "meta", "_journal.json"), "utf8"));
+    const tags: string[] = journal.entries.map((e: { idx: number; tag: string }, i: number) => {
+      expect(e.idx, e.tag).toBe(i);
+      expect(e.tag.slice(0, 4), e.tag).toBe(String(i).padStart(4, "0"));
+      return e.tag;
+    });
+    const files = readdirSync(migrationsFolder).filter((f) => f.endsWith(".sql"));
+    expect(files.sort()).toEqual(tags.map((t) => `${t}.sql`).sort());
+  });
+
   it("makes every existing Task one piece", () => {
     const sqlite = migratedUpTo("one-piece-tasks");
     const insert = sqlite.prepare(
@@ -333,5 +345,46 @@ describe("migrations", () => {
 
       expect(sqlite.prepare("SELECT * FROM contexts").all()).toEqual([]);
     });
+  });
+
+  // Built as the owner's install stood before Contexts, with a row in every table and every reference filled, so a
+  // later migration that rebuilds a table can't quietly cascade a delete or drop rows. Add a row here for any new
+  // table a later migration fills from old data.
+  it("keeps every row of a lived-in install through every later migration", () => {
+    const sqlite = migratedUpTo("work-context");
+    sqlite.exec(`
+      INSERT INTO sessions VALUES ('s', 'owner@example.com', 0, 9999999999999);
+      INSERT INTO settings (id, working_hours, time_zone, minimum_block_minutes, reminder_lead_minutes)
+        VALUES (1, '{"mon":[{"start":540,"end":1200}],"tue":[],"wed":[],"thu":[],"fri":[],"sat":[],"sun":[]}',
+                'Europe/London', 30, 10);
+      INSERT INTO tasks (id, title, notes, estimated_minutes, priority, splittable, created_at)
+        VALUES ('t', 'Report', '', 60, 'medium', 0, 0);
+      INSERT INTO blocks (id, task_id, start, "end", review, pinned) VALUES ('b', 't', 0, 3600000, NULL, 1);
+      INSERT INTO reminders_sent VALUES ('t', 0, 0);
+      INSERT INTO declined_times (task_id, start, "end") VALUES ('t', 0, 3600000);
+      INSERT INTO push_subscriptions VALUES ('https://push.example', 'p', 'a', 0);
+      INSERT INTO busy_calendars VALUES ('primary', 'Personal');
+      INSERT INTO events VALUES ('primary', 'e', 'Dentist', 0, 0, 0, 3600000, NULL, NULL);
+      INSERT INTO busy_overrides VALUES ('primary', 'e', 1, 0, 3600000);
+      INSERT INTO google_connection (id, email, refresh_token, connected_at) VALUES (1, 'owner@example.com', 'r', 0);
+      INSERT INTO block_events VALUES ('dynacal', 'be', 't', 'Report', 0, 3600000, 10, 'b');
+      INSERT INTO calendar_watches VALUES ('c', 'primary', 'r', 'k', 'https://dynacal.example', 9999999999999);
+      INSERT INTO dynacal_events VALUES ('d', 'Lunch', '', 0, 0, 3600000, NULL, NULL, 0);
+      INSERT INTO dynacal_event_writes
+        VALUES ('dynacal', 'de', 'd', 'Lunch', '', 0, 0, 3600000, NULL, NULL, 10);
+    `);
+    const tables = () =>
+      (sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE '\\_\\_%' ESCAPE '\\'").all() as {
+        name: string;
+      }[]).map((t) => t.name);
+    const count = (table: string) => (sqlite.prepare(`SELECT count(*) AS n FROM "${table}"`).get() as { n: number }).n;
+    const before = Object.fromEntries(tables().map((t) => [t, count(t)]));
+    expect(Object.entries(before).filter(([t, n]) => n === 0 && t !== "sqlite_sequence")).toEqual([]);
+
+    migrateDatabase(drizzle(sqlite, { schema }));
+
+    const after = tables();
+    const kept = Object.fromEntries(Object.keys(before).filter((t) => after.includes(t)).map((t) => [t, count(t)]));
+    expect(kept).toEqual(Object.fromEntries(Object.keys(kept).map((t) => [t, before[t]])));
   });
 });

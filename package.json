@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:browser": "node --test browser-tests/isolation.test.cjs && node browser-tests/check-production.mjs && playwright test",
+    "check": "pnpm typecheck && vitest run --reporter=dot && pnpm test:browser --reporter=dot",
     "db:generate": "drizzle-kit generate"
   },
   "packageManager": "pnpm@9.1.4",
