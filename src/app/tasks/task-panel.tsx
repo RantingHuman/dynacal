@@ -127,8 +127,8 @@ export function TaskPanel({
   }, [showChange]);
   // The editor, in the calendar column, works from the same Tasks.
   useEffect(
-    () => setColumn({ contexts, tasks: shown, flags, timeZone, today, defaultBuffers, act }),
-    [setColumn, contexts, shown, flags, timeZone, today, defaultBuffers, act],
+    () => setColumn({ contexts, tasks: shown, flags, timeZone, today, defaultBuffers, act, failure: toast, clearFailure: clearToast }),
+    [setColumn, contexts, shown, flags, timeZone, today, defaultBuffers, act, toast, clearToast],
   );
 
   // The Task whose Check-in sheet is open; it asks about the Task's oldest waiting time.

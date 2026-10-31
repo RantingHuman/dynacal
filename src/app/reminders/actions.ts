@@ -6,8 +6,9 @@ import type { SubscribeToPushResult } from "@/core/push";
 import { getRuntime } from "@/server/runtime";
 import { requireOwner } from "@/server/session";
 
-// Loose: the browser's subscription also carries expirationTime, which dynacal ignores. Missing keys become empty
-// strings, so the command layer's validation explains the problem to the owner.
+// Loose because the browser writes these objects, not dynacal: a subscription carries expirationTime, which dynacal
+// ignores, and refusing whatever else a browser adds would stop reminders. Missing keys become empty strings, so the
+// command layer's validation explains the problem to the owner.
 const subscriptionInput = z.looseObject({
   endpoint: z.string(),
   keys: z.looseObject({ p256dh: z.string().default(""), auth: z.string().default("") }).default({ p256dh: "", auth: "" }),

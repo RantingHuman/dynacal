@@ -35,6 +35,9 @@ export interface TaskColumnData {
   today: string;
   defaultBuffers: Buffers;
   act: ActOnTasks;
+  /** Why the latest change didn't go through, for a screen where the Tasks column's own toast is hidden. */
+  failure?: string | null;
+  clearFailure?: () => void;
 }
 
 /** The Task last saved from the editor, so its row can sweep a highlighter and say "Saved"; `n` counts saves. */

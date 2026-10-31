@@ -34,16 +34,20 @@ function migratedUpTo(tag: string) {
 }
 
 describe("migrations", () => {
-  // Branches made side by side each generate the next number; merging two of them must renumber one.
-  it("are numbered once each, in order, with a file for every journal entry", () => {
+  // Branches made side by side each generate the next number; merging two of them must regenerate one. Renumbering
+  // by hand isn't enough: a database skips any migration whose `when` isn't later than the last one it applied.
+  it("are numbered once each, in order, with a later time, a file and a snapshot for every journal entry", () => {
     const journal = JSON.parse(readFileSync(join(migrationsFolder, "meta", "_journal.json"), "utf8"));
-    const tags: string[] = journal.entries.map((e: { idx: number; tag: string }, i: number) => {
+    const entries: { idx: number; tag: string; when: number }[] = journal.entries;
+    entries.forEach((e, i) => {
       expect(e.idx, e.tag).toBe(i);
       expect(e.tag.slice(0, 4), e.tag).toBe(String(i).padStart(4, "0"));
-      return e.tag;
+      if (i > 0) expect(e.when, e.tag).toBeGreaterThan(entries[i - 1].when);
     });
     const files = readdirSync(migrationsFolder).filter((f) => f.endsWith(".sql"));
-    expect(files.sort()).toEqual(tags.map((t) => `${t}.sql`).sort());
+    expect(files.sort()).toEqual(entries.map((e) => `${e.tag}.sql`).sort());
+    const snapshots = readdirSync(join(migrationsFolder, "meta")).filter((f) => f.endsWith("_snapshot.json"));
+    expect(snapshots.sort()).toEqual(entries.map((e) => `${e.tag.slice(0, 4)}_snapshot.json`).sort());
   });
 
   it("makes every existing Task one piece", () => {
@@ -348,9 +352,9 @@ describe("migrations", () => {
   });
 
   // Built as the owner's install stood before Contexts, with a row in every table and every reference filled, so a
-  // later migration that rebuilds a table can't quietly cascade a delete or drop rows. Add a row here for any new
-  // table a later migration fills from old data.
-  it("keeps every row of a lived-in install through every later migration", () => {
+  // later migration that rebuilds a table can't quietly cascade a delete or drop rows. A migration that retires a
+  // table on purpose takes that table out of the seed here too. Earlier migrations have their own tests above.
+  it("keeps every table and row of a lived-in install through every later migration", () => {
     const sqlite = migratedUpTo("work-context");
     sqlite.exec(`
       INSERT INTO sessions VALUES ('s', 'owner@example.com', 0, 9999999999999);
@@ -373,18 +377,19 @@ describe("migrations", () => {
       INSERT INTO dynacal_event_writes
         VALUES ('dynacal', 'de', 'd', 'Lunch', '', 0, 0, 3600000, NULL, NULL, 10);
     `);
-    const tables = () =>
-      (sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE '\\_\\_%' ESCAPE '\\'").all() as {
+    const seededTables = (
+      sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE '\\_\\_%' ESCAPE '\\'").all() as {
         name: string;
-      }[]).map((t) => t.name);
-    const count = (table: string) => (sqlite.prepare(`SELECT count(*) AS n FROM "${table}"`).get() as { n: number }).n;
-    const before = Object.fromEntries(tables().map((t) => [t, count(t)]));
-    expect(Object.entries(before).filter(([t, n]) => n === 0 && t !== "sqlite_sequence")).toEqual([]);
+      }[]
+    ).map((table) => table.name);
+    const rowCount = (table: string) => (sqlite.prepare(`SELECT count(*) AS n FROM "${table}"`).get() as { n: number }).n;
+    const rowCounts = () => Object.fromEntries(seededTables.map((table) => [table, rowCount(table)]));
+    const seeded = rowCounts();
+    expect(Object.entries(seeded).filter(([table, rows]) => rows === 0 && table !== "sqlite_sequence")).toEqual([]);
 
     migrateDatabase(drizzle(sqlite, { schema }));
 
-    const after = tables();
-    const kept = Object.fromEntries(Object.keys(before).filter((t) => after.includes(t)).map((t) => [t, count(t)]));
-    expect(kept).toEqual(Object.fromEntries(Object.keys(kept).map((t) => [t, before[t]])));
+    expect(rowCounts()).toEqual(seeded);
+    expect(sqlite.pragma("integrity_check")).toEqual([{ integrity_check: "ok" }]);
   });
 });

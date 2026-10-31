@@ -151,7 +151,7 @@ function placeOnDays<T extends { start: string; end: string }>(items: T[], days:
 }
 
 /**
- * The round check in the corner of a Block that hasn't ended. It completes the Block's whole Task, through the
+ * The round check in the corner of a Block that hasn't ended or waits for a Check-in. It completes the Block's whole Task, through the
  * same command as the Task list's checkbox. It's a control of its own, so it never starts a drag or opens the
  * Block's details.
  */
@@ -743,7 +743,7 @@ export function Calendar({
                   overEvent && detailStyles.besideEvent,
                   conflict && styles.conflict,
                   ended ? !waiting && styles.past : `${styles.movable} ${styles.hasCheck}`,
-                  waiting && styles.waiting,
+                  waiting && `${styles.waiting} ${styles.hasCheck}`,
                   preview?.id === block.id && styles.dragging,
                   preview?.id === block.id && preview.mode === "move" && styles.lifted,
                   landed && styles[landed],
@@ -788,16 +788,12 @@ export function Calendar({
                         {block.pinned && <PinMark />}
                         {block.taskTitle}
                       </span>
-                      {waiting ? (
-                        <span className={`block-time ${styles.checkIn}`}>Finished? ›</span>
-                      ) : (
-                        !compact && (
-                          <span className="block-time">
-                            {formatMinutes(top)}–{formatMinutes(bottom)}
-                          </span>
-                        )
+                      {!compact && (
+                        <span className="block-time">
+                          {formatMinutes(top)}–{formatMinutes(bottom)}
+                        </span>
                       )}
-                      {!ended && online && <BlockCheck block={block} done={completedTasks.has(block.taskId)} onError={showError} />}
+                      {(!ended || waiting) && online && <BlockCheck block={block} done={completedTasks.has(block.taskId)} onError={showError} />}
                       {!ended && <span className={`${styles.handle} ${styles.handleBottom}`} data-handle="end" />}
                     </div>
                   </ViewTransition>

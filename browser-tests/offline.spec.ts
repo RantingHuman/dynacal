@@ -1,6 +1,29 @@
 import { expect, test } from "@playwright/test";
 import { withApp } from "./test-app";
 
+test("says it's offline when the server is out of reach though the device has a connection", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await page.goto("/");
+    await page.evaluate(() => navigator.serviceWorker.ready);
+    await page.waitForFunction(() => navigator.serviceWorker.controller !== null);
+    await page.reload();
+    await page.waitForFunction(async () => Boolean(await caches.match("/")));
+
+    // The worker's fetches and the page's alike fail, while navigator.onLine stays true.
+    await page.context().route("**/*", (route) => route.abort());
+    await page.reload();
+    expect(await page.evaluate(() => navigator.onLine)).toBe(true);
+    await expect(page.getByRole("status").filter({ hasText: "Offline." })).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Add a Task" })).toBeDisabled();
+
+    // Back in reach, it says so and can change things again.
+    await page.context().unrouteAll();
+    await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+    await expect(page.getByRole("status").filter({ hasText: "Offline." })).toHaveCount(0);
+    await expect(page.getByRole("textbox", { name: "Add a Task" })).toBeEnabled();
+  });
+});
+
 test("keeps the last week readable offline and falls back for an uncached page", async ({ browser }) => {
   await withApp(browser, async (page, fixture) => {
     await page.goto("/");

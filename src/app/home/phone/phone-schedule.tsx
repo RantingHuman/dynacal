@@ -73,9 +73,9 @@ export function EmptyWeekList({ today }: { today: string }) {
 /**
  * The Schedule tab's week: "The week ahead" with "+ Event", the Conflict strip, then each day as a heading and
  * its Blocks and Events as lines with a time and length. Tapping a Block that hasn't ended opens the Block sheet.
- * A Block that has ended and waits for a Check-in asks "Finished? ›" in place of its length, and tapping it opens
- * the Check-in sheet; once answered, it fades like any other time that has passed. Tapping an Event, or another
- * Block that has ended, opens its label.
+ * A Block that has ended and waits for a Check-in stands out and keeps its checkbox, which answers Finished; tapping
+ * it opens the Check-in sheet. Once answered, it fades like any other time that has passed. Tapping an Event, or
+ * another Block that has ended, opens its label.
  */
 export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, openBlockId }: PhoneScheduleData) {
   const now = new Date(horizon.start).getTime();
@@ -86,10 +86,15 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
   const newEvent = useNewEvent();
   const online = useOnline();
   // Ticking a Block's Task goes through the Tasks tab's list, so it shows there at once and rolls back if refused.
-  const act = useTaskColumn()?.act ?? null;
+  const column = useTaskColumn();
+  const act = column?.act ?? null;
   // Where Didn't start moved a Task, said here: the Tasks tab, which would say it, is hidden.
   const [notice, setNotice] = useState<string | null>(null);
-  const clearNotice = useCallback(() => setNotice(null), []);
+  const clearFailure = column?.clearFailure;
+  const clearNotice = useCallback(() => {
+    setNotice(null);
+    clearFailure?.();
+  }, [clearFailure]);
   const checkIns = useScheduleCheckIns(timeZone, setNotice);
 
   // The New Event form takes the place of whatever was open.
@@ -167,7 +172,7 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
               const notes = [pinned && "Pinned", free && "Free", conflict && "Conflict", waiting && "Finished?"].filter(Boolean);
               return (
                 <div key={`${isBlock ? item.block.displayKey : id}-${date}`} className={styles.row}>
-                  {isBlock && !past ? (
+                  {isBlock && (!past || waiting) ? (
                     <CompleteTaskButton
                       id={item.block.taskId}
                       title={title}
@@ -194,11 +199,7 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
                       {pinned && <PinMark />}
                       {title}
                     </span>
-                    {waiting ? (
-                      <span className={styles.lineCheckIn}>Finished? ›</span>
-                    ) : (
-                      <span className={styles.lineLength}>{allDay ? "" : formatDuration(length)}</span>
-                    )}
+                    <span className={styles.lineLength}>{allDay ? "" : formatDuration(length)}</span>
                   </button>
                 </div>
               );
@@ -255,7 +256,7 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
           </FloatingLabel>
         )}
 
-        <Toast message={notice} tone="info" onDone={clearNotice} />
+        <Toast message={column?.failure ?? notice} tone={column?.failure ? "error" : "info"} onDone={clearNotice} />
       </div>
     </>
   );

@@ -4,6 +4,24 @@ import { withApp } from "./test-app";
 /** A week-list line, by its accessible name: "Title, 06:00, 1h" with ", Finished?" while it waits. */
 const line = (page: Page, name: string) => page.getByRole("button", { name, exact: true });
 
+test("ticks a past time on the phone's week list", async ({ browser }) => {
+  await withApp(
+    browser,
+    async (page) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto("/");
+      const row = page.locator("div", { has: line(page, "Pack for vegas, 06:00, 1h, Finished?") }).last();
+      await row.getByRole("button", { name: "Mark “Pack for vegas” complete" }).click();
+
+      // The time stays, faded, with nothing left to answer, and the Task is complete.
+      await expect(line(page, "Pack for vegas, 06:00, 1h")).toHaveAttribute("data-past", "true");
+      await page.getByRole("tab", { name: "Tasks" }).click();
+      await expect(page.getByRole("button", { name: "Mark “Pack for vegas” not complete" })).toBeVisible();
+    },
+    { seed: "past-times" },
+  );
+});
+
 test("answers three past times from the phone's week list", async ({ browser }) => {
   await withApp(
     browser,
@@ -62,6 +80,24 @@ test("answers a past time from the desktop calendar", async ({ browser }) => {
       await label.getByRole("button", { name: "30m" }).click();
       await expect(page.getByRole("button", { name: /^Print mystery machine, 09:00–09:30/ })).toBeVisible();
       await expect(page.getByLabel("Print mystery machine, 07:00–08:00", { exact: true })).toBeVisible();
+    },
+    { seed: "past-times" },
+  );
+});
+
+test("says so on the phone's Schedule when an answer can't reach the server", async ({ browser }) => {
+  await withApp(
+    browser,
+    async (page) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto("/");
+      await line(page, "Pack for vegas, 06:00, 1h, Finished?").click();
+      // The browser still believes it's online, as a phone on Wi-Fi does when the server is out of reach.
+      await page.route("**/*", (route) => (route.request().method() === "POST" ? route.abort() : route.continue()));
+      await page.getByRole("complementary", { name: "Pack for vegas" }).getByRole("button", { name: "Finished", exact: true }).click();
+
+      await expect(page.getByText("dynacal couldn't reach the server, so nothing changed.").filter({ visible: true })).toBeVisible();
+      await expect(line(page, "Pack for vegas, 06:00, 1h, Finished?")).toBeVisible();
     },
     { seed: "past-times" },
   );
