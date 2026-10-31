@@ -8,9 +8,9 @@ import { PRIORITIES, type TaskResult, type UpdateTaskResult } from "@/core/tasks
 import { getRuntime } from "@/server/runtime";
 import { requireOwner } from "@/server/session";
 
-const dateOrDateTimeSchema = z.object({ date: z.string(), time: z.string().nullable() }).nullable();
+const dateOrDateTimeSchema = z.strictObject({ date: z.string(), time: z.string().nullable() }).nullable();
 
-const taskInputSchema = z.object({
+const taskInputSchema = z.strictObject({
   title: z.string(),
   notes: z.string(),
   estimatedMinutes: z.number(),
@@ -66,10 +66,10 @@ export async function allowSplitting(id: string): Promise<AllowSplittingResult> 
 }
 
 const checkInAnswerSchema = z.discriminatedUnion("answer", [
-  z.object({ answer: z.literal("finished") }),
+  z.strictObject({ answer: z.literal("finished") }),
   // The command refuses minutes that aren't a 15-minute step of at least 15, with a message.
-  z.object({ answer: z.literal("more-time"), minutes: z.number() }),
-  z.object({ answer: z.literal("didnt-start") }),
+  z.strictObject({ answer: z.literal("more-time"), minutes: z.number() }),
+  z.strictObject({ answer: z.literal("didnt-start") }),
 ]);
 
 export async function checkIn(blockId: string, answer: unknown): Promise<CheckInResult> {

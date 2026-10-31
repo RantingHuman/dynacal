@@ -30,3 +30,12 @@ try {
   throw new Error("Unsafe browser test configuration", { cause: error });
 }
 require("./network-guard.cjs");
+
+// The harness stops this server when a test ends, but a killed test run can't; once it's gone (and this process is
+// adopted by another), stop too, rather than serve on with its directory left behind.
+const parent = process.ppid;
+setInterval(() => {
+  if (process.ppid === parent) return;
+  fs.rmSync(dir, { recursive: true, force: true });
+  process.exit(0);
+}, 1000).unref();

@@ -15,16 +15,16 @@ import { WEEKDAYS, type UpdateSettingsResult } from "@/core/settings";
 import { getRuntime } from "@/server/runtime";
 import { requireOwner } from "@/server/session";
 
-const timeWindowSchema = z.object({ start: z.number(), end: z.number() });
+const timeWindowSchema = z.strictObject({ start: z.number(), end: z.number() });
 
-const windowsSchema = z.object(Object.fromEntries(WEEKDAYS.map((day) => [day, z.array(timeWindowSchema)])) as Record<
+const windowsSchema = z.strictObject(Object.fromEntries(WEEKDAYS.map((day) => [day, z.array(timeWindowSchema)])) as Record<
   (typeof WEEKDAYS)[number],
   z.ZodArray<typeof timeWindowSchema>
 >);
 
-const buffersSchema = z.object({ before: z.number(), after: z.number() });
+const buffersSchema = z.strictObject({ before: z.number(), after: z.number() });
 
-const settingsInput = z.object({
+const settingsInput = z.strictObject({
   timeZone: z.string().nullable(),
   minimumBlockMinutes: z.number(),
   reminderLeadMinutes: z.number(),
@@ -61,7 +61,7 @@ export async function saveContextWindows(id: string, windows: unknown): Promise<
 
 export async function addContext(input: unknown): Promise<CreateContextResult> {
   await requireOwner();
-  const parsed = z.object({ name: z.string(), windows: windowsSchema }).parse(input);
+  const parsed = z.strictObject({ name: z.string(), windows: windowsSchema }).parse(input);
   const result = getRuntime().commands.createContext(parsed);
   revalidatePath("/", "layout");
   return result;
@@ -91,7 +91,7 @@ export async function deleteContext(id: string): Promise<DeleteContextResult> {
 /** First-run setup's last step: the time zone and the owner's hours, saved together as Work. */
 export async function saveSetupWeek(input: unknown): Promise<SetUpWeekResult> {
   await requireOwner();
-  const parsed = z.object({ timeZone: z.string(), windows: windowsSchema }).parse(input);
+  const parsed = z.strictObject({ timeZone: z.string(), windows: windowsSchema }).parse(input);
   const result = getRuntime().commands.setUpWeek(parsed);
   revalidatePath("/", "layout");
   return result;

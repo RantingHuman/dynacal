@@ -22,7 +22,7 @@ export async function recalculate(): Promise<RecalculateResult> {
   return result;
 }
 
-const blockTimeSchema = z.object({ start: z.iso.datetime(), end: z.iso.datetime() });
+const blockTimeSchema = z.strictObject({ start: z.iso.datetime(), end: z.iso.datetime() });
 
 /** Moves or resizes a Block, making it a Pinned Block. Instants arrive as ISO strings. */
 export async function moveBlock(id: string, to: unknown): Promise<MoveBlockResult> {
@@ -41,14 +41,14 @@ export async function unpinBlock(id: string): Promise<UnpinBlockResult> {
 }
 
 const dynacalEventInputSchema = z.discriminatedUnion("allDay", [
-  z.object({
+  z.strictObject({
     title: z.string(),
     notes: z.string(),
     allDay: z.literal(false),
     start: z.iso.datetime(),
     end: z.iso.datetime(),
   }),
-  z.object({
+  z.strictObject({
     title: z.string(),
     notes: z.string(),
     allDay: z.literal(true),
@@ -84,7 +84,7 @@ export async function deleteDynacalEvent(id: string): Promise<DeleteDynacalEvent
   return result;
 }
 
-const eventRefSchema =z.object({ calendarId: z.string(), eventId: z.string() });
+const eventRefSchema = z.strictObject({ calendarId: z.string(), eventId: z.string() });
 const busyOverrideSchema = z.enum(["busy", "not-busy"]).nullable();
 
 /** Sets an Event's Busy Override, or clears it with null, then recalculates. Nothing is written to Google. */

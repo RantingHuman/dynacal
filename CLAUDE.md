@@ -13,3 +13,7 @@ Default vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-
 ### Domain docs
 
 Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+### Shipping
+
+Before merging, deploying or calling a branch done, read `docs/agents/shipping.md`. Reviews check against `CODING_STANDARDS.md`.
