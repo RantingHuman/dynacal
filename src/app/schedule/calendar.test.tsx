@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TaskListItem } from "@/core/commands";
 import { DEFAULT_WINDOWS } from "@/core/settings";
-import { checkIn } from "../tasks/actions";
+import { checkIn, completeTask } from "../tasks/actions";
 import { TaskEditorProvider } from "../tasks/task-editor-slot";
 import { TaskPanel } from "../tasks/task-panel";
 import { deferred, taskItem, workContext } from "../testing/fixtures";
@@ -74,7 +74,20 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("a past time on the desktop calendar", () => {
-  it("asks “Finished?” while it waits, and its label offers the three answers", async () => {
+  it("keeps its check and time while it waits, and ticking it completes the Task", async () => {
+    vi.mocked(completeTask).mockResolvedValue({ ok: true });
+    renderDesktop();
+
+    expect(within(time()).queryByText(/Finished/)).toBeNull();
+    expect(within(time()).getByText("10:30–11:30")).toBeTruthy();
+    await userEvent.click(within(time()).getByRole("button", { name: "Mark “Pack for vegas” done" }));
+
+    expect(completeTask).toHaveBeenCalled();
+    expect(screen.queryByRole("complementary", { name: "Pack for vegas" })).toBeNull();
+    await waitFor(() => expect(completeTask).toHaveReturned());
+  });
+
+  it("is named as asking “Finished?” while it waits, and its label offers the three answers", async () => {
     renderDesktop();
 
     expect(time().getAttribute("aria-label")).toMatch(/Finished\?/);

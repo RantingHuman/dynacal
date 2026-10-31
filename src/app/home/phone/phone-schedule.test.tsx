@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TaskListItem } from "@/core/commands";
 import type { CalendarBlock } from "../../schedule/calendar";
-import { checkIn } from "../../tasks/actions";
+import { checkIn, completeTask } from "../../tasks/actions";
 import { TaskEditorProvider } from "../../tasks/task-editor-slot";
 import { TaskPanel } from "../../tasks/task-panel";
 import { deferred, taskItem, workContext } from "../../testing/fixtures";
@@ -68,18 +68,34 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date(NOW));
   vi.mocked(checkIn).mockReset();
+  vi.mocked(completeTask).mockReset();
 });
 afterEach(() => vi.useRealTimers());
 
 describe("a past time in the week list", () => {
-  it("asks “Finished? ›” while it waits for a Check-in, unfaded", () => {
+  it("keeps its checkbox and length while it waits for a Check-in, highlighted and unfaded", () => {
     renderPhone();
 
     const waiting = line(/^Pack for vegas, 10:30/);
-    expect(within(waiting).getByText("Finished? ›")).toBeTruthy();
+    expect(within(waiting).getByText("1h")).toBeTruthy();
+    expect(within(waiting).queryByText(/Finished/)).toBeNull();
     expect(waiting.getAttribute("aria-label")).toMatch(/Finished\?$/);
+    expect(waiting.dataset.waiting).toBe("true");
     expect(waiting.dataset.past).toBe("false");
-    expect(within(line(/^Board memo, 15:00/)).queryByText("Finished? ›")).toBeNull();
+    expect(within(waiting.parentElement!).getByRole("button", { name: "Mark “Pack for vegas” complete" })).toBeTruthy();
+    expect(line(/^Board memo, 15:00/).dataset.waiting).toBe("false");
+  });
+
+  it("ticked, completes the Task without opening its sheet", async () => {
+    vi.mocked(completeTask).mockResolvedValue({ ok: true });
+    renderPhone();
+
+    const row = line(/^Pack for vegas, 10:30/).parentElement!;
+    await userEvent.click(within(row).getByRole("button", { name: "Mark “Pack for vegas” complete" }));
+
+    expect(completeTask).toHaveBeenCalledWith(past.taskId);
+    expect(screen.queryByRole("complementary", { name: "Pack for vegas" })).toBeNull();
+    await waitFor(() => expect(completeTask).toHaveReturned());
   });
 
   it("opens the Task's sheet with the three answers and no Move chips", async () => {
@@ -119,7 +135,8 @@ describe("a past time in the week list", () => {
     expect(checkIn).toHaveBeenCalledWith("block-1", { answer: "more-time", minutes: 30 });
     const answered = line(/^Pack for vegas, 10:30/);
     expect(answered.dataset.past).toBe("true");
-    expect(within(answered).queryByText("Finished? ›")).toBeNull();
+    expect(answered.dataset.waiting).toBe("false");
+    expect(within(answered.parentElement!).queryByRole("button", { name: /^Mark/ })).toBeNull();
     answering.resolve({ ok: true });
     await waitFor(() => expect(checkIn).toHaveReturned());
   });

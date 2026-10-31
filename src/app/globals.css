@@ -15,6 +15,7 @@
   --on-accent: #ffffff; /* text on accent fills */
   --highlight: color-mix(in srgb, var(--accent) 22%, transparent); /* hover sweeps */
   --block: color-mix(in srgb, var(--accent) 14%, var(--card)); /* Block fill */
+  --block-waiting: color-mix(in srgb, var(--accent) 34%, var(--card)); /* Block fill while it waits for a Check-in */
 
   /* Type. The font variables come from next/font (src/app/fonts.ts). */
   --font-serif: var(--font-instrument-serif), Georgia, serif; /* content */
@@ -82,6 +83,7 @@
     --on-accent: #151412;
     --highlight: color-mix(in srgb, var(--accent) 30%, transparent);
     --block: color-mix(in srgb, var(--accent) 20%, var(--card));
+    --block-waiting: color-mix(in srgb, var(--accent) 48%, var(--card));
   }
 }
 

@@ -152,7 +152,7 @@
   align-items: baseline;
   gap: var(--space-2);
   width: 100%;
-  /* A thumb's tap: a past time's line is where its "Finished? ›" is answered. */
+  /* A thumb's tap: a past time's line is where its Check-in opens. */
   min-height: 44px;
   padding: var(--space-2) var(--space-2) var(--space-2) var(--space-2);
   border: 0;
@@ -178,6 +178,15 @@
   opacity: 0.45;
 }
 
+/* A past time waiting for a Check-in stands out until it's ticked or answered. */
+.line[data-waiting="true"] {
+  background-color: var(--block-waiting);
+}
+
+.line[data-waiting="true"] :is(.lineTime, .lineLength) {
+  color: var(--ink);
+}
+
 .line[data-conflict="true"] {
   background-image: repeating-linear-gradient(
     45deg,
@@ -191,14 +200,6 @@
   color: var(--soft);
   font-size: var(--text-kicker);
   font-variant-numeric: tabular-nums;
-}
-
-/* A past time waiting for a Check-in asks, in the accent, where its length would be. */
-.lineCheckIn {
-  color: var(--accent);
-  font-size: var(--text-meta);
-  white-space: nowrap;
-  pointer-events: none;
 }
 
 .lineTitle {

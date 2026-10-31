@@ -43,7 +43,7 @@ A Task the user has allowed to be scheduled in several Blocks; every other Task 
 _Avoid_: Chunked task, split task
 
 **Check-in**:
-The question "Finished?" asked about a Task once its scheduled time has passed, answered Finished, More time, or Didn't start; until it's answered, the Task keeps its time and nothing is rescheduled for it.
+The question "Finished?" asked about a Task once its scheduled time has passed, answered Finished, More time, or Didn't start, where ticking the Task answers Finished; until it's answered, the Task keeps its time and nothing is rescheduled for it.
 _Avoid_: Review, Unreviewed Block, done/partly/not done
 
 ### Time

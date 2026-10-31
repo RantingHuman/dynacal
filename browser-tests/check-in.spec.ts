@@ -4,6 +4,24 @@ import { withApp } from "./test-app";
 /** A week-list line, by its accessible name: "Title, 06:00, 1h" with ", Finished?" while it waits. */
 const line = (page: Page, name: string) => page.getByRole("button", { name, exact: true });
 
+test("ticks a past time on the phone's week list", async ({ browser }) => {
+  await withApp(
+    browser,
+    async (page) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto("/");
+      const row = page.locator("div", { has: line(page, "Pack for vegas, 06:00, 1h, Finished?") }).last();
+      await row.getByRole("button", { name: "Mark “Pack for vegas” complete" }).click();
+
+      // The time stays, faded, with nothing left to answer, and the Task is complete.
+      await expect(line(page, "Pack for vegas, 06:00, 1h")).toHaveAttribute("data-past", "true");
+      await page.getByRole("tab", { name: "Tasks" }).click();
+      await expect(page.getByRole("button", { name: "Mark “Pack for vegas” not complete" })).toBeVisible();
+    },
+    { seed: "past-times" },
+  );
+});
+
 test("answers three past times from the phone's week list", async ({ browser }) => {
   await withApp(
     browser,
