@@ -163,7 +163,8 @@ describe("a past time in the week list", () => {
 
     completing.resolve({ ok: false, notFound: true });
     expect(await screen.findByText("“Board memo” no longer exists.")).toBeTruthy();
-    expect(line(/^Board memo, 15:00/).dataset.done).toBe("false");
+    // The message comes first; the rollback follows when the change's Transition ends.
+    await waitFor(() => expect(line(/^Board memo, 15:00/).dataset.done).toBe("false"));
   });
 
   it("once answered elsewhere, is faded and opens as an ended time", async () => {

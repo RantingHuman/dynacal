@@ -118,7 +118,7 @@ describe("the full-page Task editor", () => {
 
     deleting.reject(new Error("Failed to fetch"));
     expect(await screen.findByText("dynacal couldn't reach the server, so nothing changed.")).toBeTruthy();
-    expect(screen.getByRole("button", { name: /^Write planning doc/ })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: /^Write planning doc/ })).toBeTruthy();
   });
 
   it("asks before deletion, lets the owner keep the Task, and deletes only on confirmation", async () => {
