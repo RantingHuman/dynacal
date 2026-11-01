@@ -104,6 +104,23 @@ describe("the full-page Task editor", () => {
     expect((await openEditor()).getByRole("textbox", { name: "Title" })).toHaveProperty("value", "Write planning doc");
   });
 
+  it("deleting takes the Task away at once, and brings it back saying why if the server can't be reached", async () => {
+    const deleting = deferred<void>();
+    vi.mocked(deleteTask).mockReturnValue(deleting.promise);
+    renderPage();
+    const editor = await openEditor();
+
+    await userEvent.click(editor.getByRole("button", { name: "Delete" }));
+    await userEvent.click(within(editor.getByRole("group", { name: "Confirm delete" })).getByRole("button", { name: "Delete" }));
+
+    expect(screen.queryByRole("form", { name: "Edit Task" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Write planning doc/ })).toBeNull();
+
+    deleting.reject(new Error("Failed to fetch"));
+    expect(await screen.findByText("dynacal couldn't reach the server, so nothing changed.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Write planning doc/ })).toBeTruthy();
+  });
+
   it("asks before deletion, lets the owner keep the Task, and deletes only on confirmation", async () => {
     vi.mocked(deleteTask).mockResolvedValue(undefined);
     const page = renderPage();
