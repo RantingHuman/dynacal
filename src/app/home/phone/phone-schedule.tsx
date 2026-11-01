@@ -10,6 +10,7 @@ import { OFFLINE_REASON, useOnline } from "../../states/use-online";
 import { useScheduleCheckIns } from "../../tasks/check-in-answers";
 import { CheckInSheet } from "../../tasks/check-in-sheet";
 import { CompleteTaskButton } from "../../tasks/complete-task-button";
+import { useTaskList } from "../../tasks/task-list";
 import type { CalendarBlock, CalendarConflict, CalendarEvent } from "../../schedule/calendar";
 import { ConflictStrip } from "../../schedule/conflict-strip";
 import { DynacalEventForm } from "../../schedule/dynacal-event-form";
@@ -84,6 +85,9 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
   const newEvent = useNewEvent();
   const online = useOnline();
   const checkIns = useScheduleCheckIns();
+  // Tasks complete in the Task List, at once when ticked: all of a completed Task's lines dim together.
+  const { tasks } = useTaskList();
+  const completedTasks = new Set(tasks.filter((t) => t.completedAt !== null).map((t) => t.id));
 
   // The New Event form takes the place of whatever was open.
   useEffect(() => {
@@ -157,6 +161,7 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
               const pinned = isBlock && item.block.pinned;
               const free = !isBlock && !item.event.countsAsBusy;
               const waiting = isBlock && checkIns.waiting.has(id);
+              const done = isBlock && completedTasks.has(item.block.taskId);
               const notes = [pinned && "Pinned", free && "Free", conflict && "Conflict", waiting && "Finished?"].filter(Boolean);
               return (
                 <div key={`${isBlock ? item.block.displayKey : id}-${date}`} className={styles.row}>
@@ -164,7 +169,7 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
                     <CompleteTaskButton
                       id={item.block.taskId}
                       title={title}
-                      completed={false}
+                      completed={done}
                       disabled={!online}
                     />
                   ) : (
@@ -175,6 +180,7 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
                     className={styles.line}
                     data-kind={item.kind}
                     data-past={past && !waiting}
+                    data-done={done}
                     data-waiting={waiting}
                     data-conflict={conflict}
                     data-free={free}

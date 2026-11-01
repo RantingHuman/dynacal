@@ -172,7 +172,8 @@
   color: var(--soft);
 }
 
-.line[data-past="true"] {
+.line[data-past="true"],
+.line[data-done="true"] {
   opacity: 0.45;
 }
 

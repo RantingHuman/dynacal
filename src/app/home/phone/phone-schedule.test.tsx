@@ -152,6 +152,20 @@ describe("a past time in the week list", () => {
     expect(await screen.findByText("Moved to Thu 09:00")).toBeTruthy();
   });
 
+  it("an upcoming Task, ticked, dims at once and comes back if refused", async () => {
+    const completing = deferred<{ ok: false; notFound: true }>();
+    vi.mocked(completeTask).mockReturnValue(completing.promise);
+    renderPhone();
+
+    expect(line(/^Board memo, 15:00/).dataset.done).toBe("false");
+    await userEvent.click(within(line(/^Board memo, 15:00/).parentElement!).getByRole("button", { name: "Mark “Board memo” complete" }));
+    expect(line(/^Board memo, 15:00/).dataset.done).toBe("true");
+
+    completing.resolve({ ok: false, notFound: true });
+    expect(await screen.findByText("“Board memo” no longer exists.")).toBeTruthy();
+    expect(line(/^Board memo, 15:00/).dataset.done).toBe("false");
+  });
+
   it("once answered elsewhere, is faded and opens as an ended time", async () => {
     renderPhone([taskItem({ id: "t1", title: "Pack for vegas" }), memo()]);
 
