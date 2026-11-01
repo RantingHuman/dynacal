@@ -10,7 +10,7 @@ import { useScheduleCheckIns } from "../tasks/check-in-answers";
 import { CheckInSheet } from "../tasks/check-in-sheet";
 import { useCompleteTask } from "../tasks/complete-task-button";
 import { useCompletion } from "../tasks/completion";
-import { useTaskColumn } from "../tasks/task-editor-slot";
+import { useTaskList } from "../tasks/task-list";
 import { moveBlock } from "./actions";
 import { moveError } from "./block-actions";
 import { BlockEditor } from "./block-editor";
@@ -158,12 +158,10 @@ function placeOnDays<T extends { start: string; end: string }>(items: T[], days:
 function BlockCheck({
   block,
   done,
-  onError,
 }: {
   block: CalendarBlock;
   /** Its Task is complete in the Task list (at once when ticked, before the server has it). */
   done: boolean;
-  onError: (message: string) => void;
 }) {
   const { ticked } = useCompletion();
   const complete = useCompleteTask();
@@ -181,7 +179,7 @@ function BlockCheck({
       onKeyDown={stop}
       onClick={(e) => {
         e.stopPropagation();
-        complete({ id: block.taskId, title: block.taskTitle }, onError);
+        complete({ id: block.taskId, title: block.taskTitle });
       }}
     >
       <svg viewBox="0 0 16 16" aria-hidden>
@@ -235,11 +233,10 @@ export function Calendar({
   /** Which way the grid last changed, so it slides (or fades) in; null until it first does. */
   const [shift, setShift] = useState<{ n: number; way: "back" | "forward" | "view" } | null>(null);
   // Tasks complete in the Task list, at once when ticked: all of a completed Task's Blocks dim together.
-  const taskColumn = useTaskColumn();
-  const completedTasks = new Set(taskColumn?.tasks.filter((t) => t.completedAt !== null).map((t) => t.id));
-  // A Block that has ended and waits for a Check-in asks "Finished?"; its label answers, and Didn't start's toast
-  // says where the Task went.
-  const checkIns = useScheduleCheckIns(timeZone, (text) => setToast({ text, tone: "info" }));
+  const { tasks } = useTaskList();
+  const completedTasks = new Set(tasks.filter((t) => t.completedAt !== null).map((t) => t.id));
+  // A Block that has ended and waits for a Check-in asks "Finished?"; its label answers.
+  const checkIns = useScheduleCheckIns();
   const [checkingInId, setCheckingInId] = useState<string | null>(null);
   const drag = useRef<Drag | null>(null);
   /**
@@ -793,7 +790,7 @@ export function Calendar({
                           {formatMinutes(top)}–{formatMinutes(bottom)}
                         </span>
                       )}
-                      {(!ended || waiting) && online && <BlockCheck block={block} done={completedTasks.has(block.taskId)} onError={showError} />}
+                      {(!ended || waiting) && online && <BlockCheck block={block} done={completedTasks.has(block.taskId)} />}
                       {!ended && <span className={`${styles.handle} ${styles.handleBottom}`} data-handle="end" />}
                     </div>
                   </ViewTransition>

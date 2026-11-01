@@ -66,3 +66,10 @@
     left: var(--space-4);
   }
 }
+
+/* Clear of the phone's tab bar. */
+@media (max-width: 639.98px) {
+  .toast {
+    bottom: calc(var(--tab-bar) + var(--space-3));
+  }
+}

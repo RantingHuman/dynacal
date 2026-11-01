@@ -4,9 +4,9 @@ import { useCallback } from "react";
 import { completeTask, reopenTask } from "./actions";
 import { useCompletion } from "./completion";
 import styles from "./completion.module.css";
-import { useTaskColumn, type ActOnTasks } from "./task-editor-slot";
+import { useTaskList, type ActOnTasks } from "./task-list";
 
-/** Completes a Task through the Task list's `act`: it shows as complete at once, and a refusal rolls it back. */
+/** Completes a Task through the Task List: it shows as complete at once, and a refusal rolls it back. */
 function completeThrough(act: ActOnTasks, id: string, title: string) {
   act({ kind: "complete", id }, async () => {
     const result = await completeTask(id);
@@ -14,7 +14,7 @@ function completeThrough(act: ActOnTasks, id: string, title: string) {
   });
 }
 
-/** Reopens a completed Task through the Task list's `act`, the same way: open at once, and back if refused. */
+/** Reopens a completed Task through the Task List, the same way: open at once, and back if refused. */
 function reopenThrough(act: ActOnTasks, id: string, title: string) {
   act({ kind: "reopen", id }, async () => {
     const result = await reopenTask(id);
@@ -25,20 +25,15 @@ function reopenThrough(act: ActOnTasks, id: string, title: string) {
 /**
  * Completing a Task from outside the Task list (a Block's check, "Mark the Task done"), the same way as ticking it
  * there: the tick's motion, then the change through the list, so the row sweeps and slides, the Task's Blocks dim,
- * and a refusal rolls back with the list's toast. Without the list (it hasn't mounted yet) it calls the command
- * directly and reports a refusal with `onError`.
+ * and a refusal rolls back with the list's message.
  */
-export function useCompleteTask(): (task: { id: string; title: string }, onError: (message: string) => void) => void {
+export function useCompleteTask(): (task: { id: string; title: string }) => void {
   const { tick } = useCompletion();
-  const act = useTaskColumn()?.act ?? null;
+  const { act } = useTaskList();
   return useCallback(
-    ({ id, title }, onError) => {
+    ({ id, title }) => {
       tick(id);
-      if (act) completeThrough(act, id, title);
-      else
-        void completeTask(id).then((result) => {
-          if (!result.ok) onError("This Task no longer exists.");
-        });
+      completeThrough(act, id, title);
     },
     [tick, act],
   );
@@ -63,14 +58,13 @@ export function CompleteTaskButton({
   title,
   completed,
   disabled = false,
-  act,
 }: {
   id: string;
   title: string;
   completed: boolean;
   disabled?: boolean;
-  act: ActOnTasks;
 }) {
+  const { act } = useTaskList();
   const { ticked, tick, untick } = useCompletion();
   if (completed) {
     return (

@@ -7,7 +7,7 @@ import { PRIORITY_LABELS, formatDuration, validateTask, type TaskErrors, type Ta
 import { OFFLINE_REASON } from "../states/use-online";
 import { createTask } from "./actions";
 import { deadlineWords, whenWords } from "./day-words";
-import type { ActOnTasks } from "./task-editor-slot";
+import type { ActOnTasks } from "./task-list";
 import styles from "./task-line-add.module.css";
 
 export const TASK_LINE_ID = "task-line-add";

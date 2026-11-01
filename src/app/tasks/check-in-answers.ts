@@ -1,10 +1,10 @@
 "use client";
 
 import type { CheckInAnswer, CheckInResult } from "@/core/completion";
-import { useTaskColumn, type ActOnTasks } from "./task-editor-slot";
 import { checkIn } from "./actions";
 import { useCompletion } from "./completion";
 import { movedWords, todayIn } from "./day-words";
+import { useTaskList } from "./task-list";
 
 /** The Task a Check-in is about. */
 export interface CheckInTask {
@@ -19,11 +19,12 @@ export const NOT_PLACED_WORDS = "Not placed yet: planning is paused until you re
 export type CheckInAnswers = ReturnType<typeof useCheckInAnswers>;
 
 /**
- * Answering a Check-in about one past time (`blockId`) of a Task, through the Task list's `act`, so the answer
+ * Answering a Check-in about one past time (`blockId`) of a Task, through the Task List, so the answer
  * shows at once wherever the Task does: Finished completes it, as when it's ticked; More time makes the minutes its
- * time left; Didn't start waits for the server's list, then `notify` says where the Task went.
+ * time left; Didn't start waits for the server's list, then a message says where the Task went.
  */
-export function useCheckInAnswers(act: ActOnTasks, timeZone: string | null, notify: (text: string) => void) {
+export function useCheckInAnswers() {
+  const { act, timeZone, notify } = useTaskList();
   const { tick } = useCompletion();
   const zone = timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -63,15 +64,12 @@ export function useCheckInAnswers(act: ActOnTasks, timeZone: string | null, noti
 }
 
 /**
- * For the Schedule: the past times waiting for a Check-in by their Block, as the Task list has them (so an answer
- * shows at once, and a Splittable Task's planned time is there), and answering about them. Until the Tasks column
- * has published its Tasks, nothing waits.
+ * For the Schedule: the past times waiting for a Check-in by their Block, as the Task List has them (so an answer
+ * shows at once, and a Splittable Task's planned time is there), and answering about them.
  */
-export function useScheduleCheckIns(timeZone: string, notify: (text: string) => void) {
-  const column = useTaskColumn();
-  const waiting = new Map(
-    column?.tasks.flatMap((t) => (t.completedAt ? [] : t.checkIns.map((c) => [c.blockId, c] as const))),
-  );
-  const answers = useCheckInAnswers(column?.act ?? (() => {}), timeZone, notify);
+export function useScheduleCheckIns() {
+  const { tasks } = useTaskList();
+  const waiting = new Map(tasks.flatMap((t) => (t.completedAt ? [] : t.checkIns.map((c) => [c.blockId, c] as const))));
+  const answers = useCheckInAnswers();
   return { waiting, answers };
 }

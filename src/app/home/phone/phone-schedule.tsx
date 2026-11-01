@@ -10,7 +10,6 @@ import { OFFLINE_REASON, useOnline } from "../../states/use-online";
 import { useScheduleCheckIns } from "../../tasks/check-in-answers";
 import { CheckInSheet } from "../../tasks/check-in-sheet";
 import { CompleteTaskButton } from "../../tasks/complete-task-button";
-import { useTaskColumn } from "../../tasks/task-editor-slot";
 import type { CalendarBlock, CalendarConflict, CalendarEvent } from "../../schedule/calendar";
 import { ConflictStrip } from "../../schedule/conflict-strip";
 import { DynacalEventForm } from "../../schedule/dynacal-event-form";
@@ -18,7 +17,6 @@ import { EventDetails } from "../../schedule/event-details";
 import { FloatingLabel, LabelNote, LabelTime, LabelTitle } from "../../schedule/floating-label";
 import { useNewEvent } from "../../schedule/new-event";
 import { PinMark } from "../../schedule/pin-mark";
-import { Toast } from "../../schedule/toast";
 import { WeekHeading } from "../../schedule/week-heading";
 import { Squiggle } from "../../states/squiggle";
 import { BlockSheet } from "./block-sheet";
@@ -85,17 +83,7 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
   const close = useCallback(() => setOpen(null), []);
   const newEvent = useNewEvent();
   const online = useOnline();
-  // Ticking a Block's Task goes through the Tasks tab's list, so it shows there at once and rolls back if refused.
-  const column = useTaskColumn();
-  const act = column?.act ?? null;
-  // Where Didn't start moved a Task, said here: the Tasks tab, which would say it, is hidden.
-  const [notice, setNotice] = useState<string | null>(null);
-  const clearFailure = column?.clearFailure;
-  const clearNotice = useCallback(() => {
-    setNotice(null);
-    clearFailure?.();
-  }, [clearFailure]);
-  const checkIns = useScheduleCheckIns(timeZone, setNotice);
+  const checkIns = useScheduleCheckIns();
 
   // The New Event form takes the place of whatever was open.
   useEffect(() => {
@@ -177,8 +165,7 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
                       id={item.block.taskId}
                       title={title}
                       completed={false}
-                      disabled={!online || act === null}
-                      act={act ?? (() => {})}
+                      disabled={!online}
                     />
                   ) : (
                     <span aria-hidden />
@@ -255,8 +242,6 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
             />
           </FloatingLabel>
         )}
-
-        <Toast message={column?.failure ?? notice} tone={column?.failure ? "error" : "info"} onDone={clearNotice} />
       </div>
     </>
   );

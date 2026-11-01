@@ -22,7 +22,7 @@ import { createTask, deleteTask, updateTask } from "./actions";
 import { nextSevenDays, spanWords, weekdayName } from "./day-words";
 import { DeclinedTimes } from "./declined-times";
 import { FlagText } from "./flags";
-import type { ActOnTasks } from "./task-editor-slot";
+import type { ActOnTasks } from "./task-list";
 import styles from "./task-editor.module.css";
 
 const DURATIONS = [15, 30, 45, 60, 90, 120, 180, 240];

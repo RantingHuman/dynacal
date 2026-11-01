@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TaskListItem } from "@/core/commands";
 import { DEFAULT_WINDOWS } from "@/core/settings";
 import { checkIn, completeTask } from "../tasks/actions";
-import { TaskEditorProvider } from "../tasks/task-editor-slot";
+import { WithTaskList } from "../testing/with-task-list";
 import { TaskPanel } from "../tasks/task-panel";
 import { deferred, taskItem, workContext } from "../testing/fixtures";
 import { renderGuarded } from "../testing/render";
@@ -49,8 +49,8 @@ const packing = () =>
 /** The desktop home as the page composes it: the Tasks column publishes the Tasks the calendar reads. */
 function renderDesktop(tasks: TaskListItem[] = [packing()]) {
   renderGuarded(
-    <TaskEditorProvider>
-      <TaskPanel contexts={[workContext]} tasks={tasks} flags={{}} timeZone="Europe/London" defaultBuffers={{ before: 0, after: 15 }} />
+    <WithTaskList tasks={tasks}>
+      <TaskPanel />
       <Calendar
         timeZone="Europe/London"
         horizon={{ start: NOW, end: "2026-11-10T14:00:00.000Z" }}
@@ -59,7 +59,7 @@ function renderDesktop(tasks: TaskListItem[] = [packing()]) {
         conflicts={[]}
         contextWindows={DEFAULT_WINDOWS}
       />
-    </TaskEditorProvider>,
+    </WithTaskList>,
   );
 }
 

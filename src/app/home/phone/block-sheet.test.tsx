@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { moveBlock, unpinBlock } from "../../schedule/actions";
 import type { CalendarBlock } from "../../schedule/calendar";
 import { completeTask } from "../../tasks/actions";
-import { TaskEditorProvider } from "../../tasks/task-editor-slot";
+import { WithTaskList } from "../../testing/with-task-list";
 import { renderGuarded } from "../../testing/render";
 import { BlockSheet } from "./block-sheet";
 
@@ -32,9 +32,9 @@ const block: CalendarBlock = {
 
 function renderSheet(onClose = vi.fn(), overrides: Partial<CalendarBlock> = {}) {
   renderGuarded(
-    <TaskEditorProvider>
+    <WithTaskList>
       <BlockSheet block={{ ...block, ...overrides }} timeZone="Europe/London" conflicts={[]} onClose={onClose} />
-    </TaskEditorProvider>,
+    </WithTaskList>,
   );
   return onClose;
 }

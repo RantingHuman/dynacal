@@ -1,14 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useOptimistic, useState, useTransition, ViewTransition } from "react";
+import { useState, ViewTransition } from "react";
 import type { TaskListItem } from "@/core/commands";
-import { contextTag, type Context } from "@/core/contexts";
+import { contextTag } from "@/core/contexts";
 import { heldOrder } from "@/core/motion";
-import { applyTaskChange, type TaskChange } from "@/core/task-list";
 import { formatDuration, type TaskInput } from "@/core/tasks";
-import type { TaskFlag } from "@/core/scheduler";
-import type { Buffers } from "@/core/settings";
-import { Toast } from "../schedule/toast";
 import { Squiggle } from "../states/squiggle";
 import statesStyles from "../states/states.module.css";
 import { OFFLINE_REASON, useOnline } from "../states/use-online";
@@ -18,9 +14,10 @@ import { useCheckInLink } from "./check-in-link";
 import { CheckInSheet } from "./check-in-sheet";
 import { CompleteTaskButton } from "./complete-task-button";
 import { useCompletion } from "./completion";
-import { deadlineWords, spanWords, todayIn } from "./day-words";
+import { deadlineWords, spanWords } from "./day-words";
 import { contextShortWords, FlagText } from "./flags";
-import { useTaskEditor, type ActOnTasks } from "./task-editor-slot";
+import { useTaskEditor } from "./task-editor-slot";
+import { useTaskList, type ActOnTasks } from "./task-list";
 import { TASK_LINE_ID, TaskLineAdd } from "./task-line-add";
 import styles from "./task-panel.module.css";
 
@@ -72,64 +69,18 @@ function AllowSplittingButton({ id, title, online, act }: { id: string; title: s
 /**
  * The Tasks column: a contents list of Tasks under a one-line add. Clicking a Task, or "Full form", opens the
  * full-page editor in place of the calendar column (see `TaskEditorSlot`). Adding, saving and completing show
- * at once and roll back with a toast if the server refuses. Offline, the list can only be looked at.
+ * at once and roll back with a message if the server refuses. Offline, the list can only be looked at.
  *
  * Motion: a ticked Task sweeps a highlighter across its title, and the list holds its order until the ticks
  * settle, then completed Tasks slide to the bottom and the open count ticks down. A new Task's row slides in and
  * its title sweeps once the server has it; a row saved from the editor sweeps and says "Saved". Each row is a
  * `<ViewTransition>`, so moves animate in Transitions.
  */
-export function TaskPanel({
-  contexts,
-  tasks,
-  flags,
-  timeZone,
-  defaultBuffers,
-}: {
-  /** Every Context, the Default Context first. */
-  contexts: Context[];
-  tasks: TaskListItem[];
-  flags: Record<string, TaskFlag | null>;
-  /** The owner's time zone, for dates and Declined Times; null until it's saved. */
-  timeZone: string | null;
-  /** The Buffers around Tasks in Settings, which the editor offers as "Default". */
-  defaultBuffers: Buffers;
-}) {
-  const { open, openTask, setColumn, saved } = useTaskEditor();
+export function TaskPanel() {
+  const { contexts, tasks: shown, savedTasks: tasks, flags, timeZone, today, act } = useTaskList();
+  const { open, openTask, saved } = useTaskEditor();
   const { ticked, holding } = useCompletion();
-  const [today, setToday] = useState(() => todayIn(timeZone));
-  useEffect(() => setToday(todayIn(timeZone)), [timeZone, tasks]);
   const online = useOnline();
-  const [shown, showChange] = useOptimistic(tasks, (current: TaskListItem[], change: TaskChange) =>
-    applyTaskChange(current, change, new Date(), contexts[0].id),
-  );
-  const [, startTransition] = useTransition();
-  const [toast, setToast] = useState<string | null>(null);
-  // Information, such as where Didn't start moved a Task, shows when there's no error to show.
-  const [notice, setNotice] = useState<string | null>(null);
-  const clearToast = useCallback(() => {
-    setToast(null);
-    setNotice(null);
-  }, []);
-  const act: ActOnTasks = useCallback((change, perform) => {
-    setToast(null);
-    setNotice(null);
-    startTransition(async () => {
-      if (change) showChange(change);
-      let reason: string | null;
-      try {
-        reason = await perform();
-      } catch {
-        reason = "dynacal couldn't reach the server, so nothing changed.";
-      }
-      if (reason) setToast(reason);
-    });
-  }, [showChange]);
-  // The editor, in the calendar column, works from the same Tasks.
-  useEffect(
-    () => setColumn({ contexts, tasks: shown, flags, timeZone, today, defaultBuffers, act, failure: toast, clearFailure: clearToast }),
-    [setColumn, contexts, shown, flags, timeZone, today, defaultBuffers, act, toast, clearToast],
-  );
 
   // The Task whose Check-in sheet is open; it asks about the Task's oldest waiting time.
   const [checkingIn, setCheckingIn] = useState<string | null>(null);
@@ -138,8 +89,8 @@ export function TaskPanel({
   // The headline's "Check in" opens the oldest waiting Check-in here.
   useCheckInLink(setCheckingIn);
 
-  // Answers about the Task's oldest waiting time; Didn't start's toast says where the Task went.
-  const answers = useCheckInAnswers(act, timeZone, setNotice);
+  // Answers about the Task's oldest waiting time.
+  const answers = useCheckInAnswers();
 
   // A first-time owner starts in the add line, on desktop.
   const empty = tasks.length === 0;
@@ -277,7 +228,6 @@ export function TaskPanel({
                     title={task.title}
                     completed={task.completedAt !== null}
                     disabled={!online || adding}
-                    act={act}
                   />
                   {waiting ? (
                     // The question is its own button, so the meta line sits outside the one that opens the Task.
@@ -321,7 +271,6 @@ export function TaskPanel({
           onClose={() => setCheckingIn(null)}
         />
       )}
-      <Toast message={toast ?? notice} tone={toast ? "error" : "info"} onDone={clearToast} />
     </section>
   );
 }

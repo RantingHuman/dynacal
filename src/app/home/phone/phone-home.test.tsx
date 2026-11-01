@@ -3,18 +3,19 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import type { TaskListItem } from "@/core/commands";
 import { checkInHref } from "@/core/headline";
-import { TaskEditorProvider } from "../../tasks/task-editor-slot";
+import { WithTaskList } from "../../testing/with-task-list";
 import { TaskPanel } from "../../tasks/task-panel";
-import { taskItem, workContext } from "../../testing/fixtures";
+import { taskItem } from "../../testing/fixtures";
 import { renderGuarded } from "../../testing/render";
 import { PhoneHome } from "./phone-home";
 
 vi.mock("../../tasks/actions", () => ({ checkIn: vi.fn(), allowSplitting: vi.fn() }));
 
-function renderPhone(lead = <h1>Ten Tasks, everything fits.</h1>, tasks = <input aria-label="Add a Task" />) {
+function renderPhone(lead = <h1>Ten Tasks, everything fits.</h1>, tasks = <input aria-label="Add a Task" />, listed: TaskListItem[] = []) {
   renderGuarded(
-    <TaskEditorProvider>
+    <WithTaskList tasks={listed}>
       <PhoneHome
         masthead={<header>dynacal</header>}
         lead={lead}
@@ -22,7 +23,7 @@ function renderPhone(lead = <h1>Ten Tasks, everything fits.</h1>, tasks = <input
         schedule={null}
         today="2026-10-26"
       />
-    </TaskEditorProvider>,
+    </WithTaskList>,
   );
 }
 
@@ -65,7 +66,8 @@ describe("the home screen on a phone", () => {
     });
     renderPhone(
       <a href={checkInHref("pack")}>Check in</a>,
-      <TaskPanel contexts={[workContext]} tasks={[waiting]} flags={{}} timeZone="Europe/London" defaultBuffers={{ before: 0, after: 15 }} />,
+      <TaskPanel />,
+      [waiting],
     );
 
     await userEvent.click(screen.getByRole("link", { name: "Check in" }));
