@@ -5,7 +5,7 @@ import { compareTasks, type TaskInput } from "./tasks";
 /**
  * A change the owner has just made to the Task list, shown before the server has saved it: adding a Task (with
  * a placeholder id until the server gives it one), saving an edit, completing one, reopening a completed one,
- * allowing one to split, or answering its Check-in More time.
+ * allowing one to split, answering its Check-in More time, or deleting one.
  */
 export type TaskChange =
   | { kind: "add"; id: string; input: TaskInput }
@@ -13,7 +13,8 @@ export type TaskChange =
   | { kind: "complete"; id: string }
   | { kind: "reopen"; id: string }
   | { kind: "allow-splitting"; id: string }
-  | { kind: "more-time"; id: string; blockId: string; minutes: number };
+  | { kind: "more-time"; id: string; blockId: string; minutes: number }
+  | { kind: "delete"; id: string };
 
 /** Whether `a` comes before `b` in the list: open Tasks first, then in Task order. Ties keep `a` after `b`. */
 function before(a: TaskListItem, b: TaskListItem): boolean {
@@ -41,6 +42,9 @@ export function applyTaskChange(
   now: Date,
   defaultContextId: string,
 ): TaskListItem[] {
+  if (change.kind === "delete") {
+    return tasks.filter((t) => t.id !== change.id);
+  }
   if (change.kind === "complete") {
     const task = tasks.find((t) => t.id === change.id);
     if (!task || task.completedAt) return tasks;

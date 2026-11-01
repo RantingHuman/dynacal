@@ -20,6 +20,7 @@ import { EmptyWeek } from "./schedule/empty-week";
 import type { DynacalEventDetails } from "./schedule/dynacal-event-form";
 import { NewEventProvider } from "./schedule/new-event";
 import { TaskEditorProvider, TaskEditorSlot } from "./tasks/task-editor-slot";
+import { TaskListProvider } from "./tasks/task-list";
 import { OfflineNotice } from "./states/offline-notice";
 import { TaskPanel } from "./tasks/task-panel";
 
@@ -97,64 +98,64 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   // The offline line sits under the masthead in both layouts.
   const offlineNotice = <OfflineNotice renderedAt={getRuntime().now().toISOString()} timeZone={schedule?.timeZone ?? null} />;
   const lead = <Lead headline={writeHeadline(week, week.today)} state={week.state} />;
-  const taskPanel = (
-    <TaskPanel
-      contexts={commands.listContexts()}
-      tasks={commands.listTasks()}
-      flags={scheduleView.status === "ready" ? scheduleView.flags : {}}
-      timeZone={scheduleView.status === "ready" ? scheduleView.timeZone : null}
-      defaultBuffers={settings.taskBuffers}
-    />
-  );
+  const taskPanel = <TaskPanel />;
 
   return (
     <NewEventProvider enabled={schedule !== null}>
       {reminded !== undefined && <ForgetReminderLink />}
       <BackgroundRefresh />
-      <TaskEditorProvider>
-        <WidthSwitch
-          phone={
-            <PhoneHome
-              masthead={
-                <>
-                  <PhoneMasthead blocks={schedule?.blocks ?? null} connectionBroken={connectionBroken}>
-                    {accountControls}
-                  </PhoneMasthead>
-                  {offlineNotice}
-                </>
-              }
-              lead={lead}
-              tasks={taskPanel}
-              schedule={schedule}
-              today={week.today}
-            />
-          }
-        >
-          <div className={styles.page}>
-            <Masthead weekOf={week.weekOf} controls={accountControls} />
-            {offlineNotice}
-            {lead}
-            <div className={styles.spread}>
-              {/* The Tasks column: the Task list, where the headline's "Check in" opens its sheet. */}
-              <div className={`${styles.column} ${styles.tasksColumn}`}>{taskPanel}</div>
-              {/* The calendar. Without a time zone there's no Schedule (the headline says why), just an empty week. */}
-              <section className={styles.column} aria-label="Schedule">
-                <TaskEditorSlot>
-                  {schedule ? (
-                    <Calendar
-                      {...schedule}
-                      contextWindows={coveredWindows(commands.listContexts())}
-                      connectionBroken={connectionBroken}
-                    />
-                  ) : (
-                    <EmptyWeek today={week.today} />
-                  )}
-                </TaskEditorSlot>
-              </section>
+      <TaskListProvider
+        contexts={commands.listContexts()}
+        tasks={commands.listTasks()}
+        flags={scheduleView.status === "ready" ? scheduleView.flags : {}}
+        timeZone={scheduleView.status === "ready" ? scheduleView.timeZone : null}
+        defaultBuffers={settings.taskBuffers}
+      >
+        <TaskEditorProvider>
+          <WidthSwitch
+            phone={
+              <PhoneHome
+                masthead={
+                  <>
+                    <PhoneMasthead blocks={schedule?.blocks ?? null} connectionBroken={connectionBroken}>
+                      {accountControls}
+                    </PhoneMasthead>
+                    {offlineNotice}
+                  </>
+                }
+                lead={lead}
+                tasks={taskPanel}
+                schedule={schedule}
+                today={week.today}
+              />
+            }
+          >
+            <div className={styles.page}>
+              <Masthead weekOf={week.weekOf} controls={accountControls} />
+              {offlineNotice}
+              {lead}
+              <div className={styles.spread}>
+                {/* The Tasks column: the Task list, where the headline's "Check in" opens its sheet. */}
+                <div className={`${styles.column} ${styles.tasksColumn}`}>{taskPanel}</div>
+                {/* The calendar. Without a time zone there's no Schedule (the headline says why), just an empty week. */}
+                <section className={styles.column} aria-label="Schedule">
+                  <TaskEditorSlot>
+                    {schedule ? (
+                      <Calendar
+                        {...schedule}
+                        contextWindows={coveredWindows(commands.listContexts())}
+                        connectionBroken={connectionBroken}
+                      />
+                    ) : (
+                      <EmptyWeek today={week.today} />
+                    )}
+                  </TaskEditorSlot>
+                </section>
+              </div>
             </div>
-          </div>
-        </WidthSwitch>
-      </TaskEditorProvider>
+          </WidthSwitch>
+        </TaskEditorProvider>
+      </TaskListProvider>
     </NewEventProvider>
   );
 }

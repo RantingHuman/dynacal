@@ -10,7 +10,8 @@ import { deepWorkContext, deferred, taskItem, workContext } from "../testing/fix
 import { renderGuarded } from "../testing/render";
 import { OFFLINE_REASON } from "../states/use-online";
 import { allowSplitting, checkIn, completeTask, createTask, reopenTask } from "./actions";
-import { TaskEditorProvider, TaskEditorSlot } from "./task-editor-slot";
+import { TaskEditorSlot } from "./task-editor-slot";
+import { WithTaskList } from "../testing/with-task-list";
 import { TaskPanel } from "./task-panel";
 
 vi.mock("./actions", () => ({
@@ -30,9 +31,9 @@ function renderPanel(
   contexts = [workContext],
 ) {
   return renderGuarded(
-    <TaskEditorProvider>
-      <TaskPanel contexts={contexts} tasks={tasks} flags={flags} timeZone="Europe/London" defaultBuffers={{ before: 0, after: 15 }} />
-    </TaskEditorProvider>,
+    <WithTaskList contexts={contexts} tasks={tasks} flags={flags}>
+      <TaskPanel />
+    </WithTaskList>,
   );
 }
 
@@ -94,12 +95,12 @@ describe("adding a Task through the full form", () => {
 
   function renderWithEditor() {
     return renderGuarded(
-      <TaskEditorProvider>
-        <TaskPanel contexts={[workContext]} tasks={[]} flags={{}} timeZone="Europe/London" defaultBuffers={{ before: 0, after: 15 }} />
+      <WithTaskList tasks={[]}>
+        <TaskPanel />
         <TaskEditorSlot>
           <p>The calendar</p>
         </TaskEditorSlot>
-      </TaskEditorProvider>,
+      </WithTaskList>,
     );
   }
 
@@ -372,10 +373,10 @@ describe("a Task waiting for a Check-in", () => {
 
   it("opens the sheet from the headline's Check-in link", async () => {
     renderGuarded(
-      <TaskEditorProvider>
+      <WithTaskList tasks={[{ ...packing(), id: "pack" }]}>
         <a href={checkInHref("pack")}>Check in</a>
-        <TaskPanel contexts={[workContext]} tasks={[{ ...packing(), id: "pack" }]} flags={{}} timeZone="Europe/London" defaultBuffers={{ before: 0, after: 15 }} />
-      </TaskEditorProvider>,
+        <TaskPanel />
+      </WithTaskList>,
     );
 
     await userEvent.click(screen.getByRole("link", { name: "Check in" }));

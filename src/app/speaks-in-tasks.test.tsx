@@ -12,7 +12,8 @@ import type { CalendarView } from "./settings/calendar-view";
 import { SettingsProse } from "./settings/settings-prose";
 import { SetupLetter } from "./setup/setup-letter";
 import { ErrorScreen } from "./states/error-screen";
-import { TaskEditorProvider, TaskEditorSlot } from "./tasks/task-editor-slot";
+import { TaskEditorSlot } from "./tasks/task-editor-slot";
+import { WithTaskList } from "./testing/with-task-list";
 import { TaskPanel } from "./tasks/task-panel";
 import { blockWording } from "./testing/block-wording";
 import { taskItem, workContext } from "./testing/fixtures";
@@ -101,8 +102,8 @@ afterEach(() => vi.useRealTimers());
 describe("the owner never sees the word Block", () => {
   it("on the desktop home, its calendar and a pinned time's label", async () => {
     renderGuarded(
-      <TaskEditorProvider>
-        <TaskPanel contexts={[workContext]} tasks={tasks()} flags={{}} timeZone="Europe/London" defaultBuffers={{ before: 0, after: 15 }} />
+      <WithTaskList tasks={tasks()}>
+        <TaskPanel />
         <Calendar
           timeZone="Europe/London"
           horizon={horizon}
@@ -111,7 +112,7 @@ describe("the owner never sees the word Block", () => {
           conflicts={conflicts}
           contextWindows={DEFAULT_WINDOWS}
         />
-      </TaskEditorProvider>,
+      </WithTaskList>,
     );
     expectTaskWords();
 
@@ -122,8 +123,8 @@ describe("the owner never sees the word Block", () => {
 
   it("on the phone's week list and its sheets", async () => {
     renderGuarded(
-      <TaskEditorProvider>
-        <TaskPanel contexts={[workContext]} tasks={tasks()} flags={{}} timeZone="Europe/London" defaultBuffers={{ before: 0, after: 15 }} />
+      <WithTaskList tasks={tasks()}>
+        <TaskPanel />
         <PhoneSchedule
           timeZone="Europe/London"
           horizon={horizon}
@@ -131,7 +132,7 @@ describe("the owner never sees the word Block", () => {
           events={[lunch]}
           conflicts={conflicts}
         />
-      </TaskEditorProvider>,
+      </WithTaskList>,
     );
     expectTaskWords();
 
@@ -146,12 +147,12 @@ describe("the owner never sees the word Block", () => {
 
   it("in the Task editor, with a Declined Time", async () => {
     renderGuarded(
-      <TaskEditorProvider>
-        <TaskPanel contexts={[workContext]} tasks={tasks()} flags={{}} timeZone="Europe/London" defaultBuffers={{ before: 0, after: 15 }} />
+      <WithTaskList tasks={tasks()}>
+        <TaskPanel />
         <TaskEditorSlot>
           <div>Calendar</div>
         </TaskEditorSlot>
-      </TaskEditorProvider>,
+      </WithTaskList>,
     );
     await userEvent.click(screen.getByRole("button", { name: /^Board memo/ }));
     expect(screen.getByRole("form", { name: "Edit Task" })).toBeTruthy();

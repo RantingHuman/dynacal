@@ -43,6 +43,14 @@ describe("an optimistic change to the Task list", () => {
     expect(titles(shown)).toEqual(["Board memo", "Expenses", "Plan offsite", "Tidy inbox", "Old report"]);
   });
 
+  it("takes a deleted Task out of the list", () => {
+    const app = appWithTasks({ title: "Keep" }, { title: "Delete" });
+    const tasks = app.commands.listTasks();
+    const id = tasks.find((t) => t.title === "Delete")!.id;
+    const shown = applyTaskChange(tasks, { kind: "delete", id }, app.clock.now(), "default");
+    expect(shown.map((t) => t.title)).toEqual(["Keep"]);
+  });
+
   it("moves a completed Task down among the finished ones, where the list will have it", () => {
     const app = appWithTasks(
       { title: "Board memo", deadline: { date: "2026-01-09", time: null } },

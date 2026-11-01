@@ -3,7 +3,7 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { TaskEditorProvider } from "../tasks/task-editor-slot";
+import { WithTaskList } from "../testing/with-task-list";
 import { completeTask } from "../tasks/actions";
 import { renderGuarded } from "../testing/render";
 import { moveBlock, setBusyOverride, unpinBlock } from "./actions";
@@ -26,7 +26,7 @@ const event: CalendarEvent = {
 
 function renderBlock(overrides: Partial<CalendarBlock> = {}) {
   const onClose = vi.fn();
-  renderGuarded(<TaskEditorProvider><BlockEditor block={{ ...block, ...overrides }} timeZone="Europe/London" conflicts={[]} onClose={onClose} /></TaskEditorProvider>);
+  renderGuarded(<WithTaskList><BlockEditor block={{ ...block, ...overrides }} timeZone="Europe/London" conflicts={[]} onClose={onClose} /></WithTaskList>);
   return onClose;
 }
 

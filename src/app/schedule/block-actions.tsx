@@ -57,7 +57,7 @@ export function useBlockActions(block: CalendarBlock, onClose: () => void) {
   /** Completes the Block's whole Task, as ticking it in the Task list does, and closes. */
   function markTaskDone() {
     setError(null);
-    complete({ id: block.taskId, title: block.taskTitle }, setError);
+    complete({ id: block.taskId, title: block.taskTitle });
     onClose();
   }
 

@@ -6,7 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { deepWorkContext, taskItem, deferred, workContext } from "../testing/fixtures";
 import { renderGuarded } from "../testing/render";
 import { clearDeclinedTime, deleteTask, updateTask } from "./actions";
-import { TaskEditorProvider, TaskEditorSlot } from "./task-editor-slot";
+import { TaskEditorSlot } from "./task-editor-slot";
+import { WithTaskList } from "../testing/with-task-list";
 import { TaskPanel } from "./task-panel";
 
 vi.mock("./actions", () => ({
@@ -17,16 +18,10 @@ const task = taskItem({ id: "task-1", title: "Write planning doc" });
 
 function renderPage(item = task, contexts = [workContext]) {
   return renderGuarded(
-    <TaskEditorProvider>
-      <TaskPanel
-        contexts={contexts}
-        tasks={[item]}
-        flags={{}}
-        timeZone="Europe/London"
-        defaultBuffers={{ before: 0, after: 15 }}
-      />
+    <WithTaskList contexts={contexts} tasks={[item]}>
+      <TaskPanel />
       <TaskEditorSlot><div>Calendar</div></TaskEditorSlot>
-    </TaskEditorProvider>,
+    </WithTaskList>,
   );
 }
 
@@ -57,10 +52,10 @@ describe("the full-page Task editor", () => {
     expect(screen.getByRole("button", { name: /^Write the annual plan/ })).toBeTruthy();
     expect(updateTask).toHaveBeenCalledWith("task-1", expect.objectContaining({ title: "Write the annual plan" }));
     page.rerender(
-      <TaskEditorProvider>
-        <TaskPanel contexts={[workContext]} tasks={[{ ...task, title: "Write the annual plan" }]} flags={{}} timeZone="Europe/London" defaultBuffers={{ before: 0, after: 15 }} />
+      <WithTaskList tasks={[{ ...task, title: "Write the annual plan" }]}>
+        <TaskPanel />
         <TaskEditorSlot><div>Calendar</div></TaskEditorSlot>
-      </TaskEditorProvider>,
+      </WithTaskList>,
     );
     saving.resolve({ ok: true, task: { ...task, title: "Write the annual plan" } });
     await waitFor(() => expect(updateTask).toHaveReturned());
@@ -109,6 +104,23 @@ describe("the full-page Task editor", () => {
     expect((await openEditor()).getByRole("textbox", { name: "Title" })).toHaveProperty("value", "Write planning doc");
   });
 
+  it("deleting takes the Task away at once, and brings it back saying why if the server can't be reached", async () => {
+    const deleting = deferred<void>();
+    vi.mocked(deleteTask).mockReturnValue(deleting.promise);
+    renderPage();
+    const editor = await openEditor();
+
+    await userEvent.click(editor.getByRole("button", { name: "Delete" }));
+    await userEvent.click(within(editor.getByRole("group", { name: "Confirm delete" })).getByRole("button", { name: "Delete" }));
+
+    expect(screen.queryByRole("form", { name: "Edit Task" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Write planning doc/ })).toBeNull();
+
+    deleting.reject(new Error("Failed to fetch"));
+    expect(await screen.findByText("dynacal couldn't reach the server, so nothing changed.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Write planning doc/ })).toBeTruthy();
+  });
+
   it("asks before deletion, lets the owner keep the Task, and deletes only on confirmation", async () => {
     vi.mocked(deleteTask).mockResolvedValue(undefined);
     const page = renderPage();
@@ -123,10 +135,10 @@ describe("the full-page Task editor", () => {
     expect(deleteTask).toHaveBeenCalledWith("task-1");
     await waitFor(() => expect(screen.queryByRole("form", { name: "Edit Task" })).toBeNull());
     page.rerender(
-      <TaskEditorProvider>
-        <TaskPanel contexts={[workContext]} tasks={[]} flags={{}} timeZone="Europe/London" defaultBuffers={{ before: 0, after: 15 }} />
+      <WithTaskList tasks={[]}>
+        <TaskPanel />
         <TaskEditorSlot><div>Calendar</div></TaskEditorSlot>
-      </TaskEditorProvider>,
+      </WithTaskList>,
     );
     expect(screen.queryByRole("button", { name: /^Write planning doc/ })).toBeNull();
     expect(screen.getByText("Calendar")).toBeTruthy();

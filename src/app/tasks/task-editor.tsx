@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { TaskListItem } from "@/core/commands";
 import { contextTag, type Context } from "@/core/contexts";
 import type { TaskFlag } from "@/core/scheduler";
@@ -17,12 +17,11 @@ import {
 } from "@/core/tasks";
 import { BufferChips } from "../buffer-chips";
 import { OFFLINE_REASON, useOnline } from "../states/use-online";
-import { useSlow } from "../states/use-slow";
 import { createTask, deleteTask, updateTask } from "./actions";
 import { nextSevenDays, spanWords, weekdayName } from "./day-words";
 import { DeclinedTimes } from "./declined-times";
 import { FlagText } from "./flags";
-import type { ActOnTasks } from "./task-editor-slot";
+import type { ActOnTasks } from "./task-list";
 import styles from "./task-editor.module.css";
 
 const DURATIONS = [15, 30, 45, 60, 90, 120, 180, 240];
@@ -66,8 +65,6 @@ export function TaskEditor({
   const [input, setInput] = useState<TaskInput>({ ...initial, contextId: initial.contextId ?? contexts[0].id });
   const tag = task && contextTag(contexts, task.contextId);
   const [errors, setErrors] = useState<TaskErrors>({});
-  const [pending, startTransition] = useTransition();
-  const slow = useSlow(pending);
   // Offline, the Task can be read but not saved or deleted.
   const online = useOnline();
   const offlineTitle = online ? undefined : OFFLINE_REASON;
@@ -112,11 +109,13 @@ export function TaskEditor({
     });
   }
 
+  /** Deleting takes the Task out of the list at once and closes the page; a failure brings it back with a message. */
   function remove() {
     if (!task || !online) return;
-    startTransition(async () => {
+    onClose();
+    act({ kind: "delete", id: task.id }, async () => {
       await deleteTask(task.id);
-      onClose();
+      return null;
     });
   }
 
@@ -264,13 +263,13 @@ export function TaskEditor({
         </dl>
 
         <div className={styles.buttons}>
-          <button className="button" type="submit" disabled={pending || !online} title={offlineTitle}>
+          <button className="button" type="submit" disabled={!online} title={offlineTitle}>
             {task ? "Save" : "Add Task"}
           </button>
           <button type="button" className={styles.plain} onClick={onClose}>
             Cancel
           </button>
-          {task && <DeleteButton disabled={pending} offline={!online} slow={slow} onDelete={remove} />}
+          {task && <DeleteButton offline={!online} onDelete={remove} />}
         </div>
       </form>
     </section>
@@ -416,17 +415,7 @@ function ContextField({
 }
 
 /** Delete asks once, in place, rather than with a browser dialog. Offline it can't be pressed. */
-function DeleteButton({
-  disabled,
-  offline,
-  slow,
-  onDelete,
-}: {
-  disabled: boolean;
-  offline: boolean;
-  slow: boolean;
-  onDelete: () => void;
-}) {
+function DeleteButton({ offline, onDelete }: { offline: boolean; onDelete: () => void }) {
   const [asking, setAsking] = useState(false);
   const title = offline ? OFFLINE_REASON : undefined;
   if (!asking) {
@@ -449,12 +438,12 @@ function DeleteButton({
         type="button"
         className={styles.plain}
         data-danger
-        disabled={disabled || offline}
+        disabled={offline}
         title={title}
         onClick={onDelete}
         autoFocus
       >
-        {slow ? "…" : "Delete"}
+        Delete
       </button>
       <button type="button" className={styles.plain} onClick={() => setAsking(false)}>
         Keep

@@ -43,6 +43,10 @@ export function taskItem(overrides: Partial<TaskListItem> = {}): TaskListItem {
 /** A promise the test settles by hand, to hold a server action "in flight". */
 export function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((r) => (resolve = r));
-  return { promise, resolve };
+  let reject!: (reason: Error) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
 }

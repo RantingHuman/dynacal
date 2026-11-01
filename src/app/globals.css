@@ -4,6 +4,8 @@
  * prefers-color-scheme: dark.
  */
 :root {
+  /* The phone's tab bar height, which labels, sheets, messages and the page's end keep clear of. */
+  --tab-bar: calc(52px + env(safe-area-inset-bottom, 0px));
   /* Colour. Every text pair passes WCAG AA in both modes. */
   --paper: #f5f1ea; /* page background */
   --card: #fbf8f3; /* Events, panels that sit on the page, checkboxes, form fields */

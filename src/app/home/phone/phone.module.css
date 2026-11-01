@@ -5,8 +5,6 @@
 
 .phoneOnly {
   display: none;
-  /* The tab bar's height, which labels, sheets and the page's end keep clear of. */
-  --tab-bar: calc(52px + env(safe-area-inset-bottom, 0px));
 }
 
 @media (max-width: 639.98px) {
@@ -174,7 +172,8 @@
   color: var(--soft);
 }
 
-.line[data-past="true"] {
+.line[data-past="true"],
+.line[data-done="true"] {
   opacity: 0.45;
 }
 
@@ -215,10 +214,6 @@
   bottom: calc(var(--tab-bar) + var(--space-2));
   width: auto;
   max-height: calc(100dvh - var(--tab-bar) - var(--space-7));
-}
-
-.overlays [role="status"] {
-  bottom: calc(var(--tab-bar) + var(--space-3));
 }
 
 /* The Block sheet: a card like the floating label, with the Move chips. */

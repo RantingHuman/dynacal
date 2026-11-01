@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TaskListItem } from "@/core/commands";
 import type { CalendarBlock } from "../../schedule/calendar";
 import { checkIn, completeTask } from "../../tasks/actions";
-import { TaskEditorProvider } from "../../tasks/task-editor-slot";
+import { WithTaskList } from "../../testing/with-task-list";
 import { TaskPanel } from "../../tasks/task-panel";
 import { deferred, taskItem, workContext } from "../../testing/fixtures";
 import { renderGuarded } from "../../testing/render";
@@ -43,11 +43,11 @@ const packing = () =>
   });
 const memo = () => taskItem({ id: "t2", title: "Board memo" });
 
-/** The phone's two tabs as the page composes them: the Tasks column publishes the Tasks the week list reads. */
+/** The phone's two tabs as the page composes them, both reading the Task List. */
 function renderPhone(tasks: TaskListItem[] = [packing(), memo()], blocks: CalendarBlock[] = [past, ahead]) {
   renderGuarded(
-    <TaskEditorProvider>
-      <TaskPanel contexts={[workContext]} tasks={tasks} flags={{}} timeZone="Europe/London" defaultBuffers={{ before: 0, after: 15 }} />
+    <WithTaskList tasks={tasks}>
+      <TaskPanel />
       <section aria-label="Schedule">
         <PhoneSchedule
           timeZone="Europe/London"
@@ -57,7 +57,7 @@ function renderPhone(tasks: TaskListItem[] = [packing(), memo()], blocks: Calend
           conflicts={[]}
         />
       </section>
-    </TaskEditorProvider>,
+    </WithTaskList>,
   );
 }
 
@@ -149,9 +149,21 @@ describe("a past time in the week list", () => {
     await userEvent.click(within(sheet()).getByRole("button", { name: "Didn't start" }));
 
     expect(checkIn).toHaveBeenCalledWith("block-1", { answer: "didnt-start" });
-    // On a phone the Tasks tab is hidden, so the Schedule tab says it.
-    const schedule = screen.getByRole("region", { name: "Schedule" });
-    expect(await within(schedule).findByText("Moved to Thu 09:00")).toBeTruthy();
+    expect(await screen.findByText("Moved to Thu 09:00")).toBeTruthy();
+  });
+
+  it("an upcoming Task, ticked, dims at once and comes back if refused", async () => {
+    const completing = deferred<{ ok: false; notFound: true }>();
+    vi.mocked(completeTask).mockReturnValue(completing.promise);
+    renderPhone();
+
+    expect(line(/^Board memo, 15:00/).dataset.done).toBe("false");
+    await userEvent.click(within(line(/^Board memo, 15:00/).parentElement!).getByRole("button", { name: "Mark “Board memo” complete" }));
+    expect(line(/^Board memo, 15:00/).dataset.done).toBe("true");
+
+    completing.resolve({ ok: false, notFound: true });
+    expect(await screen.findByText("“Board memo” no longer exists.")).toBeTruthy();
+    expect(line(/^Board memo, 15:00/).dataset.done).toBe("false");
   });
 
   it("once answered elsewhere, is faded and opens as an ended time", async () => {
