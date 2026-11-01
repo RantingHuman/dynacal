@@ -69,6 +69,6 @@ describe.each(["phone", "desktop"] as const)("a change from the Schedule just af
 
     await inAct(async () => refuse({ ok: false, notFound: true }));
     expect(await screen.findByText("“Laundry” no longer exists.")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Mark “Laundry” complete" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Mark “Laundry” complete" })).toBeTruthy();
   });
 });
