@@ -85,6 +85,23 @@ test("answers a past time from the desktop calendar", async ({ browser }) => {
   );
 });
 
+test("a tick on the desktop calendar shows at once just after the page loads, and a failure says so", async ({ browser }) => {
+  await withApp(
+    browser,
+    async (page) => {
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      await page.goto("/");
+      await page.route("**/*", (route) => (route.request().method() === "POST" ? route.abort() : route.continue()));
+      const openTask = page.getByRole("button", { name: "Mark “Pack for vegas” complete" });
+      await page.getByRole("button", { name: "Mark “Pack for vegas” done" }).first().click();
+
+      await expect(page.getByText("dynacal couldn't reach the server, so nothing changed.")).toBeVisible();
+      await expect(openTask).toBeVisible();
+    },
+    { seed: "past-times" },
+  );
+});
+
 test("says so on the phone's Schedule when an answer can't reach the server", async ({ browser }) => {
   await withApp(
     browser,
