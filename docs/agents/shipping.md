@@ -3,15 +3,10 @@
 ## Before merging
 
 1. Run `pnpm check` and see it pass. It needs Docker: on this Mac Docker runs in OrbStack, so if the Docker socket is missing, start it with `orb start`.
-2. Push the branch and open a draft PR, so CI runs on it before it reaches `main`. Merge only once CI is green and the owner has said to merge.
-
-Each push to GitHub needs the owner's go-ahead.
+2. Push the branch, so CI runs on it before it reaches `main`. Each push to GitHub needs the owner's go-ahead.
+3. Read the result with `gh run watch <run-id> --exit-status`, run in the background so its end wakes you. `gh run list --commit <sha>` gives the id.
+4. Merge into `main` locally, once CI is green and the owner has said to merge. No PRs: the owner doesn't use them. Pushing `main` runs CI again; read that result too.
 
 ## Deploying to the owner's container
 
-The build and run commands are in `docs/self-hosting.md`, under "Build and run". Around them:
-
-1. Build the new image first, so a failed build leaves the old container running.
-2. Stop the container, then copy its volume to `~/dynacal-backups/<name>` (stopped, so the SQLite file is whole). This copy holds the Google refresh token: keep it on this machine.
-3. Remove the old container and run the new one.
-4. Check a copy of the live database, never the live file: every migration recorded in `__drizzle_migrations`, row counts as before, and `pragma foreign_key_check` empty.
+Deploy only what has passed CI. Run `scripts/deploy.sh <backup-name>`, with a name saying what the backup comes before. It builds, backs up the stopped data to `~/dynacal-backups/<backup-name>`, swaps the container and checks a copy of the database, and it says so if anything needs a look. The backup holds the Google refresh token: keep it on this machine.

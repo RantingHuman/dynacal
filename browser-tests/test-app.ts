@@ -95,6 +95,8 @@ export async function withApp(
     await Promise.all([capturedDirectory, ready]);
     if (!directory) throw new Error("Test startup did not report its directory");
     const page = await context.newPage();
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
     await page.clock.setFixedTime(new Date("2026-01-05T09:00:00Z"));
     await page.goto("/");
     await expect(page).toHaveURL(/\/sign-in$/);
@@ -106,6 +108,7 @@ export async function withApp(
       try { return await readRegularFile(join(directory!, "calendar-writes")); }
       catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return ""; throw error; }
     } });
+    if (pageErrors.length) throw new Error(`Errors on the page: ${pageErrors.join(", ")}`);
     if (unexpectedRequests.length) throw new Error(`Unexpected external browser requests: ${unexpectedRequests.join(", ")}`);
     if (serverErrors.includes("BROWSER_TEST_EXTERNAL_CONNECTION_BLOCKED")) throw new Error("The test server attempted an external connection");
   } finally {
