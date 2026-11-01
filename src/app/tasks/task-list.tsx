@@ -58,10 +58,12 @@ export function TaskListProvider({
   tasks,
   flags,
   timeZone,
+  today: serverToday,
   defaultBuffers,
   children,
-}: Omit<TaskList, "savedTasks" | "today" | "act" | "notify"> & { children: ReactNode }) {
-  const [today, setToday] = useState(() => todayIn(timeZone));
+}: Omit<TaskList, "savedTasks" | "act" | "notify"> & { children: ReactNode }) {
+  // It starts as the server drew it, so a saved copy of the page wakes up without a mismatch, then follows this device.
+  const [today, setToday] = useState(serverToday);
   useEffect(() => setToday(todayIn(timeZone)), [timeZone, tasks]);
   const [shown, showChange] = useOptimistic(tasks, (current: TaskListItem[], change: TaskChange) =>
     applyTaskChange(current, change, new Date(), contexts[0].id),

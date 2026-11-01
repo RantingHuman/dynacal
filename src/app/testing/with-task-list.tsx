@@ -1,4 +1,5 @@
 import type { ComponentProps, ReactNode } from "react";
+import { todayIn } from "../tasks/day-words";
 import { TaskEditorProvider } from "../tasks/task-editor-slot";
 import { TaskListProvider } from "../tasks/task-list";
 import { workContext } from "./fixtures";
@@ -10,10 +11,11 @@ export function WithTaskList({
   tasks = [],
   flags = {},
   timeZone = "Europe/London",
+  today = todayIn(timeZone),
   defaultBuffers = { before: 0, after: 15 },
 }: Partial<ComponentProps<typeof TaskListProvider>> & { children: ReactNode }) {
   return (
-    <TaskListProvider contexts={contexts} tasks={tasks} flags={flags} timeZone={timeZone} defaultBuffers={defaultBuffers}>
+    <TaskListProvider contexts={contexts} tasks={tasks} flags={flags} timeZone={timeZone} today={today} defaultBuffers={defaultBuffers}>
       <TaskEditorProvider>{children}</TaskEditorProvider>
     </TaskListProvider>
   );

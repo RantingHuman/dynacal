@@ -8,19 +8,24 @@ async function asPhone(page: Page) {
   await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
 }
 
-/** Apple's minimum: a tap anywhere in a band 44px tall, centred on the control, lands on it. */
+/**
+ * Apple's minimum: a tap anywhere in a band 44px tall, centred on the control, lands on it. A control can be on the
+ * page before it settles, and nothing can be hit while a view transition plays just after load, so this retries.
+ */
 async function expectTappable(control: Locator) {
-  const box = await control.boundingBox();
-  if (!box) throw new Error("Control has no position");
-  const x = box.x + box.width / 2;
-  const middle = box.y + box.height / 2;
-  for (const y of [middle - 21, middle + 21]) {
-    const hit = await control.evaluate((el, [x, y]) => {
-      const at = document.elementFromPoint(x, y);
-      return at !== null && el.contains(at);
-    }, [x, y]);
-    expect(hit, `a tap ${y < middle ? "above" : "below"} ${await control.textContent()}`).toBe(true);
-  }
+  await expect(async () => {
+    const box = await control.boundingBox();
+    if (!box) throw new Error("Control has no position");
+    const x = box.x + box.width / 2;
+    const middle = box.y + box.height / 2;
+    for (const y of [middle - 21, middle + 21]) {
+      const hit = await control.evaluate((el, [x, y]) => {
+        const at = document.elementFromPoint(x, y);
+        return at !== null && el.contains(at);
+      }, [x, y]);
+      expect(hit, `a tap ${y < middle ? "above" : "below"} ${await control.textContent()}`).toBe(true);
+    }
+  }).toPass({ timeout: 5000 });
 }
 
 test("gives the phone's small controls a 44px tap area without overlapping", async ({ browser }) => {
