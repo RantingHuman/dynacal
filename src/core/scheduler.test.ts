@@ -777,18 +777,6 @@ describe("scheduler", () => {
   });
 });
 
-describe("Declined Times", () => {
-  it("keep a Task out of them, while other Tasks may use them", () => {
-    const declined = { start: new Date("2026-01-05T09:00:00Z"), end: new Date("2026-01-05T10:00:00Z") };
-    const result = schedule(input({ tasks: [task("a", { declinedTimes: [declined] }), task("b")] }));
-
-    expect(blocksOf(result)).toEqual([
-      ["b", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"],
-      ["a", "2026-01-05T10:00:00.000Z", "2026-01-05T11:00:00.000Z"],
-    ]);
-  });
-});
-
 describe("Buffers", () => {
   it("separate neighbours by the longer of the facing Buffers, never their sum", () => {
     const result = schedule(

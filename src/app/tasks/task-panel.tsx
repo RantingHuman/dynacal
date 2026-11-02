@@ -199,7 +199,6 @@ export function TaskPanel() {
         <ol className={styles.list}>
           {rows.map((task) => {
             const flag = task.completedAt ? null : flags[task.id];
-            const declined = task.completedAt ? 0 : task.declinedTimes.length;
             const justSaved = saved?.taskId === task.id;
             const timesSaved = saves.counts[task.id] ?? 0;
             // A Task being added slides in; when the server has it, it swaps in place (no exit, no second
@@ -226,7 +225,6 @@ export function TaskPanel() {
                     {flag && <FlagText flag={flag} className={styles.flag} />}
                   </>
                 )}
-                {declined > 0 && ` · ${declined} Declined ${declined === 1 ? "Time" : "Times"}`}
                 {justSaved && <SavedNote key={saved.n} />}
               </>
             );

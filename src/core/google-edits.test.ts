@@ -122,7 +122,7 @@ describe("a Block event resized in Google", () => {
 });
 
 describe("a Block event deleted in Google", () => {
-  it("leaves a Declined Time: the Block is removed and the Task's time is scheduled elsewhere", async () => {
+  it("places its Task again wherever it fits, which may be the same time", async () => {
     const { app, dynacal } = await connectedApp();
     await createTask(app);
 
@@ -131,62 +131,24 @@ describe("a Block event deleted in Google", () => {
     await app.commands.writeBlocksToGoogle();
 
     expect(app.commands.listTasks().map((t) => [t.title, t.remainingMinutes])).toEqual([["Write report", 60]]);
-    expect(blocks(app)).toEqual([["Write report", at("10:00"), at("11:00"), false]]);
-    expect(app.calendar.blockEventsOn(dynacal).map(([title, start, end]) => [title, start, end])).toEqual([
-      ["Write report", at("10:00"), at("11:00")],
-    ]);
-  });
-
-  it("shows on its Task as a Declined Time", async () => {
-    const { app, dynacal } = await connectedApp();
-    await createTask(app);
-
-    app.calendar.deleteEvent(await eventAt(app, dynacal, at("09:00")));
-    await app.commands.syncEvents();
-
-    expect(app.commands.listTasks()[0].declinedTimes).toEqual([
-      { id: expect.any(Number), start: at("09:00"), end: at("10:00") },
-    ]);
-  });
-
-  it("leaves a Declined Time the owner can clear, which lets Recalculation use that time again", async () => {
-    const { app, dynacal } = await connectedApp();
-    await createTask(app);
-    app.calendar.deleteEvent(await eventAt(app, dynacal, at("09:00")));
-    await app.commands.syncEvents();
-    const [declined] = app.commands.listTasks()[0].declinedTimes;
-
-    expect(app.commands.clearDeclinedTime(declined.id)).toEqual({ ok: true });
-    await app.commands.writeBlocksToGoogle();
-
-    expect(app.commands.listTasks()[0].declinedTimes).toEqual([]);
     expect(blocks(app)).toEqual([["Write report", at("09:00"), at("10:00"), false]]);
-    expect(app.commands.clearDeclinedTime(declined.id)).toEqual({ ok: false, notFound: true });
+    expect(app.calendar.blockEventsOn(dynacal).map(([title, start, end]) => [title, start, end])).toEqual([
+      ["Write report", at("09:00"), at("10:00")],
+    ]);
   });
 
-  it("is forgotten once its time has passed", async () => {
+  it("takes the pin off a Block the owner had moved", async () => {
     const { app, dynacal } = await connectedApp();
     await createTask(app);
-    app.calendar.deleteEvent(await eventAt(app, dynacal, at("09:00")));
+    const event = await eventAt(app, dynacal, at("09:00"));
+    app.calendar.moveEvent(event, { start: at("14:00"), end: at("15:00") });
+    await app.commands.syncEvents();
+    expect(blocks(app)).toEqual([["Write report", at("14:00"), at("15:00"), true]]);
+
+    app.calendar.deleteEvent(event);
     await app.commands.syncEvents();
 
-    app.clock.set(at("10:00"));
-
-    expect(app.commands.listTasks()[0].declinedTimes).toEqual([]);
-  });
-
-  it("frees its time for other Tasks", async () => {
-    const { app, dynacal } = await connectedApp();
-    await createTask(app, { title: "Report" });
-    await createTask(app, { title: "Slides" });
-
-    app.calendar.deleteEvent(await eventAt(app, dynacal, at("09:00")));
-    await app.commands.syncEvents();
-
-    expect(blocks(app)).toEqual([
-      ["Slides", at("09:00"), at("10:00"), false],
-      ["Report", at("10:00"), at("11:00"), false],
-    ]);
+    expect(blocks(app)).toEqual([["Write report", at("09:00"), at("10:00"), false]]);
   });
 });
 
@@ -250,26 +212,6 @@ describe("edits made in Google before dynacal next writes Blocks", () => {
       ["Report", at("14:00"), at("15:00"), true],
     ]);
     expect(app.calendar.blockEvent(event)).toEqual(["Report", at("14:00"), at("15:00")]);
-  });
-
-  it("are applied first, so a local Recalculation doesn't revive a deleted Block event", async () => {
-    const { app, dynacal } = await connectedApp();
-    await createTask(app, { title: "Report" });
-
-    app.calendar.deleteEvent(await eventAt(app, dynacal, at("09:00")));
-    const urgent = await createTask(app, {
-      title: "Urgent",
-      priority: "critical",
-      deadline: { date: "2026-01-05", time: "10:00" },
-    });
-    // With Urgent done, 09:00 is free again, but the owner declined it for Report.
-    app.commands.completeTask(urgent.id);
-    await app.commands.writeBlocksToGoogle();
-
-    expect(blocks(app)).toEqual([["Report", at("10:00"), at("11:00"), false]]);
-    expect(app.calendar.blockEventsOn(dynacal).map(([title, start, end]) => [title, start, end])).toEqual([
-      ["Report", at("10:00"), at("11:00")],
-    ]);
   });
 
   it("are applied on reconnecting, before the Recalculation that follows", async () => {

@@ -109,7 +109,7 @@ describe("a Block event written before dynacal marked its events", () => {
 });
 
 describe("a Block event the owner turned into an all-day event in Google", () => {
-  it("is no longer a Block event, so it counts as deleted: its time becomes a Declined Time", async () => {
+  it("is no longer a Block event, so it counts as deleted: its Task is placed again", async () => {
     const { app, dynacal } = await connectedApp();
     await createTask(app);
 
@@ -117,6 +117,6 @@ describe("a Block event the owner turned into an all-day event in Google", () =>
     await app.commands.syncEvents();
     await app.commands.writeBlocksToGoogle();
 
-    expect(blocks(app)).toEqual([["Write report", at("10:00"), at("11:00"), false]]);
+    expect(blocks(app)).toEqual([["Write report", at("09:00"), at("10:00"), false]]);
   });
 });

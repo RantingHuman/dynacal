@@ -35,7 +35,7 @@ export interface TaskList {
   /** The Tasks as the server last sent them. */
   savedTasks: TaskListItem[];
   flags: Record<string, TaskFlag | null>;
-  /** The owner's time zone, for dates and Declined Times; null until it's saved. */
+  /** The owner's time zone, for dates; null until it's saved. */
   timeZone: string | null;
   /** YYYY-MM-DD. */
   today: string;

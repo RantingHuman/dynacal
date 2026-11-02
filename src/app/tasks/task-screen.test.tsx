@@ -12,7 +12,7 @@ import { TaskEditorSlot } from "./task-editor-slot";
 import { TaskPanel } from "./task-panel";
 
 vi.mock("./actions", () => ({
-  createTask: vi.fn(), updateTask: vi.fn(), deleteTask: vi.fn(), completeTask: vi.fn(), clearDeclinedTime: vi.fn(),
+  createTask: vi.fn(), updateTask: vi.fn(), deleteTask: vi.fn(), completeTask: vi.fn(),
 }));
 
 // Today is Tuesday 27 October 2026.
@@ -337,17 +337,14 @@ const backButton = () => screen.getByRole("button", { name: "← Back to the wee
 const chipsOf = (group: HTMLElement) => within(group).getAllByRole("radio").map((c) => c.textContent);
 
 describe("the More section", () => {
-  const declinedTimes = [{ id: 7, start: new Date("2026-10-27T10:00:00Z"), end: new Date("2026-10-27T11:00:00Z") }];
-
   it("starts closed, holding the rarely used fields, and is closed again each time the Task opens", async () => {
-    renderScreen({ ...task, declinedTimes });
+    renderScreen();
     let editor = await openScreen();
     for (const hidden of [
       editor.queryByRole("switch", { name: "Can be split" }),
       editor.queryByRole("radiogroup", { name: "Buffer before" }),
       editor.queryByRole("radiogroup", { name: "Buffer after" }),
       editor.queryByRole("textbox", { name: "Notes" }),
-      editor.queryByText("Declined Times"),
       editor.queryByRole("button", { name: "Delete" }),
     ]) {
       expect(hidden).toBeNull();
@@ -361,7 +358,6 @@ describe("the More section", () => {
     expect(editor.getByRole("radiogroup", { name: "Buffer before" })).toBeTruthy();
     expect(editor.getByRole("radiogroup", { name: "Buffer after" })).toBeTruthy();
     expect(editor.getByRole("textbox", { name: "Notes" })).toBeTruthy();
-    expect(editor.getByText("Declined Times")).toBeTruthy();
     expect(editor.getByRole("button", { name: "Delete" })).toBeTruthy();
 
     await userEvent.click(backButton());
@@ -390,11 +386,10 @@ describe("the More section", () => {
       splittable: true,
       bufferBeforeMinutes: 15,
       bufferAfterMinutes: 30,
-      declinedTimes,
     });
     const editor = await openScreen();
 
-    expect(more(editor).textContent).toBe("More · Notes, Can be split, Buffer, Declined Times");
+    expect(more(editor).textContent).toBe("More · Notes, Can be split, Buffer");
   });
 
   it("counts a Buffer of 0 as the Task's own", async () => {
@@ -435,16 +430,6 @@ describe("the More section", () => {
 
     expect(editor.getByRole("switch", { name: "Can be split" })).toBeTruthy();
     expect(editor.queryByText("Splitting")).toBeNull();
-  });
-
-  it("doesn't show Declined Times when the Task has none", async () => {
-    renderScreen();
-    const editor = await openScreen();
-
-    await userEvent.click(more(editor));
-
-    expect(editor.queryByText("Declined Times")).toBeNull();
-    expect(editor.queryByText("None")).toBeNull();
   });
 });
 

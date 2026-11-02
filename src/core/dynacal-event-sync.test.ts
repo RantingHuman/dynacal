@@ -177,9 +177,9 @@ describe("a dynacal Event moved or resized in Google", () => {
 });
 
 describe("a dynacal Event deleted in Google", () => {
-  it("is deleted in dynacal, with no Declined Time, and its time goes back to the Blocks", async () => {
+  it("is deleted in dynacal, and its time goes back to the Blocks", async () => {
     const { app, dynacal } = await connectedApp();
-    const task = await createTask(app);
+    await createTask(app);
     await createEvent(app, { start: at("09:00"), end: at("10:00") });
     expect(blocks(app)).toEqual([["Write report", at("10:00"), at("11:00"), false]]);
     const [{ id }] = app.calendar.dynacalEventsOn(dynacal);
@@ -189,7 +189,6 @@ describe("a dynacal Event deleted in Google", () => {
 
     expect(dynacalEvents(app)).toEqual([]);
     expect(blocks(app)).toEqual([["Write report", at("09:00"), at("10:00"), false]]);
-    expect(app.commands.listTasks().find((t) => t.id === task.id)!.declinedTimes).toEqual([]);
     expect(app.calendar.dynacalEventsOn(dynacal)).toEqual([]);
   });
 });

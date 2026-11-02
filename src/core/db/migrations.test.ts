@@ -353,7 +353,7 @@ describe("migrations", () => {
 
   // Built as the owner's install stood before Contexts, with a row in every table and every reference filled, so a
   // later migration that rebuilds a table can't quietly cascade a delete or drop rows. A migration that retires a
-  // table on purpose takes that table out of the seed here too. Earlier migrations have their own tests above.
+  // table on purpose joins `retired` here. Earlier migrations have their own tests above.
   it("keeps every table and row of a lived-in install through every later migration", () => {
     const sqlite = migratedUpTo("work-context");
     sqlite.exec(`
@@ -377,19 +377,22 @@ describe("migrations", () => {
       INSERT INTO dynacal_event_writes
         VALUES ('dynacal', 'de', 'd', 'Lunch', '', 0, 0, 3600000, NULL, NULL, 10);
     `);
+    // sqlite_sequence goes too: its one row only counted the Declined Times' IDs.
+    const retired = ["declined_times", "sqlite_sequence"];
     const seededTables = (
       sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE '\\_\\_%' ESCAPE '\\'").all() as {
         name: string;
       }[]
-    ).map((table) => table.name);
+    ).map((table) => table.name).filter((name) => !retired.includes(name));
     const rowCount = (table: string) => (sqlite.prepare(`SELECT count(*) AS n FROM "${table}"`).get() as { n: number }).n;
     const rowCounts = () => Object.fromEntries(seededTables.map((table) => [table, rowCount(table)]));
     const seeded = rowCounts();
-    expect(Object.entries(seeded).filter(([table, rows]) => rows === 0 && table !== "sqlite_sequence")).toEqual([]);
+    expect(Object.entries(seeded).filter(([table, rows]) => rows === 0)).toEqual([]);
 
     migrateDatabase(drizzle(sqlite, { schema }));
 
     expect(rowCounts()).toEqual(seeded);
+    expect(sqlite.prepare("SELECT name FROM sqlite_master WHERE name = 'declined_times'").all()).toEqual([]);
     expect(sqlite.pragma("integrity_check")).toEqual([{ integrity_check: "ok" }]);
   });
 });

@@ -105,7 +105,6 @@ export function applyTaskChange(
     bufferAfterMinutes: change.input.bufferAfterMinutes ?? null,
     remainingMinutes: change.input.estimatedMinutes,
     completedAt: null,
-    declinedTimes: [],
     checkIns: [],
   };
   return place(tasks, task);

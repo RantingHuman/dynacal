@@ -64,10 +64,6 @@ _Avoid_: Locked block, fixed block, manual block
 An overlap between a Pinned Block and an Event that only the user can resolve.
 _Avoid_: Clash, double-booking, collision
 
-**Declined Time**:
-A time the user turned down for one Task by deleting its Block in Google; Recalculation keeps that Task out of it until it passes or the user clears it, while other Tasks may still use it.
-_Avoid_: Not then, avoid, banned slot
-
 **Minimum Block Length**:
 The shortest Block the scheduler may create when splitting a Splittable Task.
 _Avoid_: Min chunk, minimum slot

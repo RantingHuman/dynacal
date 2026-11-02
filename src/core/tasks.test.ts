@@ -29,7 +29,6 @@ describe("Tasks", () => {
         bufferAfterMinutes: null,
         remainingMinutes: 90,
         completedAt: null,
-        declinedTimes: [],
         checkIns: [],
       },
     ]);
@@ -86,7 +85,7 @@ describe("Tasks", () => {
     const contextId = commands.listContexts()[0].id;
     expect(result).toEqual({ ok: true, task: { id: created.task.id, ...edited, contextId } });
     expect(commands.listTasks()).toEqual([
-      { id: created.task.id, ...edited, contextId, remainingMinutes: 180, completedAt: null, declinedTimes: [], checkIns: [] },
+      { id: created.task.id, ...edited, contextId, remainingMinutes: 180, completedAt: null, checkIns: [] },
     ]);
   });
 

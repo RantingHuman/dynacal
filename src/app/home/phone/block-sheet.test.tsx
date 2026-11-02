@@ -16,7 +16,6 @@ vi.mock("../../tasks/actions", () => ({
   updateTask: vi.fn(),
   deleteTask: vi.fn(),
   completeTask: vi.fn(),
-  clearDeclinedTime: vi.fn(),
 }));
 
 // A Block on Tuesday 27 October 2026, 10:00–12:00 London time (GMT, after the clocks went back).

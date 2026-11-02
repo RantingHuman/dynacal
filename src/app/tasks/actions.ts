@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import type { AllowSplittingResult, ClearDeclinedTimeResult, CompleteTaskResult } from "@/core/commands";
+import type { AllowSplittingResult, CompleteTaskResult } from "@/core/commands";
 import type { CheckInResult } from "@/core/completion";
 import { PRIORITIES, type TaskResult, type UpdateTaskResult } from "@/core/tasks";
 import { getRuntime } from "@/server/runtime";
@@ -79,9 +79,3 @@ export async function checkIn(blockId: string, answer: unknown): Promise<CheckIn
   return result;
 }
 
-export async function clearDeclinedTime(id: number): Promise<ClearDeclinedTimeResult> {
-  await requireOwner();
-  const result = getRuntime().commands.clearDeclinedTime(z.number().int().parse(id));
-  revalidatePath("/");
-  return result;
-}

@@ -34,7 +34,6 @@ vi.mock("./tasks/actions", () => ({
   deleteTask: vi.fn(),
   completeTask: vi.fn(),
   reopenTask: vi.fn(),
-  clearDeclinedTime: vi.fn(),
   allowSplitting: vi.fn(),
   checkIn: vi.fn(),
 }));
@@ -78,7 +77,6 @@ const tasks = () => [
   taskItem({
     id: "t3",
     title: "Board memo",
-    declinedTimes: [{ id: 1, start: new Date("2026-10-28T09:00:00Z"), end: new Date("2026-10-28T10:00:00Z") }],
   }),
 ];
 const connected: CalendarView = {
@@ -145,7 +143,7 @@ describe("the owner never sees the word Block", () => {
     expectTaskWords();
   });
 
-  it("in the Task editor, with a Declined Time", async () => {
+  it("in the Task editor, with More open", async () => {
     renderGuarded(
       <WithTaskList tasks={tasks()}>
         <TaskPanel />
@@ -158,7 +156,6 @@ describe("the owner never sees the word Block", () => {
     expect(screen.getByRole("form", { name: "Edit Task" })).toBeTruthy();
     expectTaskWords();
     await userEvent.click(screen.getByRole("button", { name: /^More/ }));
-    expect(screen.getByText("Declined Times")).toBeTruthy();
     expectTaskWords();
   });
 
