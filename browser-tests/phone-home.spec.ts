@@ -22,14 +22,14 @@ test("doesn't replay a ticked Task's animation on coming back to its tab", async
       await page.goto("/");
       await tab(page, "Tasks").click();
       await page.getByRole("button", { name: "Mark “Pack for vegas” complete" }).click();
-      await expect(page.getByRole("button", { name: "Mark “Pack for vegas” not complete" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Completed · 1" })).toBeVisible();
       await expect.poll(() => playingCount(page, "phone-panel-tasks")).toBe(0);
 
       await tab(page, "Schedule").click();
       await expect(page.getByRole("button", { name: /^Print mystery machine, 07:00/ })).toBeVisible();
       await tab(page, "Tasks").click();
 
-      await expect(page.getByRole("button", { name: "Mark “Pack for vegas” not complete" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Completed · 1" })).toBeVisible();
       expect(await playingCount(page, "phone-panel-tasks")).toBe(0);
     },
     { seed: "past-times" },
@@ -44,13 +44,13 @@ test("doesn't replay a ticked Task's animation on closing the Task editor", asyn
       await page.goto("/");
       await tab(page, "Tasks").click();
       await page.getByRole("button", { name: "Mark “Pack for vegas” complete" }).click();
-      await expect(page.getByRole("button", { name: "Mark “Pack for vegas” not complete" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Completed · 1" })).toBeVisible();
       await expect.poll(() => playingCount(page, "phone-panel-tasks")).toBe(0);
 
       await page.getByRole("button", { name: "Print mystery machine", exact: true }).click();
       await page.getByRole("button", { name: "← Back to the week" }).click();
 
-      await expect(page.getByRole("button", { name: "Mark “Pack for vegas” not complete" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Completed · 1" })).toBeVisible();
       expect(await playingCount(page, "phone-panel-tasks")).toBe(0);
     },
     { seed: "past-times" },

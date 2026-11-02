@@ -9,9 +9,30 @@ test("adds and completes a Task, and keeps it complete after reloading", async (
     await expect(page.getByRole("button", { name: "Mark “Write a report” complete" })).toBeVisible();
     await expect.poll(fixture.calendarWrites).toContain("create-event");
     await page.getByRole("button", { name: "Mark “Write a report” complete" }).click();
-    await expect(page.getByRole("button", { name: "Mark “Write a report” not complete" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Completed · 1" })).toBeVisible();
     await page.reload();
+    await page.getByRole("button", { name: "Completed · 1" }).click();
     await expect(page.getByRole("button", { name: "Mark “Write a report” not complete" })).toBeVisible();
+  });
+});
+
+test("folds a ticked Task under the Completed line, closed again after reloading", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto("/");
+    await expect(page.getByRole("button", { name: /^Completed/ })).toHaveCount(0);
+    await page.getByRole("textbox", { name: "Add a Task" }).fill("Write a report");
+    await page.getByRole("textbox", { name: "Add a Task" }).press("Enter");
+    await page.getByRole("button", { name: "Mark “Write a report” complete" }).first().click();
+
+    const line = page.getByRole("button", { name: "Completed · 1" });
+    await line.click();
+    await expect(page.getByRole("heading", { name: "Today" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Mark “Write a report” not complete" })).toBeVisible();
+
+    await page.reload();
+    await expect(line).toHaveAttribute("aria-expanded", "false");
+    await expect(page.getByRole("button", { name: "Mark “Write a report” not complete" })).toHaveCount(0);
   });
 });
 
@@ -26,6 +47,7 @@ test("reopens a Task ticked by mistake, schedules it again and keeps it open aft
     await page.getByRole("button", { name: "Mark “Write a report” complete" }).first().click();
     await expect(block).toHaveCount(0);
 
+    await page.getByRole("button", { name: "Completed · 1" }).click();
     await page.getByRole("button", { name: "Mark “Write a report” not complete" }).click();
     await expect(page.getByRole("button", { name: "Mark “Write a report” complete" }).first()).toBeVisible();
     await expect(block).toBeVisible();

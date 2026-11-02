@@ -170,6 +170,36 @@
   }
 }
 
+/* "Completed · N", the one line completed Tasks fold under, at the bottom of the list. */
+.fold {
+  width: 100%;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0;
+  border: 0;
+  border-bottom: var(--hairline) solid var(--faint);
+  background: none;
+  color: inherit;
+  font: 500 var(--text-body) / 1.3 var(--font-sans);
+  text-align: left;
+  cursor: pointer;
+}
+
+.foldMark {
+  color: var(--soft);
+}
+
+/* A day's heading among the opened line's Tasks. */
+.day {
+  margin: var(--space-3) 0 0;
+  color: var(--soft);
+  font: 600 var(--text-kicker) / 1.4 var(--font-sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 /* "All done." over the finished Tasks, with the squiggle drawn in once beneath it. */
 .allDone {
   position: relative;

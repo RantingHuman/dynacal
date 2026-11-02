@@ -700,6 +700,18 @@ input[type="checkbox"]:disabled {
     transform-origin: top;
     animation: row-out var(--base) var(--expo) both;
   }
+
+  /* A completed Task's row slides down into the Completed line; the rows under it close up. */
+  ::view-transition-old(.task-fold):only-child {
+    animation: row-fold var(--slow) var(--expo) both;
+  }
+}
+
+@keyframes row-fold {
+  to {
+    opacity: 0;
+    transform: translateY(32px);
+  }
 }
 
 @keyframes row-in {
