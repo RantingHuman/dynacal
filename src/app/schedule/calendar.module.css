@@ -15,6 +15,15 @@
   gap: 6px;
 }
 
+/* Under today's date, in a column that may be narrow, so it can wrap. */
+.moveOffToday {
+  display: block;
+  margin: 2px auto 0;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  white-space: normal;
+}
+
 /* Today is dimmed when you're already on it. */
 .nav :global(.link):disabled {
   opacity: 1;

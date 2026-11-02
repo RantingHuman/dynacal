@@ -70,7 +70,7 @@ test("nudges a Task from the phone sheet again and again, then keeps the new tim
     await addTask(page);
     await page.getByRole("tab", { name: "Schedule" }).click();
     await page.getByRole("button", { name: /Write a report, 09:00, 1h/ }).click();
-    await page.getByRole("button", { name: "Move" }).click();
+    await page.getByRole("button", { name: "Move", exact: true }).click();
     await page.getByRole("button", { name: "+15m" }).click();
     await expect(page.getByRole("button", { name: /Write a report, 09:15, 1h, Pinned/ })).toBeVisible();
     await expect(page.getByText("Pinned at 09:15.")).toBeVisible();
@@ -137,7 +137,7 @@ test("sends a Task to tomorrow from the phone sheet, then Undo puts its pinned t
     await addTask(page);
     await page.getByRole("tab", { name: "Schedule" }).click();
     await page.getByRole("button", { name: /Write a report, 09:00, 1h/ }).click();
-    await page.getByRole("button", { name: "Move" }).click();
+    await page.getByRole("button", { name: "Move", exact: true }).click();
     await page.getByRole("button", { name: "+15m" }).click();
     await expect(page.getByRole("button", { name: /Write a report, 09:15, 1h, Pinned/ })).toBeVisible();
 
@@ -169,7 +169,7 @@ test("sends a Task to tomorrow from the desktop label and keeps it there after r
     await expect(page.getByText("Moved to tomorrow. dynacal picks the time.")).toBeVisible();
     await page.reload();
     await page.getByRole("button", { name: /Write a report, 09:00–10:00/ }).click();
-    await page.getByRole("button", { name: "Move" }).click();
+    await page.getByRole("button", { name: "Move", exact: true }).click();
     await page.getByRole("button", { name: "Pick a time" }).click();
     await expect(page.getByLabel("Day")).toHaveValue("2026-01-06");
     await expect(page.getByLabel("End", { exact: true })).toHaveValue("10:00");
@@ -280,5 +280,42 @@ test("opens a Task's time from its When line on the computer, with exact boxes, 
     await expect(label).toHaveCount(0);
     await expect(editor.getByRole("button", { name: /^When, / })).toHaveAccessibleName(/11:00–12:00/);
     await expect(title).toHaveValue("Write a long report");
+
+test("moves several Tasks off today on a computer, asks once about due dates, and undoes it all", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto("/");
+    const add = page.getByRole("textbox", { name: "Add a Task" });
+    for (const [line, title] of [["Write a report 1h", "Write a report"], ["Call the bank 1h by today", "Call the bank"]]) {
+      await add.fill(line);
+      await add.press("Enter");
+      await expect(page.getByRole("button", { name: `Mark “${title}” complete` })).toBeVisible();
+    }
+    await expect(page.getByRole("button", { name: /^Write a report, \d\d:\d\d–/ })).toBeVisible();
+
+    await page.getByRole("button", { name: "Move off today" }).click();
+    const list = page.getByRole("dialog", { name: "Move off today" });
+    await expect(list.getByRole("checkbox", { name: /Write a report/ })).toBeChecked();
+    await expect(list.getByRole("checkbox", { name: /Call the bank.*Due today/ })).not.toBeChecked();
+
+    await list.getByRole("button", { name: "Select all" }).click();
+    await list.getByRole("button", { name: "Move 2 to tomorrow" }).click();
+    const question = page.getByRole("alertdialog", { name: "Due today. Move the due date too?" });
+    await question.getByRole("button", { name: "Cancel" }).click();
+    await expect(question).toHaveCount(0);
+    await expect(list.getByRole("checkbox", { name: /Call the bank/ })).toBeChecked();
+
+    await list.getByRole("button", { name: "Move 2 to tomorrow" }).click();
+    await question.getByRole("button", { name: "Move both" }).click();
+    await expect(page.getByText("Moved 2 to tomorrow. dynacal picks the times.")).toBeVisible();
+    await expect(list).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Move off today" })).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Undo" }).click();
+    await expect(page.getByText("Moved back")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Move off today" })).toBeVisible();
+    await page.reload();
+    await expect(page.getByText("due today")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Move off today" })).toBeVisible();
   });
 });

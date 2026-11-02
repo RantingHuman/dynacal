@@ -131,9 +131,20 @@
   border-bottom: var(--hairline) solid var(--rule);
 }
 
+.dayHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.moveOffToday {
+  font-size: 14px;
+  white-space: nowrap;
+}
+
 .dayHeading {
   position: relative;
-  justify-self: start;
   display: inline-flex;
   align-items: baseline;
   gap: var(--space-2);

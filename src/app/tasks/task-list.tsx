@@ -51,6 +51,8 @@ export interface TaskList {
    * `moveBoth` runs on Move both, and should make the move again saying to move deadlines. Cancel changes nothing.
    */
   askDueDate: (dueBefore: TaskDueBefore[], moveBoth: () => void) => void;
+  /** Whether that question is up, so what's behind it leaves Escape to the question. */
+  askingDueDate: boolean;
 }
 
 const Context = createContext<TaskList | null>(null);
@@ -68,7 +70,7 @@ export function TaskListProvider({
   today: serverToday,
   defaultBuffers,
   children,
-}: Omit<TaskList, "savedTasks" | "act" | "notify" | "askDueDate"> & { children: ReactNode }) {
+}: Omit<TaskList, "savedTasks" | "act" | "notify" | "askDueDate" | "askingDueDate"> & { children: ReactNode }) {
   // It starts as the server drew it, so a saved copy of the page wakes up without a mismatch, then follows this device.
   const [today, setToday] = useState(serverToday);
   useEffect(() => setToday(todayIn(timeZone)), [timeZone, tasks]);
@@ -102,9 +104,10 @@ export function TaskListProvider({
     },
     [showChange],
   );
+  const askingDueDate = question !== null;
   const value = useMemo(
-    () => ({ contexts, tasks: shown, savedTasks: tasks, flags, timeZone, today, defaultBuffers, act, notify, askDueDate }),
-    [contexts, shown, tasks, flags, timeZone, today, defaultBuffers, act, notify, askDueDate],
+    () => ({ contexts, tasks: shown, savedTasks: tasks, flags, timeZone, today, defaultBuffers, act, notify, askDueDate, askingDueDate }),
+    [contexts, shown, tasks, flags, timeZone, today, defaultBuffers, act, notify, askDueDate, askingDueDate],
   );
   return (
     <Context.Provider value={value}>
