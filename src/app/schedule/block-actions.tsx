@@ -4,7 +4,10 @@ import { useState, useTransition } from "react";
 import type { MoveBlockResult } from "@/core/pinning";
 import { OFFLINE_REASON, useOnline } from "../states/use-online";
 import { useCompleteTask } from "../tasks/complete-task-button";
-import { moveBlock, unpinBlock } from "./actions";
+import { useMoveToTomorrow } from "../tasks/day-moves";
+import { pinnedSpanWords, pinnedWords, todayIn, zoneOrBrowser } from "../tasks/day-words";
+import { useTaskList } from "../tasks/task-list";
+import { moveBlock, pinBlockAgain, restoreBlockTime, unpinBlock } from "./actions";
 import type { CalendarBlock, CalendarEvent } from "./calendar";
 import { LabelNote } from "./floating-label";
 
@@ -22,8 +25,30 @@ export function moveError(result: MoveBlockResult, title: string): string | null
 }
 
 /**
+ * Says where a moved Block was pinned, with an Undo that puts back its old time and, if it wasn't pinned before, hands
+ * it back to dynacal. `block` is the Block as it was before the move; `resized` says the end changed, so the message gives both.
+ */
+export function useSayPinned(): (block: CalendarBlock, to: { start: Date; end: Date }, resized?: boolean) => void {
+  const { act, notify, timeZone } = useTaskList();
+  const zone = zoneOrBrowser(timeZone);
+
+  return (block, to, resized = false) =>
+    notify(resized ? pinnedSpanWords(to, todayIn(timeZone), zone) : pinnedWords(to.start, todayIn(timeZone), zone), {
+      label: "Undo",
+      run: () =>
+        act(null, async () => {
+          const back = { start: block.start, end: block.end, pinned: block.pinned };
+          const refused = moveError(await restoreBlockTime(block.id, back), block.taskTitle);
+          if (refused) return refused;
+          notify("Moved back");
+          return null;
+        }),
+    });
+}
+
+/**
  * What the Block label (desktop) and the Block sheet (phone) can do to an open Block: move it (which pins it),
- * unpin it, or mark its whole Task done. Offline none of them can be attempted: `disabled` is set and `title`
+ * unpin it, mark its whole Task done, or send its Task to tomorrow. Offline none of them can be attempted: `disabled` is set and `title`
  * says why. A refusal shows in `error`.
  */
 export function useBlockActions(block: CalendarBlock, onClose: () => void) {
@@ -31,8 +56,11 @@ export function useBlockActions(block: CalendarBlock, onClose: () => void) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const complete = useCompleteTask();
+  const moveToTomorrow = useMoveToTomorrow();
+  const sayPinned = useSayPinned();
+  const { act, notify, timeZone } = useTaskList();
 
-  /** Moves the Block to the given span; `onMoved` runs once the move is saved. */
+  /** Moves the Block to the given span; `onMoved` runs once the move is saved, and a message says where it is. */
   function move(to: { start: Date; end: Date }, onMoved: () => void) {
     setError(null);
     startTransition(async () => {
@@ -41,7 +69,9 @@ export function useBlockActions(block: CalendarBlock, onClose: () => void) {
         block.taskTitle,
       );
       setError(message);
-      if (!message) onMoved();
+      if (message) return;
+      sayPinned(block, to);
+      onMoved();
     });
   }
 
@@ -49,8 +79,20 @@ export function useBlockActions(block: CalendarBlock, onClose: () => void) {
     setError(null);
     startTransition(async () => {
       const result = await unpinBlock(block.id);
-      if (result.ok) onClose();
-      else setError(`Couldn't unpin “${block.taskTitle}”: its time changed elsewhere.`);
+      if (result.ok) {
+        const { id, taskId, start, end, taskTitle } = block;
+        notify("Unpinned. dynacal picks the time.", {
+          label: "Undo",
+          run: () =>
+            act(null, async () => {
+              const refused = moveError(await pinBlockAgain({ id, taskId, start, end }), taskTitle);
+              if (refused) return refused;
+              notify(pinnedWords(new Date(start), todayIn(timeZone), zoneOrBrowser(timeZone)));
+              return null;
+            }),
+        });
+        onClose();
+      } else setError(`Couldn't unpin “${block.taskTitle}”: its time changed elsewhere.`);
     });
   }
 
@@ -61,10 +103,18 @@ export function useBlockActions(block: CalendarBlock, onClose: () => void) {
     onClose();
   }
 
+  /** Moves the Block's whole Task to tomorrow, where dynacal picks its time, and closes. A message says what happened. */
+  function tomorrow() {
+    setError(null);
+    moveToTomorrow({ id: block.taskId, title: block.taskTitle });
+    onClose();
+  }
+
   return {
     move,
     unpin,
     markTaskDone,
+    tomorrow,
     error,
     pending,
     /** For every control that changes the Block: while one runs, and offline. */
@@ -74,13 +124,12 @@ export function useBlockActions(block: CalendarBlock, onClose: () => void) {
   };
 }
 
-/** Names the Events a Pinned Block is in a Conflict with; `advice` adds what to do about it. */
-export function BlockConflictNote({ conflicts, advice = false }: { conflicts: CalendarEvent[]; advice?: boolean }) {
+/** Names the Events a Pinned Block is in a Conflict with. */
+export function BlockConflictNote({ conflicts }: { conflicts: CalendarEvent[] }) {
   if (conflicts.length === 0) return null;
   return (
     <LabelNote alert>
       Conflict: this pinned time overlaps {conflicts.map((c) => c.title).join(", ")}.
-      {advice && " dynacal won’t move it; move it, shorten it or unpin it, or change the Event in your calendar."}
     </LabelNote>
   );
 }

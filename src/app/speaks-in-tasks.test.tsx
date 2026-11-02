@@ -23,9 +23,6 @@ vi.mock("./schedule/actions", () => ({
   recalculate: vi.fn(),
   moveBlock: vi.fn(),
   unpinBlock: vi.fn(),
-  createDynacalEvent: vi.fn(),
-  updateDynacalEvent: vi.fn(),
-  deleteDynacalEvent: vi.fn(),
   setBusyOverride: vi.fn(),
 }));
 vi.mock("./tasks/actions", () => ({
@@ -64,7 +61,7 @@ const pinned: CalendarBlock = {
 const lunch: CalendarEvent = {
   id: "event-1", ref: { calendarId: "work", eventId: "event-1" }, title: "Lunch with Sam",
   calendarName: "Work", allDay: false, start: "2026-10-27T15:30:00.000Z", end: "2026-10-27T16:30:00.000Z",
-  free: false, countsAsBusy: true, busyOverride: null, dynacalEvent: null,
+  free: false, countsAsBusy: true, busyOverride: null,
 };
 const conflicts: CalendarConflict[] = [{ blockId: "block-3", eventId: "event-1" }];
 const tasks = () => [

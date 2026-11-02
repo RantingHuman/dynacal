@@ -60,6 +60,128 @@ test("gives the phone's small controls a 44px tap area without overlapping", asy
   });
 });
 
+test("gives the deadline question's answers a 44px tap area, with no sideways scroll", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await asPhone(page);
+    await page.goto("/");
+    await page.getByRole("tab", { name: "Tasks" }).click();
+    await page.getByRole("textbox", { name: "Add a Task" }).fill("Write a report 1h by today");
+    await page.getByRole("textbox", { name: "Add a Task" }).press("Enter");
+    await page.getByRole("tab", { name: "Schedule" }).click();
+    await page.getByRole("button", { name: /Write a report, 09:00, 1h/ }).click();
+    await page.getByRole("button", { name: "Tomorrow" }).click();
+
+    await expectTappable(page.getByRole("button", { name: "Move both" }));
+    await expectTappable(page.getByRole("button", { name: "Cancel" }));
+    const widths = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
+    expect(widths[0]).toBeLessThanOrEqual(widths[1]);
+  });
+});
+
+test("gives the Completed line a 44px tap area and opens it with no sideways scroll", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await asPhone(page);
+    await page.goto("/");
+    await page.getByRole("tab", { name: "Tasks" }).click();
+    await page.getByRole("textbox", { name: "Add a Task" }).fill("A report with a rather long title to wrap at phone width");
+    await page.getByRole("textbox", { name: "Add a Task" }).press("Enter");
+    await page.getByRole("button", { name: /^Mark “A report.*” complete$/ }).click();
+
+    const line = page.getByRole("button", { name: "Completed · 1" });
+    await expectTappable(line);
+    await line.click();
+    await expect(page.getByRole("heading", { name: "Today" })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
+});
+
+test("gives Tomorrow and its Undo a 44px tap area, with no sideways scroll", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await asPhone(page);
+    await page.goto("/");
+    await page.getByRole("tab", { name: "Tasks" }).click();
+    await page.getByRole("textbox", { name: "Add a Task" }).fill("Write a report 1h");
+    await page.getByRole("textbox", { name: "Add a Task" }).press("Enter");
+    await page.getByRole("tab", { name: "Schedule" }).click();
+    await page.getByRole("button", { name: /Write a report, 09:00, 1h/ }).click();
+
+    const tomorrow = page.getByRole("button", { name: "Tomorrow" });
+    await expectTappable(tomorrow);
+    await tomorrow.click();
+
+    const undo = page.getByRole("button", { name: "Undo" });
+    await expectTappable(undo);
+    const widths = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
+    expect(widths[0]).toBeLessThanOrEqual(widths[1]);
+    const box = await page.getByRole("status").filter({ hasText: "Moved to tomorrow" }).boundingBox();
+    expect(box && box.x + box.width).toBeLessThanOrEqual(390);
+  });
+});
+
+test("gives the sheet's title and options a 44px tap area, clear of the tab bar, with no sideways scroll", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await asPhone(page);
+    await page.goto("/");
+    await page.getByRole("tab", { name: "Tasks" }).click();
+    await page.getByRole("textbox", { name: "Add a Task" }).fill("Write a report 1h");
+    await page.getByRole("textbox", { name: "Add a Task" }).press("Enter");
+    await page.getByRole("tab", { name: "Schedule" }).click();
+    await page.getByRole("button", { name: /Write a report, 09:00, 1h/ }).click();
+    const sheet = page.getByRole("complementary", { name: "Write a report" });
+    const noSidewaysScroll = async () =>
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+
+    await expectTappable(sheet.getByRole("button", { name: "Write a report" }));
+    for (const name of ["Done", "Tomorrow", "Move"]) await expectTappable(sheet.getByRole("button", { name, exact: true }));
+    await noSidewaysScroll();
+
+    await sheet.getByRole("button", { name: "Move", exact: true }).click();
+    for (const name of ["−15m", "+15m", "Pick a time"]) await expectTappable(sheet.getByRole("button", { name }));
+    await sheet.getByRole("button", { name: "Pick a time" }).click();
+    for (const name of ["Day", "Start"]) await expectTappable(sheet.getByLabel(name));
+    await expectTappable(sheet.getByRole("button", { name: "Move", exact: true }));
+    await noSidewaysScroll();
+
+    await sheet.getByRole("button", { name: "+15m" }).click();
+    await expectTappable(sheet.getByRole("button", { name: "Unpin" }));
+    await expectTappable(page.getByRole("button", { name: "Undo" }));
+    await noSidewaysScroll();
+
+    await expect(async () => {
+      const sheetBox = await sheet.boundingBox();
+      const tabs = await page.getByRole("tablist", { name: "Home" }).boundingBox();
+      expect(sheetBox!.y + sheetBox!.height).toBeLessThanOrEqual(tabs!.y);
+      expect(sheetBox!.x >= 0 && sheetBox!.x + sheetBox!.width <= 390).toBe(true);
+    }).toPass({ timeout: 3000 });
+  });
+});
+
+test("closes the sheet when it's swiped down with a finger", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await asPhone(page);
+    await page.goto("/");
+    await page.getByRole("tab", { name: "Tasks" }).click();
+    await page.getByRole("textbox", { name: "Add a Task" }).fill("Write a report 1h");
+    await page.getByRole("textbox", { name: "Add a Task" }).press("Enter");
+    await page.getByRole("tab", { name: "Schedule" }).click();
+    await page.getByRole("button", { name: /Write a report, 09:00, 1h/ }).click();
+    const sheet = page.getByRole("complementary", { name: "Write a report" });
+    await expect(sheet).toBeVisible();
+    const box = await sheet.boundingBox();
+    const x = box!.x + box!.width / 2;
+    const y = box!.y + 20;
+
+    const cdp = await page.context().newCDPSession(page);
+    const touch = (type: "touchStart" | "touchMove" | "touchEnd", points: { x: number; y: number }[]) =>
+      cdp.send("Input.dispatchTouchEvent", { type, touchPoints: points });
+    await touch("touchStart", [{ x, y }]);
+    for (const down of [20, 40, 60, 80, 100]) await touch("touchMove", [{ x, y: y + down }]);
+    await touch("touchEnd", []);
+
+    await expect(sheet).toHaveCount(0);
+  });
+});
+
 test("gives every line and choice on the Task screen a 44px tap area, with no sideways scroll", async ({ browser }) => {
   await withApp(browser, async (page) => {
     await asPhone(page);
@@ -111,7 +233,8 @@ test("gives every line and choice on the Task screen a 44px tap area, with no si
       }
     }
     const remove = editor.getByRole("button", { name: "Delete", exact: true });
-    await remove.scrollIntoViewIfNeeded();
+    // Clear of the pinned Save, which the owner would scroll past too.
+    await remove.evaluate((el) => el.scrollIntoView({ block: "center" }));
     await expectTappable(remove);
     await remove.click();
     await expectTappable(remove);
@@ -124,11 +247,49 @@ test("gives every line and choice on the Task screen a 44px tap area, with no si
   });
 });
 
+test("gives the When line and its sheet 44px tap areas, clear of Save, with no sideways scroll", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await asPhone(page);
+    await page.goto("/");
+    await page.getByRole("tab", { name: "Tasks" }).click();
+    await page.getByRole("textbox", { name: "Add a Task" }).fill("Write a report 1h");
+    await page.getByRole("textbox", { name: "Add a Task" }).press("Enter");
+    await page.getByRole("button", { name: /^Write a report/ }).click();
+    const editor = page.getByRole("form", { name: "Edit Task" });
+    const when = editor.getByRole("button", { name: /^When, / });
+
+    await expectTappable(when);
+    await when.click();
+    const sheet = page.getByRole("complementary", { name: "Write a report" });
+    for (const name of ["Done", "Tomorrow", "Move"]) await expectTappable(sheet.getByRole("button", { name }));
+    await expectTappable(editor.getByRole("button", { name: "Save" }));
+    await sheet.getByRole("button", { name: "Move" }).click();
+    for (const name of ["−15m", "+15m", "Pick a time"]) await expectTappable(sheet.getByRole("button", { name }));
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  });
+});
+
 test("gives a past time's line a 44px tap area for its Check-in", async ({ browser }) => {
   await withApp(browser, async (page) => {
     await asPhone(page);
     await page.goto("/");
     await expectTappable(page.getByRole("button", { name: "Pack for vegas, 06:00, 1h, Finished?" }));
+  }, { seed: "past-times" });
+});
+
+test("fits a Check-in's four answers on a phone, with 44px targets", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await asPhone(page);
+    await page.goto("/");
+    await page.getByRole("button", { name: "Pack for vegas, 06:00, 1h, Finished?" }).click();
+    const sheet = page.getByRole("complementary", { name: "Pack for vegas" });
+    for (const name of ["Finished", "More time", "Didn't start", "Tomorrow"]) {
+      const answer = sheet.getByRole("button", { name, exact: true });
+      await expectTappable(answer);
+      const box = await answer.boundingBox();
+      expect(box !== null && box.x >= 0 && box.x + box.width <= 390).toBe(true);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   }, { seed: "past-times" });
 });
 
@@ -188,3 +349,37 @@ for (const [value, label] of [["no time before", "Before Events"], ["no time aft
     });
   });
 }
+
+test("keeps Move off today's controls tappable and in view however long the list, with no sideways scroll", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await asPhone(page);
+    await page.goto("/");
+    const link = page.getByRole("button", { name: "Move off today" });
+    await expectTappable(link);
+    await link.click();
+
+    const list = page.getByRole("dialog", { name: "Move off today" });
+    const move = list.getByRole("button", { name: "Move 14 to tomorrow" });
+    const pick = list.getByRole("button", { name: "Pick a day" });
+    await expect(move).toBeInViewport({ ratio: 1 });
+    for (const control of [list.getByRole("button", { name: "Cancel" }), list.getByRole("button", { name: "Select all" }).or(list.getByRole("button", { name: "Clear all" })), move, pick]) {
+      await expectTappable(control);
+    }
+
+    // Clear of the tab bar, and the rows scroll under the buttons, which stay put.
+    const tabBar = await page.getByRole("tablist", { name: "Home" }).boundingBox();
+    const moveBox = await move.boundingBox();
+    expect(moveBox!.y + moveBox!.height).toBeLessThanOrEqual(tabBar!.y);
+    const lastRow = list.getByRole("checkbox", { name: /Errand N/ });
+    await lastRow.scrollIntoViewIfNeeded();
+    await expect(lastRow).toBeInViewport();
+    await expect(move).toBeInViewport({ ratio: 1 });
+    const rowBox = await list.locator("label").filter({ hasText: "Errand N" }).boundingBox();
+    expect(rowBox!.height).toBeGreaterThanOrEqual(44);
+
+    await pick.click();
+    await expect(list.getByLabel("Day", { exact: true })).toBeInViewport({ ratio: 1 });
+    await expect(move).toBeInViewport({ ratio: 1 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  }, { seed: "full-day" });
+});

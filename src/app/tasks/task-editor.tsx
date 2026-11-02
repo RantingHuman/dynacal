@@ -19,11 +19,11 @@ import { addDays } from "@/core/time-zone";
 import { BufferChips } from "../buffer-chips";
 import { OFFLINE_REASON, useOnline } from "../states/use-online";
 import { createTask, deleteTask, updateTask } from "./actions";
-import { dateWords, spanWords } from "./day-words";
-import { FieldLine, MoreLine } from "./field-line";
+import { dateWords, spanWords, zoneOrBrowser } from "./day-words";
+import { FieldLine, MoreLine, OpensLine } from "./field-line";
 import { FLAG_LABELS, isAlarm } from "./flags";
 import lineStyles from "./field-line.module.css";
-import type { TaskDraft } from "./task-editor-slot";
+import type { TaskDraft } from "./task-editor-context";
 import type { ActOnTasks } from "./task-list";
 import styles from "./task-editor.module.css";
 
@@ -43,6 +43,10 @@ const LINE_OF_FIELD: [keyof TaskErrors, Line][] = [
   ["bufferBeforeMinutes", "more"],
   ["bufferAfterMinutes", "more"],
 ];
+
+function sameWhen(a: DateOrDateTime | null, b: DateOrDateTime | null): boolean {
+  return a?.date === b?.date && (a?.time ?? null) === (b?.time ?? null);
+}
 
 /**
  * The form's values as a string, to compare with what it opened with. Every field is named, so a new one can't escape
@@ -73,9 +77,11 @@ function formKey(input: TaskInput): string {
  */
 export function TaskEditor({
   task,
+  saved = task,
   initial,
   contexts,
   flag,
+  times = [],
   timeZone,
   today,
   defaultBuffers,
@@ -91,10 +97,14 @@ export function TaskEditor({
 }: {
   /** The Task being edited, or null for a new one. */
   task: TaskListItem | null;
+  /** That Task as the server last sent it, so a move that's refused never reaches the form. */
+  saved?: TaskListItem | null;
   initial: TaskInput;
   /** Every Context, the Default Context first. */
   contexts: Context[];
   flag: TaskFlag | null;
+  /** The Task's times that haven't ended, in order: each has a When line, which opens its sheet. */
+  times?: { id: string; words: string; onOpen: () => void }[];
   timeZone: string | null;
   today: string;
   /** The Buffers in Settings, which a Task without its own follows. */
@@ -115,8 +125,18 @@ export function TaskEditor({
   onAdded?: () => void;
 }) {
   // A Task added without a Context goes to the Default Context, so its chip starts chosen.
-  const [opened] = useState<TaskInput>({ ...initial, contextId: initial.contextId ?? contexts[0].id });
+  const [opened, setOpened] = useState<TaskInput>({ ...initial, contextId: initial.contextId ?? contexts[0].id });
   const [input, setInput] = useState<TaskInput>(() => draft.current?.input ?? opened);
+  // Tomorrow on the sheet, or its Undo, changes the Task under the open form. The form takes whichever of the two
+  // moved, over anything typed there, so that a later Save can't silently put the Task back. Other fields stay.
+  if (saved && !(sameWhen(saved.earliestStart, opened.earliestStart) && sameWhen(saved.deadline, opened.deadline))) {
+    const moved = {
+      ...(!sameWhen(saved.earliestStart, opened.earliestStart) && { earliestStart: saved.earliestStart }),
+      ...(!sameWhen(saved.deadline, opened.deadline) && { deadline: saved.deadline }),
+    };
+    setOpened({ ...opened, ...moved });
+    setInput({ ...input, ...moved });
+  }
   const [errors, setErrors] = useState<TaskErrors>({});
   const [openLine, setOpenLine] = useState<Line | null>(null);
   // Offline, the Task can be read but not saved or deleted.
@@ -200,7 +220,7 @@ export function TaskEditor({
   const status = task?.completedAt
     ? "Complete"
     : waiting
-      ? `${spanWords(waiting, today, timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone)} · Finished?`
+      ? `${spanWords(waiting, today, zoneOrBrowser(timeZone))} · Finished?`
       : null;
   const shownFlag = task && !task.completedAt ? flag : null;
   const context = contexts.find((c) => c.id === input.contextId) ?? contexts[0];
@@ -251,6 +271,10 @@ export function TaskEditor({
         )}
 
         <div className={styles.lines}>
+          {times.map(({ id, words, onOpen }) => (
+            <OpensLine key={id} name="When" value={words} onOpen={onOpen} />
+          ))}
+
           <FieldLine
             name="How long"
             value={Number.isNaN(input.estimatedMinutes) ? "Not set" : formatDuration(input.estimatedMinutes)}
@@ -264,7 +288,7 @@ export function TaskEditor({
             />
           </FieldLine>
 
-          <WhenLine
+          <DateLine
             name="Due"
             label="Deadline"
             none="No deadline"
@@ -276,7 +300,7 @@ export function TaskEditor({
             onEnter={(deadline) => update({ deadline })}
           />
 
-          <WhenLine
+          <DateLine
             name="Earliest Start"
             label="Earliest Start"
             none="Any time"
@@ -432,7 +456,7 @@ function DurationField({
 }
 
 /** A line for a date and optional time, which `none` stands in for when there's no date. */
-function WhenLine({
+function DateLine({
   name,
   label,
   none,
@@ -459,7 +483,7 @@ function WhenLine({
 }) {
   return (
     <FieldLine name={name} value={value ? dateWords(value) : none} error={error} open={open} onToggle={onToggle}>
-      <WhenField label={label} none={none} value={value} today={today} onChoose={onChoose} onEnter={onEnter} />
+      <DateField label={label} none={none} value={value} today={today} onChoose={onChoose} onEnter={onEnter} />
     </FieldLine>
   );
 }
@@ -468,7 +492,7 @@ function WhenLine({
  * "None", Today, Tomorrow, and Pick a date for any other day, where a stored date beyond those opens, unchanged. Once
  * a day is set, an optional time.
  */
-function WhenField({
+function DateField({
   label,
   none,
   value,

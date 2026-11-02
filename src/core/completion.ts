@@ -1,8 +1,16 @@
-import { GRID_MINUTES, MINUTE_MS } from "./time";
+import { DAY_MS, GRID_MINUTES, MINUTE_MS } from "./time";
 
 /**
  * Completing Tasks and Check-ins.
  */
+
+/** How long a completed Task stays in the Task List, under its Completed line. It stays saved after that. */
+export const COMPLETED_KEEP_DAYS = 7;
+
+/** Whether a Task was completed long enough ago to have left the Task List. */
+export function hasLeftTaskList(completedAt: Date | null, now: Date): boolean {
+  return completedAt !== null && now.getTime() - completedAt.getTime() >= COMPLETED_KEEP_DAYS * DAY_MS;
+}
 
 /**
  * How the owner answered for a past Block at its Check-in: "finished" or "more-time" (Didn't start removes it).
@@ -17,13 +25,18 @@ export type BlockReview = "done" | "partial" | "finished" | "more-time";
  */
 export type CheckInAnswer = { answer: "finished" } | { answer: "more-time"; minutes: number } | { answer: "didnt-start" };
 
+/** Where a Task went: its next start, or null if it's now Unscheduled, or Later when it isn't needed in the Planning Horizon. */
+export interface WhereItWent {
+  nextStart: Date | null;
+  later?: true;
+}
+
 /**
- * After Didn't start, `nextStart` is where the Task went: its next start, or null if it's now Unscheduled, or Later
- * (`later`) when it isn't needed in the Planning Horizon. While
- * Automatic Recalculation is paused (the Google connection is broken) it isn't placed at all: `recalculationPaused`.
+ * After Didn't start, says where the Task went. While Automatic Recalculation is paused (the Google connection is
+ * broken) it isn't placed at all: `recalculationPaused`.
  */
 export type CheckInResult =
-  | { ok: true; nextStart?: Date | null; later?: true }
+  | ({ ok: true } & Partial<WhereItWent>)
   | { ok: true; recalculationPaused: true }
   | { ok: false; notFound: true }
   | { ok: false; errors: { block?: string; minutes?: string } };

@@ -1,0 +1,82 @@
+/* What the phone's sheet and the computer's label share: the title that opens the Task, and the actions. */
+
+.title {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.chevron {
+  margin-left: var(--space-2);
+  color: var(--soft);
+}
+
+.pinned {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  color: var(--soft);
+  font-size: var(--text-meta);
+}
+
+/* A tap on Unpin has a full band of its own, clear of the time above and the buttons below. */
+@media (pointer: coarse) {
+  .pinned {
+    min-height: 44px;
+  }
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.actions :global(.button) {
+  min-height: 44px;
+  padding: var(--space-1);
+}
+
+/* Pick a time, alone once the time has started. */
+.whole {
+  grid-column: 1 / -1;
+}
+
+.exact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+}
+
+.exact label {
+  display: grid;
+  gap: var(--space-1);
+  font-size: var(--text-meta);
+}
+
+.exact input {
+  min-height: 44px;
+  padding: var(--space-1) 6px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-square);
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-body);
+}
+
+.exact :global(.button) {
+  min-height: 44px;
+}

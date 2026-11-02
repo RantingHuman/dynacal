@@ -1,19 +1,23 @@
 // @vitest-environment jsdom
 
-import { act, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TaskListItem } from "@/core/commands";
+import type { TaskInput } from "@/core/tasks";
 import { deepWorkContext, taskItem, workContext } from "../testing/fixtures";
 import { renderGuarded } from "../testing/render";
 import { WithTaskList } from "../testing/with-task-list";
-import { updateTask } from "./actions";
+import { moveBlock } from "../schedule/actions";
+import type { CalendarBlock } from "../schedule/calendar";
+import { completeTask, moveTasksToDay, updateTask } from "./actions";
 import { TaskEditorSlot } from "./task-editor-slot";
 import { TaskPanel } from "./task-panel";
 
 vi.mock("./actions", () => ({
-  createTask: vi.fn(), updateTask: vi.fn(), deleteTask: vi.fn(), completeTask: vi.fn(),
+  createTask: vi.fn(), updateTask: vi.fn(), deleteTask: vi.fn(), completeTask: vi.fn(), moveTasksToDay: vi.fn(), undoDayMove: vi.fn(),
 }));
+vi.mock("../schedule/actions", () => ({ moveBlock: vi.fn(), unpinBlock: vi.fn() }));
 
 // Today is Tuesday 27 October 2026.
 const TODAY = "2026-10-27";
@@ -48,6 +52,9 @@ async function saved(editor: Screen) {
 
 beforeEach(() => {
   vi.mocked(updateTask).mockReset();
+  vi.mocked(moveBlock).mockReset();
+  vi.mocked(moveTasksToDay).mockReset();
+  vi.mocked(completeTask).mockReset();
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-10-27T14:00:00Z"));
 });
@@ -795,5 +802,287 @@ describe("a new Task", () => {
 
     expect(screen.queryByRole("form", { name: "New Task" })).toBeNull();
     expect(screen.getByRole("textbox", { name: /add a task/i })).toHaveProperty("value", "Pack for Vegas 2h");
+  });
+});
+
+describe("the When line", () => {
+  // Now is 14:00 on Tuesday 27 October 2026.
+  const time = (overrides: Partial<CalendarBlock> = {}): CalendarBlock => ({
+    id: "block-1",
+    displayKey: "task-1#1",
+    taskId: "task-1",
+    taskTitle: "Write planning doc",
+    start: "2026-10-27T15:00:00.000Z",
+    end: "2026-10-27T16:00:00.000Z",
+    pinned: false,
+    ...overrides,
+  });
+  const scheduleOf = (blocks: CalendarBlock[]) => ({
+    timeZone: "Europe/London",
+    horizon: { start: "2026-10-27T14:00:00.000Z", end: "2026-11-10T14:00:00.000Z" },
+    blocks,
+    events: [],
+    conflicts: [],
+  });
+  function screenWith(blocks: CalendarBlock[], item: TaskListItem = task) {
+    return (
+      <WithTaskList contexts={[workContext]} tasks={[item]} today={TODAY}>
+        <TaskPanel />
+        <TaskEditorSlot schedule={scheduleOf(blocks)}>
+          <div>Calendar</div>
+        </TaskEditorSlot>
+      </WithTaskList>
+    );
+  }
+  const whenLines = (editor: Screen) => editor.queryAllByRole("button", { name: /^When, / }).map((l) => l.getAttribute("aria-label"));
+
+  it("shows the Task's time", async () => {
+    renderGuarded(screenWith([time()]));
+    const editor = await openScreen();
+
+    expect(whenLines(editor)).toEqual(["When, Tue 27 Oct, 15:00–16:00"]);
+  });
+
+  it("shows one line for each of several times, in order, and none for a time that has ended or another Task's", async () => {
+    renderGuarded(
+      screenWith([
+        time({ id: "later", start: "2026-10-28T09:00:00.000Z", end: "2026-10-28T10:00:00.000Z" }),
+        time({ id: "started", start: "2026-10-27T13:30:00.000Z", end: "2026-10-27T14:30:00.000Z" }),
+        time({ id: "ended", start: "2026-10-27T09:00:00.000Z", end: "2026-10-27T10:00:00.000Z" }),
+        time({ id: "other", taskId: "task-2", taskTitle: "Something else" }),
+      ]),
+    );
+    const editor = await openScreen();
+
+    expect(whenLines(editor)).toEqual(["When, Tue 27 Oct, 13:30–14:30", "When, Wed 28 Oct, 09:00–10:00"]);
+  });
+
+  it("shows no line for a Task with no time yet", async () => {
+    renderGuarded(screenWith([]));
+    const editor = await openScreen();
+
+    expect(whenLines(editor)).toEqual([]);
+  });
+
+  it("shows no line for a completed Task", async () => {
+    renderGuarded(screenWith([time()], { ...task, completedAt: new Date("2026-10-27T13:00:00.000Z") }));
+    await userEvent.click(screen.getByRole("button", { name: /Completed/ }));
+    const editor = await openScreen();
+
+    expect(whenLines(editor)).toEqual([]);
+  });
+
+  it("opens the same sheet over the Task screen, keeping what's typed", async () => {
+    renderGuarded(screenWith([time()]));
+    const editor = await openScreen();
+    await userEvent.type(editor.getByRole("textbox", { name: "Title" }), " today");
+
+    await userEvent.click(editor.getByRole("button", { name: /^When, / }));
+
+    const sheet = within(screen.getByRole("complementary", { name: "Write planning doc" }));
+    expect(sheet.getByRole("button", { name: "Done" })).toBeTruthy();
+    expect(sheet.getByRole("button", { name: "Tomorrow" })).toBeTruthy();
+    expect(sheet.getByRole("button", { name: "Move" })).toBeTruthy();
+    expect(sheet.getByText("Tue 27 Oct, 15:00–16:00")).toBeTruthy();
+    expect(editor.getByRole("textbox", { name: "Title" })).toHaveProperty("value", "Write planning doc today");
+  });
+
+  it("opens the sheet for the time whose line was tapped", async () => {
+    renderGuarded(
+      screenWith([
+        time({ id: "first" }),
+        time({ id: "second", start: "2026-10-28T09:00:00.000Z", end: "2026-10-28T10:00:00.000Z" }),
+      ]),
+    );
+    const editor = await openScreen();
+
+    await userEvent.click(editor.getByRole("button", { name: "When, Wed 28 Oct, 09:00–10:00" }));
+
+    expect(within(screen.getByRole("complementary")).getByText("Wed 28 Oct, 09:00–10:00")).toBeTruthy();
+  });
+
+  it("moves straight away, keeps what's typed, and doesn't save it", async () => {
+    vi.mocked(moveBlock).mockResolvedValue({ ok: true });
+    renderGuarded(screenWith([time()]));
+    const editor = await openScreen();
+    await userEvent.type(editor.getByRole("textbox", { name: "Title" }), " today");
+    await userEvent.click(editor.getByRole("button", { name: /^When, / }));
+
+    const sheet = within(screen.getByRole("complementary"));
+    await userEvent.click(sheet.getByRole("button", { name: "Move" }));
+    await userEvent.click(sheet.getByRole("button", { name: "+15m" }));
+
+    await waitFor(() =>
+      expect(moveBlock).toHaveBeenCalledWith("block-1", {
+        start: "2026-10-27T15:15:00.000Z",
+        end: "2026-10-27T16:15:00.000Z",
+      }),
+    );
+    expect(await screen.findByText("Pinned at 15:15.")).toBeTruthy();
+    expect(screen.getByRole("complementary")).toBeTruthy();
+    expect(updateTask).not.toHaveBeenCalled();
+    expect(editor.getByRole("textbox", { name: "Title" })).toHaveProperty("value", "Write planning doc today");
+  });
+
+  it("closes the sheet from its title, staying on the Task screen with what's typed", async () => {
+    renderGuarded(screenWith([time()]));
+    const editor = await openScreen();
+    await userEvent.type(editor.getByRole("textbox", { name: "Title" }), " today");
+    await userEvent.click(editor.getByRole("button", { name: /^When, / }));
+
+    await userEvent.click(within(screen.getByRole("complementary")).getByRole("button", { name: "Write planning doc" }));
+
+    await waitFor(() => expect(screen.queryByRole("complementary")).toBeNull());
+    expect(screen.queryByRole("group", { name: "Confirm leaving" })).toBeNull();
+    expect(editor.getByRole("textbox", { name: "Title" })).toHaveProperty("value", "Write planning doc today");
+  });
+
+  it("closes the sheet by a tap on the Task screen", async () => {
+    renderGuarded(screenWith([time()]));
+    const editor = await openScreen();
+    await userEvent.click(editor.getByRole("button", { name: /^When, / }));
+
+    await userEvent.click(editor.getByRole("textbox", { name: "Title" }));
+
+    await waitFor(() => expect(screen.queryByRole("complementary")).toBeNull());
+  });
+
+  it("shows a Conflict on the sheet", async () => {
+    renderGuarded(
+      <WithTaskList contexts={[workContext]} tasks={[task]} today={TODAY}>
+        <TaskPanel />
+        <TaskEditorSlot
+          schedule={{
+            ...scheduleOf([time({ pinned: true })]),
+            events: [
+              {
+                id: "event-1",
+                ref: { calendarId: "work", eventId: "event-1" },
+                title: "Lunch with Sam",
+                calendarName: "Work",
+                allDay: false,
+                start: "2026-10-27T15:00:00.000Z",
+                end: "2026-10-27T16:00:00.000Z",
+                free: false,
+                countsAsBusy: true,
+                busyOverride: null,
+              },
+            ],
+            conflicts: [{ blockId: "block-1", eventId: "event-1" }],
+          }}
+        >
+          <div>Calendar</div>
+        </TaskEditorSlot>
+      </WithTaskList>,
+    );
+    const editor = await openScreen();
+    await userEvent.click(editor.getByRole("button", { name: /^When, / }));
+
+    expect(screen.getByRole("alert").textContent).toContain("Lunch with Sam");
+  });
+
+  it("a Task moved with Tomorrow keeps its new Earliest Start when what's typed is saved", async () => {
+    const tomorrow = { date: "2026-10-28", time: null };
+    vi.mocked(moveTasksToDay).mockResolvedValue({
+      ok: true,
+      moved: [{ taskId: "task-1", nextStart: new Date("2026-10-28T09:00:00.000Z") }],
+      undo: { tasks: [] },
+    } as never);
+    const { rerender } = render(screenWith([time()]));
+    const editor = await openScreen();
+    await userEvent.type(editor.getByRole("textbox", { name: "Title" }), " today");
+    await userEvent.click(editor.getByRole("button", { name: /^When, / }));
+
+    await userEvent.click(within(screen.getByRole("complementary")).getByRole("button", { name: "Tomorrow" }));
+    await waitFor(() => expect(moveTasksToDay).toHaveBeenCalled());
+    // The server sends the page again, with the Task on its new day.
+    rerender(screenWith([time({ start: "2026-10-28T09:00:00.000Z", end: "2026-10-28T10:00:00.000Z" })], { ...task, earliestStart: tomorrow }));
+
+    expect(line(editor, "Earliest Start").textContent).toContain("Wed 28 Oct");
+    expect(((await saved(editor)) as TaskInput).earliestStart).toEqual(tomorrow);
+    expect(((await saved(editor)) as TaskInput).title).toBe("Write planning doc today");
+  });
+
+  it("a due date moved with Tomorrow stays moved when what's typed is saved", async () => {
+    const tomorrow = { date: "2026-10-28", time: null };
+    const due = { ...task, deadline: { date: TODAY, time: null } };
+    const { rerender } = render(screenWith([time()], due));
+    const editor = await openScreen();
+    await userEvent.type(editor.getByRole("textbox", { name: "Title" }), " today");
+
+    rerender(screenWith([], { ...due, earliestStart: tomorrow, deadline: tomorrow }));
+
+    expect(((await saved(editor)) as TaskInput).deadline).toEqual(tomorrow);
+  });
+
+  it("a day move wins over an Earliest Start being edited, and other unsaved fields stay", async () => {
+    const tomorrow = { date: "2026-10-28", time: null };
+    const { rerender } = render(screenWith([time()], { ...task, deadline: { date: "2026-10-30", time: null } }));
+    const editor = await openScreen();
+    await userEvent.click(line(editor, "Earliest Start"));
+    await userEvent.click(within(editor.getByRole("group", { name: "Earliest Start" })).getByRole("button", { name: "Today" }));
+    await userEvent.click(line(editor, "Due"));
+    await userEvent.click(within(editor.getByRole("group", { name: "Deadline" })).getByRole("button", { name: "No deadline" }));
+    await userEvent.type(editor.getByRole("textbox", { name: "Title" }), " today");
+
+    rerender(screenWith([], { ...task, deadline: { date: "2026-10-30", time: null }, earliestStart: tomorrow }));
+
+    const form = (await saved(editor)) as TaskInput;
+    expect(form.earliestStart).toEqual(tomorrow);
+    // The deadline didn't move, so what's typed stays.
+    expect(form.deadline).toBeNull();
+    expect(form.title).toBe("Write planning doc today");
+  });
+
+  it("a day move that moved the deadline wins over a deadline being edited", async () => {
+    const tomorrow = { date: "2026-10-28", time: null };
+    const due = { ...task, deadline: { date: TODAY, time: null } };
+    const { rerender } = render(screenWith([time()], due));
+    const editor = await openScreen();
+    await userEvent.click(line(editor, "Due"));
+    await userEvent.click(within(editor.getByRole("group", { name: "Deadline" })).getByRole("button", { name: "No deadline" }));
+
+    rerender(screenWith([], { ...due, earliestStart: tomorrow, deadline: tomorrow }));
+
+    expect(((await saved(editor)) as TaskInput).deadline).toEqual(tomorrow);
+  });
+
+  it("keeps an Earliest Start being edited when the move is refused", async () => {
+    vi.mocked(moveTasksToDay).mockResolvedValue({
+      ok: false,
+      deadlineBefore: [{ id: "task-1", title: task.title, deadline: { date: TODAY, time: null } }],
+    } as never);
+    render(screenWith([time()], { ...task, deadline: { date: TODAY, time: null } }));
+    const editor = await openScreen();
+    await userEvent.click(line(editor, "Earliest Start"));
+    await userEvent.click(within(editor.getByRole("group", { name: "Earliest Start" })).getByRole("button", { name: "Today" }));
+    await userEvent.click(editor.getByRole("button", { name: /^When, / }));
+
+    await userEvent.click(within(screen.getByRole("complementary")).getByRole("button", { name: "Tomorrow" }));
+    await userEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Cancel" }));
+
+    expect(((await saved(editor)) as TaskInput).earliestStart?.date).toBe(TODAY);
+  });
+
+  it("doesn't count a move as an unsaved change", async () => {
+    const { rerender } = render(screenWith([time()]));
+    await openScreen();
+
+    rerender(screenWith([], { ...task, earliestStart: { date: "2026-10-28", time: null } }));
+    await userEvent.click(screen.getByRole("button", { name: /Back to the week/ }));
+
+    expect(screen.queryByRole("form", { name: "Edit Task" })).toBeNull();
+  });
+
+  it("takes the line away once the Task is done from the sheet", async () => {
+    vi.mocked(completeTask).mockResolvedValue({ ok: true } as never);
+    renderGuarded(screenWith([time()]));
+    const editor = await openScreen();
+    await userEvent.click(editor.getByRole("button", { name: /^When, / }));
+
+    await userEvent.click(within(screen.getByRole("complementary")).getByRole("button", { name: "Done" }));
+
+    await waitFor(() => expect(completeTask).toHaveBeenCalledWith("task-1"));
+    await waitFor(() => expect(screen.queryByRole("complementary")).toBeNull());
   });
 });

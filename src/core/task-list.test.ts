@@ -25,6 +25,77 @@ function appWithTasks(...inputs: Partial<TaskInput>[]) {
 const titles = (tasks: { title: string }[]) => tasks.map((t) => t.title);
 
 describe("an optimistic change to the Task list", () => {
+  it("shows a Task moved to a day as the server will have it, with its Check-ins answered", () => {
+    const app = appWithTasks({ title: "Waiting", earliestStart: { date: "2026-01-05", time: "09:00" } }, { title: "Other" });
+    app.commands.updateSettings({ timeZone: "Europe/London" });
+    app.clock.set(new Date("2026-01-05T17:30:00Z"));
+    app.commands.recalculate();
+    const before = app.commands.listTasks();
+    const { id } = before.find((t) => t.title === "Waiting")!;
+    expect(before.find((t) => t.id === id)!.checkIns).not.toEqual([]);
+
+    const shown = applyTaskChange(before, { kind: "move-to-day", ids: [id], day: "2026-01-06" }, new Date(), "work");
+    app.commands.moveTasksToDay([id], "2026-01-06");
+
+    expect(shown).toEqual(app.commands.listTasks());
+  });
+
+  it("shows an undone move to a day as the server will have it", () => {
+    const app = appWithTasks({ title: "Moved", earliestStart: { date: "2026-01-05", time: "12:00" } });
+    const before = app.commands.listTasks();
+    const moved = app.commands.moveTasksToDay([before[0].id], "2026-01-06");
+    if (!moved.ok) throw new Error("move refused");
+
+    const shown = applyTaskChange(app.commands.listTasks(), { kind: "undo-day-move", undo: moved.undo }, new Date(), "work");
+
+    expect(shown).toEqual(before);
+  });
+
+  it("shows an undone move asking its Check-in again, as the server will have it", () => {
+    const app = appWithTasks({ title: "Write report" });
+    app.commands.updateSettings({ timeZone: "Europe/London" });
+    const [{ id }] = app.commands.listTasks();
+    app.clock.set(new Date("2026-01-05T10:30:00Z"));
+    app.commands.recalculate();
+    const before = app.commands.listTasks();
+    expect(before[0].checkIns).toHaveLength(1);
+    const moved = app.commands.moveTasksToDay([id], "2026-01-08");
+    if (!moved.ok) throw new Error("move refused");
+
+    const shown = applyTaskChange(app.commands.listTasks(), { kind: "undo-day-move", undo: moved.undo }, new Date(), "work");
+
+    expect(shown).toEqual(before);
+  });
+
+  it("shows a move that brings a deadline along as the server will have it, in the server's order", () => {
+    const app = appWithTasks(
+      { title: "Due first", deadline: { date: "2026-01-05", time: "17:00" } },
+      { title: "Due next", deadline: { date: "2026-01-07", time: null } },
+      { title: "Due far off", deadline: { date: "2026-02-20", time: null } },
+    );
+    const before = app.commands.listTasks();
+    const ids = before.filter((t) => t.title !== "Due next").map((t) => t.id);
+
+    const shown = applyTaskChange(before, { kind: "move-to-day", ids, day: "2026-01-08", moveDeadlines: true }, new Date(), "work");
+    app.commands.moveTasksToDay(ids, "2026-01-08", { moveDeadlines: true });
+
+    expect(shown).toEqual(app.commands.listTasks());
+  });
+
+  it("shows an undone move that brought a deadline along as the server will have it, in the server's order", () => {
+    const app = appWithTasks(
+      { title: "Due first", deadline: { date: "2026-01-05", time: "17:00" } },
+      { title: "Due next", deadline: { date: "2026-01-07", time: null } },
+    );
+    const before = app.commands.listTasks();
+    const moved = app.commands.moveTasksToDay([before[0].id], "2026-01-08", { moveDeadlines: true });
+    if (!moved.ok) throw new Error("move refused");
+
+    const shown = applyTaskChange(app.commands.listTasks(), { kind: "undo-day-move", undo: moved.undo }, new Date(), "work");
+
+    expect(shown).toEqual(before);
+  });
+
   it("puts an added Task where the list will have it once the server has saved it", () => {
     const app = appWithTasks(
       { title: "Board memo", deadline: { date: "2026-01-09", time: null } },
@@ -81,16 +152,22 @@ describe("an optimistic change to the Task list", () => {
     expect(shown[0].checkIns).toEqual([]);
   });
 
-  it("answers More time on a piece, offering what's then planned at the next piece, as the server will", () => {
+  it("answers More time on a piece, offering what's then planned at the next piece, as the server will", async () => {
     const app = createTestApp();
     app.commands.updateSettings({ timeZone: "Europe/London", taskBuffers: { after: 0 } });
-    app.commands.createDynacalEvent({
+    app.calendar.addCalendar({ id: "work", name: "Work", primary: true });
+    app.calendar.addEvent("work", {
       title: "Standup",
-      notes: "",
-      allDay: false,
       start: new Date("2026-01-05T10:00:00Z"),
       end: new Date("2026-01-05T11:00:00Z"),
     });
+    await app.commands.connectGoogle({
+      email: "owner@example.com",
+      refreshToken: "refresh-token",
+      accessToken: "access-token",
+      accessTokenExpiresAt: new Date("2026-01-05T10:00:00Z"),
+    });
+    await app.commands.setBusyCalendars(["work"]);
     // Pieces at 09:00–10:00 and 11:00–13:00, both past.
     app.commands.createTask({ ...oneHour, title: "Pack for vegas", estimatedMinutes: 180 });
     app.clock.set(new Date("2026-01-05T13:05:00Z"));

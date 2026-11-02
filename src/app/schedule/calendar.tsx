@@ -10,23 +10,19 @@ import { useScheduleCheckIns } from "../tasks/check-in-answers";
 import { CheckInSheet } from "../tasks/check-in-sheet";
 import { useCompleteTask } from "../tasks/complete-task-button";
 import { useCompletion } from "../tasks/completion";
+import { useMoveOffToday } from "../tasks/move-off-today";
 import { useTaskList } from "../tasks/task-list";
 import { moveBlock } from "./actions";
-import { moveError } from "./block-actions";
+import { moveError, useSayPinned } from "./block-actions";
 import { BlockEditor } from "./block-editor";
 import calendarStyles from "./calendar.module.css";
-import { ConflictStrip } from "./conflict-strip";
-import { DynacalEventForm, type DynacalEventDetails } from "./dynacal-event-form";
-import dynacalStyles from "./dynacal-events.module.css";
+import { ConflictStrip, eventsInConflict } from "./conflict-strip";
 import { EventDetails } from "./event-details";
 import detailStyles from "./event-details.module.css";
-import { FloatingLabel, LabelTitle } from "./floating-label";
 import freeStyles from "./free-events.module.css";
-import { NEW_EVENT_MS, useNewEvent } from "./new-event";
 import styles from "./pinning.module.css";
 import { RecalculateButton, useRecalculate } from "./recalculate";
 import { PinMark } from "./pin-mark";
-import { Toast } from "./toast";
 import { WeekHeading } from "./week-heading";
 import { OFFLINE_REASON, useOnline } from "../states/use-online";
 
@@ -48,10 +44,7 @@ export interface CalendarConflict {
   eventId: string;
 }
 
-/**
- * An Event as sent to the browser. One from a Busy Calendar is read-only apart from its Busy Override; a
- * dynacal Event carries its details for editing.
- */
+/** An Event as sent to the browser: read-only apart from its Busy Override. */
 export interface CalendarEvent {
   id: string;
   ref: EventRef;
@@ -65,8 +58,6 @@ export interface CalendarEvent {
   /** One that doesn't is drawn greyed out and labelled "Free": Blocks may be placed over it. */
   countsAsBusy: boolean;
   busyOverride: BusyOverride | null;
-  /** For a dynacal Event, its details as entered; null for Events from other calendars. */
-  dynacalEvent: DynacalEventDetails | null;
 }
 
 type View = "day" | "week";
@@ -80,12 +71,6 @@ const TWO_LINE_PX = 36;
 
 /** Long enough for a landing's longest part, the drop's flash (--rise). */
 const LANDING_MS = 900;
-
-/** A toast: information goes by itself, an error stays until dismissed. */
-interface Note {
-  text: string;
-  tone: "info" | "error";
-}
 
 /** How a Block just landed, for its one-off animation: a drop boings and flashes, a resize settles, a refusal shakes. */
 interface Landing {
@@ -225,15 +210,13 @@ export function Calendar({
   const [editingId, setEditingId] = useState<string | null>(openBlockId ?? null);
   const [openEventId, setOpenEventId] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ id: string; start: number; end: number; mode: DragMode } | null>(null);
-  /** The message toast, e.g. why a move was refused, or "Pinned at 14:00". */
-  const [toast, setToast] = useState<Note | null>(null);
-  const clearToast = useCallback(() => setToast(null), []);
-  const showError = useCallback((text: string) => setToast({ text, tone: "error" }), []);
   const [landing, setLanding] = useState<Landing | null>(null);
   /** Which way the grid last changed, so it slides (or fades) in; null until it first does. */
   const [shift, setShift] = useState<{ n: number; way: "back" | "forward" | "view" } | null>(null);
   // Tasks complete in the Task list, at once when ticked: all of a completed Task's Blocks dim together.
-  const { tasks } = useTaskList();
+  const { tasks, notify, warn, clearMessage } = useTaskList();
+  const moveOffToday = useMoveOffToday({ blocks, timeZone, now: new Date(horizon.start), today }, calendarStyles.moveOffToday);
+  const sayPinned = useSayPinned();
   const completedTasks = new Set(tasks.filter((t) => t.completedAt !== null).map((t) => t.id));
   // A Block that has ended and waits for a Check-in asks "Finished?"; its label answers.
   const checkIns = useScheduleCheckIns();
@@ -241,24 +224,15 @@ export function Calendar({
   const drag = useRef<Drag | null>(null);
   /**
    * Set when a drag ends, and cleared only once the click that follows it has been handled, so the end of a
-   * drag (even one released over empty time, or over another day) never opens a Block editor or New Event.
+   * drag (even one released over empty time, or over another day) never opens a Block editor.
    */
   const justDragged = useRef(false);
   /** The latest drag handlers, for the window listeners a drag adds: the Block's own element may be redrawn mid-drag. */
   const dragHandlers = useRef({ continueDrag: (_e: PointerEvent) => {}, endDrag: (_e: PointerEvent) => {}, cancelDrag: () => {} });
   const columns = useRef(new Map<string, HTMLDivElement>());
   const now = new Date(horizon.start).getTime();
-  const newEvent = useNewEvent();
   /** Offline, the calendar is for looking only: nothing that changes data can be attempted. */
   const online = useOnline();
-
-  // The New Event form takes the place of any open Block editor or Event details.
-  useEffect(() => {
-    if (newEvent.draft === null) return;
-    setEditingId(null);
-    setOpenEventId(null);
-    setCheckingInId(null);
-  }, [newEvent.draft]);
 
   // A landing plays once; clearing it lets the same Block play it again next time. (The flash, the longest, is 900ms.)
   useEffect(() => {
@@ -273,7 +247,7 @@ export function Calendar({
    */
   const recalculation = useRecalculate(
     blocks,
-    useCallback((text: string | null) => setToast(text === null ? null : { text, tone: "info" }), []),
+    useCallback((text: string | null) => (text === null ? clearMessage() : notify(text)), [clearMessage, notify]),
   );
 
   const conflictingBlocks = new Set(conflicts.map((c) => c.blockId));
@@ -363,7 +337,8 @@ export function Calendar({
       return;
     }
     const to = { start: new Date(d.to.start).toISOString(), end: new Date(d.to.end).toISOString() };
-    setToast(null);
+    const before = blocks.find((b) => b.id === d.blockId);
+    clearMessage();
     startMoving(async () => {
       // A refused move springs back (the preview goes) with a small shake, and says why in the toast. One that
       // lands boings (a drop) or settles (a resize) and says where it's pinned.
@@ -371,13 +346,12 @@ export function Calendar({
       setPreview(null);
       if (message) {
         setLanding({ id: d.blockId, kind: "refused" });
-        setToast({ text: message, tone: "error" });
+        warn(message);
         return;
       }
-      const start = formatMinutes(toZoned(new Date(d.to.start), timeZone).minutes);
-      const end = formatMinutes(toZoned(new Date(d.to.end), timeZone).minutes);
+      const landed = { start: new Date(d.to.start), end: new Date(d.to.end) };
       setLanding({ id: d.blockId, kind: d.mode === "move" ? "dropped" : "resized" });
-      setToast({ text: d.mode === "move" ? `Pinned at ${start}` : `Pinned, ${start}–${end}`, tone: "info" });
+      if (before) sayPinned(before, landed, d.mode !== "move");
     });
   }
 
@@ -389,47 +363,27 @@ export function Calendar({
   dragHandlers.current = { continueDrag, endDrag, cancelDrag };
 
   function openEditor(block: CalendarBlock) {
-    if (!online) return showError(OFFLINE_REASON);
+    if (!online) return warn(OFFLINE_REASON);
     if (justDragged.current) return;
     const ended = new Date(block.end).getTime() <= now;
     if (ended && !checkIns.waiting.has(block.id)) return;
-    setToast(null);
+    clearMessage();
     setOpenEventId(null);
-    newEvent.close();
     setEditingId(ended ? null : block.id);
     setCheckingInId(ended ? block.id : null);
   }
 
   function openEventDetails(event: CalendarEvent) {
-    if (!online) return showError(OFFLINE_REASON);
+    if (!online) return warn(OFFLINE_REASON);
     setEditingId(null);
     setCheckingInId(null);
-    newEvent.close();
     setOpenEventId(event.id);
-  }
-
-  /**
-   * Clicking empty time opens the New Event form with a one-hour Event from the clicked quarter hour. The end
-   * of a drag isn't a click, and clicking time that has passed does nothing.
-   */
-  function createAt(e: React.MouseEvent<HTMLDivElement>, day: string) {
-    if (drag.current || justDragged.current || !online) return;
-    const y = e.clientY - e.currentTarget.getBoundingClientRect().top;
-    const clicked = first + (y / HOUR_PX) * 60;
-    if (fromZoned({ date: day, minutes: Math.floor(clicked) }, timeZone).getTime() < now) return;
-    const minutes = Math.floor(clicked / GRID_MINUTES) * GRID_MINUTES;
-    const start = fromZoned({ date: day, minutes }, timeZone);
-    newEvent.open({
-      start: start.toISOString(),
-      end: new Date(start.getTime() + NEW_EVENT_MS).toISOString(),
-    });
   }
 
   /** What makes an Event clickable, and how it's marked when it has a Busy Override or its details are open. */
   function eventProps(event: CalendarEvent, label: string) {
     const classes = [
       detailStyles.clickable,
-      event.dynacalEvent && dynacalStyles.dynacalEvent,
       !event.countsAsBusy && freeStyles.free,
       event.busyOverride !== null && detailStyles.overridden,
       conflictingEvents.has(event.id) && styles.eventConflict,
@@ -458,7 +412,7 @@ export function Calendar({
 
   /** e.g. ", Free, Busy Override" for an Event's label. */
   function eventNotes(event: CalendarEvent): string {
-    return `${event.dynacalEvent ? ", dynacal Event" : ""}${event.countsAsBusy ? "" : ", Free"}${event.busyOverride !== null ? ", Busy Override" : ""}${conflictingEvents.has(event.id) ? ", Conflict" : ""}${connectionBroken ? ", as dynacal last saw it" : ""}`;
+    return `${event.countsAsBusy ? "" : ", Free"}${event.busyOverride !== null ? ", Busy Override" : ""}${conflictingEvents.has(event.id) ? ", Conflict" : ""}${connectionBroken ? ", as dynacal last saw it" : ""}`;
   }
 
   function eventMarks(event: CalendarEvent) {
@@ -508,7 +462,6 @@ export function Calendar({
     timeZone,
   );
   const hasAllDay = days.some((d) => allDayByDay.get(d)!.length > 0);
-  const draftByDay = newEvent.draft && placeOnDays([newEvent.draft], days, timeZone);
 
   // Show the hours that matter: Contexts' windows on the days in view and any Block or Event, at least 08:00–18:00.
   let first = 8 * 60;
@@ -571,15 +524,6 @@ export function Calendar({
             ))}
           </span>
           <RecalculateButton recalculation={recalculation} connectionBroken={connectionBroken} />
-          <button
-            type="button"
-            className="link"
-            onClick={() => newEvent.open()}
-            disabled={!online}
-            title={online ? undefined : OFFLINE_REASON}
-          >
-            + Event
-          </button>
         </div>
       </WeekHeading>
 
@@ -587,13 +531,10 @@ export function Calendar({
 
       {editing && (
         <BlockEditor
-          key={`${editing.id}-${editing.start}-${editing.end}-${editing.pinned}`}
+          key={editing.id}
           block={editing}
           timeZone={timeZone}
-          conflicts={conflicts
-            .filter((c) => c.blockId === editing.id)
-            .map((c) => eventsById.get(c.eventId))
-            .filter((e) => e !== undefined)}
+          conflicts={eventsInConflict(editing.id, conflicts, events)}
           onClose={() => setEditingId(null)}
         />
       )}
@@ -609,19 +550,6 @@ export function Calendar({
         />
       )}
 
-      {newEvent.draft && (
-        <FloatingLabel kind="dynacal Event" labelledBy="new-event-heading" onClose={newEvent.close}>
-          <LabelTitle id="new-event-heading">New Event</LabelTitle>
-          <DynacalEventForm
-            key={`${newEvent.draft.start}-${newEvent.draft.end}`}
-            event={null}
-            draft={newEvent.draft}
-            timeZone={timeZone}
-            onDone={newEvent.close}
-          />
-        </FloatingLabel>
-      )}
-
       {openEvent && (
         <EventDetails
           key={openEvent.id}
@@ -631,7 +559,7 @@ export function Calendar({
         />
       )}
 
-      <Toast message={toast?.text ?? null} tone={toast?.tone} onDone={clearToast} />
+      {moveOffToday.list}
 
       <div
         key={shift?.n ?? 0}
@@ -643,6 +571,7 @@ export function Calendar({
         {days.map((day) => (
           <div key={day} className={`calendar-day-label${day === today ? " today" : ""}`}>
             {dayLabel(day)}
+            {day === today && moveOffToday.link}
           </div>
         ))}
 
@@ -684,7 +613,6 @@ export function Calendar({
               className={`calendar-day${outside ? " outside-horizon" : ""}`}
               style={{ height: px(last), backgroundSize: `100% ${HOUR_PX}px` }}
               aria-label={dayLabel(day)}
-              onClick={(e) => createAt(e, day)}
             >
               {contextWindows[weekdayOf(day)].map((w) => (
                 <div
@@ -694,10 +622,6 @@ export function Calendar({
                 />
               ))}
               {day === nowZoned.date && <div className="now-line" style={{ top: px(nowZoned.minutes) }} />}
-              {/* Where a New Event from clicked time will go: a faint box. */}
-              {draftByDay?.get(day)!.map(({ top, bottom }) => (
-                <div key="draft" className={styles.draft} style={{ top: px(top), height: px(bottom) - px(top) }} aria-hidden />
-              ))}
               {eventsByDay.get(day)!.map(({ item: event, top, bottom }) => {
                 const props = eventProps(
                   event,

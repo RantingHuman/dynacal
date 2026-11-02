@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TaskListItem } from "@/core/commands";
 import type { CalendarBlock } from "../../schedule/calendar";
-import { checkIn, completeTask } from "../../tasks/actions";
+import { checkIn, completeTask, moveTasksToDay } from "../../tasks/actions";
 import { WithTaskList } from "../../testing/with-task-list";
 import { TaskPanel } from "../../tasks/task-panel";
 import { deferred, taskItem, workContext } from "../../testing/fixtures";
@@ -21,6 +21,8 @@ vi.mock("../../tasks/actions", () => ({
   reopenTask: vi.fn(),
   allowSplitting: vi.fn(),
   checkIn: vi.fn(),
+  moveTasksToDay: vi.fn(),
+  undoDayMove: vi.fn(),
 }));
 
 // Now is Tuesday 27 October 2026, 14:00 London time (GMT, after the clocks went back). "Pack for vegas" was at
@@ -67,9 +69,43 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date(NOW));
   vi.mocked(checkIn).mockReset();
+  vi.mocked(moveTasksToDay).mockReset();
   vi.mocked(completeTask).mockReset();
 });
 afterEach(() => vi.useRealTimers());
+
+describe("tapping from one Task's sheet to another's", () => {
+  it("closes the first and opens the second", async () => {
+    const first = { id: "b1", displayKey: "t1#1", taskId: "t1", taskTitle: "Write a report", start: "2026-10-27T10:00:00.000Z", end: "2026-10-27T11:00:00.000Z", pinned: false };
+    const second = { id: "b2", displayKey: "t2#1", taskId: "t2", taskTitle: "Call the bank", start: "2026-10-27T12:00:00.000Z", end: "2026-10-27T13:00:00.000Z", pinned: false };
+    renderGuarded(
+      <WithTaskList>
+        <PhoneSchedule
+          timeZone="Europe/London"
+          horizon={{ start: "2026-10-27T09:00:00.000Z", end: "2026-11-10T09:00:00.000Z" }}
+          blocks={[first, second]}
+          events={[]}
+          conflicts={[]}
+        />
+      </WithTaskList>,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /^Write a report, / }));
+    expect(screen.getByRole("complementary", { name: "Write a report" })).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: /^Call the bank, / }));
+
+    expect(screen.getByRole("complementary", { name: "Call the bank" })).toBeTruthy();
+    expect(screen.queryByRole("complementary", { name: "Write a report" })).toBeNull();
+  });
+});
+
+describe("the week list", () => {
+  it("offers no way to add an Event", () => {
+    renderPhone();
+
+    expect(screen.queryByRole("button", { name: /Event/ })).toBeNull();
+  });
+});
 
 describe("a past time in the week list", () => {
   it("keeps its checkbox and length while it waits for a Check-in, highlighted and unfaded", () => {
@@ -97,12 +133,12 @@ describe("a past time in the week list", () => {
     await waitFor(() => expect(completeTask).toHaveReturned());
   });
 
-  it("opens the Task's sheet with the three answers and no Move chips", async () => {
+  it("opens the Task's sheet with the four answers and no Move chips", async () => {
     renderPhone();
 
     await userEvent.click(line(/^Pack for vegas, 10:30/));
 
-    for (const answer of ["Finished", "More time", "Didn't start"]) {
+    for (const answer of ["Finished", "More time", "Didn't start", "Tomorrow"]) {
       expect(within(sheet()).getByRole("button", { name: answer })).toBeTruthy();
     }
     expect(screen.queryByRole("group", { name: "Move" })).toBeNull();
@@ -149,6 +185,20 @@ describe("a past time in the week list", () => {
 
     expect(checkIn).toHaveBeenCalledWith("block-1", { answer: "didnt-start" });
     expect(await screen.findByText("Moved to Thu 09:00")).toBeTruthy();
+  });
+
+  it("answered Tomorrow, moves the Task off this time and says dynacal picks the new one", async () => {
+    const moving = deferred<Awaited<ReturnType<typeof moveTasksToDay>>>();
+    vi.mocked(moveTasksToDay).mockReturnValue(moving.promise);
+    renderPhone();
+
+    await userEvent.click(line(/^Pack for vegas, 10:30/));
+    await userEvent.click(within(sheet()).getByRole("button", { name: "Tomorrow" }));
+
+    expect(moveTasksToDay).toHaveBeenCalledWith(["t1"], "2026-10-28", { moveDeadlines: false });
+    expect(line(/^Pack for vegas, 10:30/).dataset.waiting).toBe("false");
+    moving.resolve({ ok: true, undo: { tasks: [] }, moved: [{ id: "t1", nextStart: new Date("2026-10-28T09:00:00Z") }] });
+    expect(await screen.findByText("Moved to tomorrow. dynacal picks the time.")).toBeTruthy();
   });
 
   it("an upcoming Task, ticked, dims at once and comes back if refused", async () => {

@@ -52,7 +52,8 @@ test("keeps every field at 16px or more on a phone, so Safari doesn't zoom in", 
 
     await page.getByRole("tab", { name: "Schedule" }).click();
     await page.getByRole("button", { name: /Write a report, 09:00, 1h/ }).click();
-    await page.getByRole("button", { name: "Pick a time…" }).click();
+    await page.getByRole("button", { name: "Move", exact: true }).click();
+    await page.getByRole("button", { name: "Pick a time" }).click();
     expect(await expectFieldsAtLeast16px(page, "the Block sheet")).toBeGreaterThan(0);
 
     await page.goto("/settings");

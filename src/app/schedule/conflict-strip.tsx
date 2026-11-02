@@ -8,6 +8,14 @@ import styles from "./conflict-strip.module.css";
  * The Conflict strip above the week, on the desktop and on a phone: each Conflict as a line naming the Pinned
  * Block and the Event it overlaps, with "Resolve" to open the Block. It grows open as it appears.
  */
+/** The Events a time is in a Conflict with. */
+export function eventsInConflict(blockId: string, conflicts: CalendarConflict[], events: CalendarEvent[]): CalendarEvent[] {
+  return conflicts
+    .filter((c) => c.blockId === blockId)
+    .map((c) => events.find((e) => e.id === c.eventId))
+    .filter((e) => e !== undefined);
+}
+
 export function ConflictStrip({
   conflicts,
   blocks,

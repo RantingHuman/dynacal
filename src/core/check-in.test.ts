@@ -310,15 +310,20 @@ describe("a Splittable Task", () => {
    * A three-hour Splittable Task around a 10:00–11:00 meeting on Monday: pieces at 09:00–10:00 and 11:00–13:00. The
    * clock is then at 10:05, so the first piece waits for its Check-in.
    */
-  function splitAroundAMeeting(commands: App["commands"], clock: App["clock"]) {
-    const meeting = commands.createDynacalEvent({
+  async function splitAroundAMeeting({ calendar, commands, clock }: App) {
+    calendar.addCalendar({ id: "work", name: "Work", primary: true });
+    calendar.addEvent("work", {
       title: "Standup",
-      notes: "",
-      allDay: false,
       start: new Date("2026-01-05T10:00:00Z"),
       end: new Date("2026-01-05T11:00:00Z"),
     });
-    if (!meeting.ok) throw new Error("create failed");
+    await commands.connectGoogle({
+      email: "owner@example.com",
+      refreshToken: "refresh-token",
+      accessToken: "access-token",
+      accessTokenExpiresAt: new Date("2026-01-05T10:00:00Z"),
+    });
+    await commands.setBusyCalendars(["work"]);
     const task = createTask(commands, { estimatedMinutes: 180, splittable: true });
     expect(blocks(commands)).toEqual([
       ["Pack for vegas", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"],
@@ -328,9 +333,10 @@ describe("a Splittable Task", () => {
     return task;
   }
 
-  it("is checked in after each piece, offering the time still planned", () => {
-    const { commands, clock } = appInLondon();
-    const task = splitAroundAMeeting(commands, clock);
+  it("is checked in after each piece, offering the time still planned", async () => {
+    const app = appInLondon();
+    const { commands, clock } = app;
+    const task = await splitAroundAMeeting(app);
 
     expect(listed(commands, task.id).checkIns).toEqual([
       {
@@ -342,9 +348,10 @@ describe("a Splittable Task", () => {
     ]);
   });
 
-  it("offers nothing planned for its last piece", () => {
-    const { commands, clock } = appInLondon();
-    const task = splitAroundAMeeting(commands, clock);
+  it("offers nothing planned for its last piece", async () => {
+    const app = appInLondon();
+    const { commands, clock } = app;
+    const task = await splitAroundAMeeting(app);
 
     at(clock, "2026-01-05T13:05:00Z");
 
@@ -359,9 +366,10 @@ describe("a Splittable Task", () => {
     expect(firstCheckIn(commands, task.id).plannedMinutes).toBeUndefined();
   });
 
-  it("keeps its later pieces where they are while a piece waits", () => {
-    const { commands, clock } = appInLondon();
-    splitAroundAMeeting(commands, clock);
+  it("keeps its later pieces where they are while a piece waits", async () => {
+    const app = appInLondon();
+    const { commands } = app;
+    await splitAroundAMeeting(app);
 
     commands.recalculate();
 
@@ -371,9 +379,10 @@ describe("a Splittable Task", () => {
     ]);
   });
 
-  it("answered More time with the time planned, leaves its later pieces where they are", () => {
-    const { commands, clock } = appInLondon();
-    const task = splitAroundAMeeting(commands, clock);
+  it("answered More time with the time planned, leaves its later pieces where they are", async () => {
+    const app = appInLondon();
+    const { commands, clock } = app;
+    const task = await splitAroundAMeeting(app);
     const { blockId, plannedMinutes } = firstCheckIn(commands, task.id);
 
     expect(commands.checkIn(blockId, { answer: "more-time", minutes: plannedMinutes! })).toEqual({ ok: true });
@@ -385,9 +394,10 @@ describe("a Splittable Task", () => {
     expect(listed(commands, task.id)).toMatchObject({ remainingMinutes: 120, checkIns: [] });
   });
 
-  it("answered More time with another amount, replans its later pieces to match", () => {
-    const { commands, clock } = appInLondon();
-    const task = splitAroundAMeeting(commands, clock);
+  it("answered More time with another amount, replans its later pieces to match", async () => {
+    const app = appInLondon();
+    const { commands, clock } = app;
+    const task = await splitAroundAMeeting(app);
 
     commands.checkIn(firstCheckIn(commands, task.id).blockId, { answer: "more-time", minutes: 60 });
 
@@ -397,9 +407,10 @@ describe("a Splittable Task", () => {
     ]);
   });
 
-  it("answered Finished on a piece, is complete and its later pieces go", () => {
-    const { commands, clock } = appInLondon();
-    const task = splitAroundAMeeting(commands, clock);
+  it("answered Finished on a piece, is complete and its later pieces go", async () => {
+    const app = appInLondon();
+    const { commands, clock } = app;
+    const task = await splitAroundAMeeting(app);
 
     commands.checkIn(firstCheckIn(commands, task.id).blockId, { answer: "finished" });
 
@@ -407,9 +418,10 @@ describe("a Splittable Task", () => {
     expect(blocks(commands)).toEqual([["Pack for vegas", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"]]);
   });
 
-  it("answered Didn't start on a piece, moves only that piece's time, after its later pieces", () => {
-    const { commands, clock } = appInLondon();
-    const task = splitAroundAMeeting(commands, clock);
+  it("answered Didn't start on a piece, moves only that piece's time, after its later pieces", async () => {
+    const app = appInLondon();
+    const { commands, clock } = app;
+    const task = await splitAroundAMeeting(app);
 
     const result = commands.checkIn(firstCheckIn(commands, task.id).blockId, { answer: "didnt-start" });
 

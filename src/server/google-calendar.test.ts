@@ -60,7 +60,6 @@ describe("the Google Calendar adapter, on the dynacal calendar", () => {
 
     await gateway.createDynacalCalendarEvent("dynacal", {
       title: "Write report",
-      description: "",
       reminderMinutes: 10,
       allDay: false,
       start: new Date("2026-01-05T09:00:00Z"),
@@ -83,7 +82,6 @@ describe("the Google Calendar adapter, on the dynacal calendar", () => {
 
     await gateway.updateDynacalCalendarEvent("dynacal", "event-1", {
       title: "Write report",
-      description: "",
       reminderMinutes: 10,
       allDay: false,
       start: new Date("2026-01-05T09:00:00Z"),
@@ -102,7 +100,6 @@ describe("the Google Calendar adapter, on the dynacal calendar", () => {
 
     await gateway.updateDynacalCalendarEvent("dynacal", "event-1", {
       title: "Conference",
-      description: "",
       reminderMinutes: 10,
       allDay: true,
       startDate: "2026-01-05",
@@ -116,22 +113,6 @@ describe("the Google Calendar adapter, on the dynacal calendar", () => {
       end: { date: "2026-01-07" },
       extendedProperties: { private: { dynacalKind: "event", dynacalId: "dynacal-event-1" } },
     });
-  });
-
-  it("writes a dynacal Event's notes as the description", async () => {
-    const { gateway, requests } = gatewayReplying({ id: "new-event" });
-
-    await gateway.createDynacalCalendarEvent("dynacal", {
-      title: "Dentist",
-      description: "Bring forms",
-      reminderMinutes: 10,
-      allDay: false,
-      start: new Date("2026-01-05T13:00:00Z"),
-      end: new Date("2026-01-05T14:00:00Z"),
-      marker: { kind: "event", dynacalId: "dynacal-event-1" },
-    });
-
-    expect(requests[0].body).toMatchObject({ summary: "Dentist", description: "Bring forms" });
   });
 
   it("reads timed and all-day events back with their markers; one without a marker reads as unmarked", async () => {
@@ -186,39 +167,6 @@ describe("the Google Calendar adapter, on the dynacal calendar", () => {
         marker: null,
       },
     ]);
-  });
-});
-
-describe("the Google Calendar adapter, fetching one dynacal calendar event", () => {
-  it("reads it wherever it now is", async () => {
-    const { gateway, requests } = gatewayReplying({
-      id: "a",
-      summary: "Flight",
-      start: { dateTime: "2026-04-01T08:00:00Z" },
-      end: { dateTime: "2026-04-01T11:00:00Z" },
-      extendedProperties: { private: { dynacalKind: "event", dynacalId: "dynacal-event-1" } },
-    });
-
-    expect(await gateway.getDynacalCalendarEvent("dynacal", "a")).toEqual({
-      id: "a",
-      title: "Flight",
-      description: "",
-      allDay: false,
-      start: new Date("2026-04-01T08:00:00Z"),
-      end: new Date("2026-04-01T11:00:00Z"),
-      marker: { kind: "event", dynacalId: "dynacal-event-1" },
-    });
-    expect(requests[0].method).toBe("GET");
-  });
-
-  it("counts a cancelled event as gone", async () => {
-    const { gateway } = gatewayReplying({ id: "a", status: "cancelled" });
-
-    expect(await gateway.getDynacalCalendarEvent("dynacal", "a")).toBeNull();
-  });
-
-  it.each([404, 410])("counts a %i as gone", async (status) => {
-    expect(await gatewayAnswering(status, "notFound").getDynacalCalendarEvent("dynacal", "a")).toBeNull();
   });
 });
 

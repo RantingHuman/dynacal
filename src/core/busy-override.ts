@@ -9,8 +9,7 @@ import type { Interval } from "./time";
 export type BusyOverride = "busy" | "not-busy";
 
 /**
- * Which Event an override belongs to: its calendar and its event ID there. Kept general so any Event can
- * carry one, whichever calendar (or dynacal itself) it comes from.
+ * Which Event an override belongs to: its calendar and its event ID there.
  */
 export interface EventRef {
   calendarId: string;
@@ -50,8 +49,8 @@ export interface OverrideSync {
 
 /**
  * Keeps each Busy Override until its Event is really gone: an Event just outside the range read (moved weeks
- * ahead, say) keeps its override. Overrides for Events elsewhere (a calendar not read, or dynacal's own) are
- * kept. `found` holds each Event read, with its span in any time zone.
+ * ahead, say) keeps its override. Overrides for Events on a calendar not read are kept. `found` holds each Event
+ * read, with its span in any time zone.
  */
 export function syncOverrides(
   overrides: TrackedEventRef[],

@@ -13,11 +13,13 @@ import {
 } from "react";
 import type { TaskListItem } from "@/core/commands";
 import type { Context as TaskContext } from "@/core/contexts";
+import type { TaskDeadlineBefore } from "@/core/day-moves";
 import type { TaskFlag } from "@/core/scheduler";
 import type { Buffers } from "@/core/settings";
 import { applyTaskChange, type TaskChange } from "@/core/task-list";
-import { Toast } from "../schedule/toast";
+import { Toast, type ToastAction } from "../schedule/toast";
 import { todayIn } from "./day-words";
+import { DeadlineQuestion } from "./deadline-question";
 
 /**
  * Makes a change to the Task List: shows it straight away, then sends it with `perform`. If the server refuses,
@@ -42,8 +44,19 @@ export interface TaskList {
   /** The Buffers around Tasks in Settings, which the editor offers as "Default". */
   defaultBuffers: Buffers;
   act: ActOnTasks;
-  /** Says something about a Task that isn't an error, such as where Didn't start moved it. */
-  notify: (text: string) => void;
+  /** Says something about a Task that isn't an error, such as where Didn't start moved it, perhaps offering Undo. */
+  notify: (text: string, action?: ToastAction) => void;
+  /** Says what went wrong, staying until dismissed, such as why a move was refused. */
+  warn: (text: string) => void;
+  /** Takes the message away. */
+  clearMessage: () => void;
+  /**
+   * Asks whether to move these Tasks' deadlines too, when a move to a day was refused because they're due before it.
+   * `moveBoth` runs on Move both, and should make the move again saying to move deadlines. Cancel changes nothing.
+   */
+  askMoveDeadlines: (deadlineBefore: TaskDeadlineBefore[], moveBoth: () => void) => void;
+  /** Whether that question is up, so what's behind it leaves Escape to the question. */
+  askingMoveDeadlines: boolean;
 }
 
 const Context = createContext<TaskList | null>(null);
@@ -61,7 +74,7 @@ export function TaskListProvider({
   today: serverToday,
   defaultBuffers,
   children,
-}: Omit<TaskList, "savedTasks" | "act" | "notify"> & { children: ReactNode }) {
+}: Omit<TaskList, "savedTasks" | "act" | "notify" | "warn" | "clearMessage" | "askMoveDeadlines" | "askingMoveDeadlines"> & { children: ReactNode }) {
   // It starts as the server drew it, so a saved copy of the page wakes up without a mismatch, then follows this device.
   const [today, setToday] = useState(serverToday);
   useEffect(() => setToday(todayIn(timeZone)), [timeZone, tasks]);
@@ -69,9 +82,17 @@ export function TaskListProvider({
     applyTaskChange(current, change, new Date(), contexts[0].id),
   );
   const [, startTransition] = useTransition();
-  const [message, setMessage] = useState<{ text: string; tone: "info" | "error" } | null>(null);
+  const [message, setMessage] = useState<{ text: string; tone: "info" | "error"; action?: ToastAction } | null>(null);
   const clearMessage = useCallback(() => setMessage(null), []);
-  const notify = useCallback((text: string) => setMessage({ text, tone: "info" }), []);
+  const notify = useCallback((text: string, action?: ToastAction) => setMessage({ text, tone: "info", action }), []);
+  const warn = useCallback((text: string) => setMessage({ text, tone: "error" }), []);
+  const [question, setQuestion] = useState<{ deadlineBefore: TaskDeadlineBefore[]; today: string; moveBoth: () => void } | null>(null);
+  const clearQuestion = useCallback(() => setQuestion(null), []);
+  const askMoveDeadlines = useCallback(
+    // Today as this device has it now: the page may have been open since yesterday.
+    (deadlineBefore: TaskDeadlineBefore[], moveBoth: () => void) => setQuestion({ deadlineBefore, today: todayIn(timeZone), moveBoth }),
+    [timeZone],
+  );
   const act: ActOnTasks = useCallback(
     (change, perform) => {
       setMessage(null);
@@ -88,14 +109,27 @@ export function TaskListProvider({
     },
     [showChange],
   );
+  const askingMoveDeadlines = question !== null;
   const value = useMemo(
-    () => ({ contexts, tasks: shown, savedTasks: tasks, flags, timeZone, today, defaultBuffers, act, notify }),
-    [contexts, shown, tasks, flags, timeZone, today, defaultBuffers, act, notify],
+    () => ({ contexts, tasks: shown, savedTasks: tasks, flags, timeZone, today, defaultBuffers, act, notify, warn, clearMessage, askMoveDeadlines, askingMoveDeadlines }),
+    [contexts, shown, tasks, flags, timeZone, today, defaultBuffers, act, notify, warn, clearMessage, askMoveDeadlines, askingMoveDeadlines],
   );
   return (
     <Context.Provider value={value}>
       {children}
-      <Toast message={message?.text ?? null} tone={message?.tone} onDone={clearMessage} />
+      <Toast message={message?.text ?? null} tone={message?.tone} action={message?.action} onDone={clearMessage} />
+      {question && (
+        <DeadlineQuestion
+          deadlineBefore={question.deadlineBefore}
+          today={question.today}
+          onMoveBoth={() => {
+            // Gone at once, not once the move is saved, so it can't be pressed twice.
+            setQuestion(null);
+            question.moveBoth();
+          }}
+          onCancel={clearQuestion}
+        />
+      )}
     </Context.Provider>
   );
 }

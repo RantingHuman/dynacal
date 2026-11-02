@@ -22,14 +22,14 @@ test("doesn't replay a ticked Task's animation on coming back to its tab", async
       await page.goto("/");
       await tab(page, "Tasks").click();
       await page.getByRole("button", { name: "Mark “Pack for vegas” complete" }).click();
-      await expect(page.getByRole("button", { name: "Mark “Pack for vegas” not complete" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Completed · 1" })).toBeVisible();
       await expect.poll(() => playingCount(page, "phone-panel-tasks")).toBe(0);
 
       await tab(page, "Schedule").click();
       await expect(page.getByRole("button", { name: /^Print mystery machine, 07:00/ })).toBeVisible();
       await tab(page, "Tasks").click();
 
-      await expect(page.getByRole("button", { name: "Mark “Pack for vegas” not complete" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Completed · 1" })).toBeVisible();
       expect(await playingCount(page, "phone-panel-tasks")).toBe(0);
     },
     { seed: "past-times" },
@@ -44,13 +44,13 @@ test("doesn't replay a ticked Task's animation on closing the Task editor", asyn
       await page.goto("/");
       await tab(page, "Tasks").click();
       await page.getByRole("button", { name: "Mark “Pack for vegas” complete" }).click();
-      await expect(page.getByRole("button", { name: "Mark “Pack for vegas” not complete" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Completed · 1" })).toBeVisible();
       await expect.poll(() => playingCount(page, "phone-panel-tasks")).toBe(0);
 
       await page.getByRole("button", { name: "Print mystery machine", exact: true }).click();
       await page.getByRole("button", { name: "← Back to the week" }).click();
 
-      await expect(page.getByRole("button", { name: "Mark “Pack for vegas” not complete" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Completed · 1" })).toBeVisible();
       expect(await playingCount(page, "phone-panel-tasks")).toBe(0);
     },
     { seed: "past-times" },
@@ -140,7 +140,6 @@ test("shows the Menu as an icon at the far right, and its controls at one size",
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/");
     const fontSize = (locator: ReturnType<Page["locator"]>) => locator.evaluate((el) => getComputedStyle(el).fontSize);
-    const eventButtonSize = await fontSize(page.getByRole("button", { name: "+ Event" }));
 
     const menu = page.getByRole("button", { name: "Menu" });
     await expect(menu.locator("svg")).toBeVisible();
@@ -150,16 +149,16 @@ test("shows the Menu as an icon at the far right, and its controls at one size",
 
     await menu.click();
     const items = page.getByRole("navigation", { name: "Menu" });
+    const controlSize = await fontSize(items.getByRole("button", { name: "Recalculate" }));
     for (const item of [
-      items.getByRole("button", { name: "Recalculate" }),
       items.getByRole("link", { name: "Settings" }),
       items.getByRole("button", { name: "Sign out" }),
     ]) {
-      expect(await fontSize(item)).toBe(eventButtonSize);
+      expect(await fontSize(item)).toBe(controlSize);
     }
     await menu.click();
 
     await tab(page, "Tasks").click();
-    expect(await fontSize(page.getByRole("button", { name: "+ Task" }))).toBe(eventButtonSize);
+    expect(await fontSize(page.getByRole("button", { name: "+ Task" }))).toBe(controlSize);
   });
 });

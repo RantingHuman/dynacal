@@ -100,17 +100,6 @@
   opacity: 0.45;
 }
 
-/* Where a New Event from clicked time will go. */
-.draft {
-  position: absolute;
-  left: 3px;
-  right: 3px;
-  border: var(--hairline) dashed var(--accent);
-  background: color-mix(in srgb, var(--accent) 6%, transparent);
-  pointer-events: none;
-  animation: appear var(--base) var(--expo);
-}
-
 @keyframes appear {
   from {
     opacity: 0;
@@ -266,38 +255,4 @@
 /* A Block with a check leaves room for it beside its title. */
 .hasCheck :global(.block-title) {
   padding-right: 16px;
-}
-
-.markDone {
-  justify-self: start;
-  font-size: var(--text-body);
-}
-
-.editorForm {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  align-items: end;
-}
-
-.editorForm label {
-  display: grid;
-  gap: var(--space-1);
-  font-size: var(--text-meta);
-}
-
-.editorForm input {
-  font: inherit;
-  font-size: var(--text-body);
-  padding: 0.35rem 0.5rem;
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-square);
-  background: var(--card);
-  color: var(--ink);
-}
-
-.editorActions {
-  display: flex;
-  gap: var(--space-3);
-  align-items: center;
 }

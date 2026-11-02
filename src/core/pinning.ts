@@ -10,6 +10,12 @@ export type MoveBlockResult = { ok: true } | { ok: false; notFound: true } | { o
 
 export type UnpinBlockResult = { ok: true } | { ok: false; notFound: true };
 
+/** Why a Task can't go back to a time: what Undo says once that time is over. */
+export const TIME_ENDED_STAYS_WORDS = "That time has already ended, so the Task stays where it is.";
+
+/** Why a Block can't be moved at all. */
+const BLOCK_ENDED_WORDS = "This time has already ended, so it can't be moved.";
+
 interface MoveContext {
   now: Date;
   /** The end of the Planning Horizon. */
@@ -20,19 +26,17 @@ interface MoveContext {
 }
 
 /**
- * Checks a Block's new time. A Block that has ended can't be moved; one in progress can only have
- * its end changed. Returns null when the new time will do.
+ * Checks a Block's new time. A Block that has ended can't be moved. One in progress can have its end changed, or
+ * move wholly to a future time; a start that has passed is refused otherwise. Returns null when the new time will do.
  */
 export function validateBlockTime(to: { start: Date; end: Date }, context: MoveContext): MoveBlockErrors | null {
   const { now, horizonEnd, horizonDays, current } = context;
-  if (current.end <= now) return { block: "This time has already ended, so it can't be moved." };
-  const started = current.start < now;
+  if (current.end <= now) return { block: BLOCK_ENDED_WORDS };
+  const keepsItsStartedStart = current.start < now && to.start.getTime() === current.start.getTime();
   const errors: MoveBlockErrors = {};
-  if (started && to.start.getTime() !== current.start.getTime()) {
-    errors.start = "This time has started, so only its end can change.";
-  } else if (to.start.getTime() % GRID_MS !== 0) {
+  if (to.start.getTime() % GRID_MS !== 0) {
     errors.start = "Choose a start on a 15-minute step.";
-  } else if (!started && to.start < now) {
+  } else if (to.start < now && !keepsItsStartedStart) {
     errors.start = "Choose a start that hasn't passed yet.";
   }
   if (to.end <= to.start) errors.end = "The end must be after the start.";
@@ -40,4 +44,15 @@ export function validateBlockTime(to: { start: Date; end: Date }, context: MoveC
   else if (to.end <= now) errors.end = "Choose an end that hasn't passed yet.";
   else if (to.end > horizonEnd) errors.end = `Choose an end within the next ${horizonDays} days.`;
   return Object.keys(errors).length ? errors : null;
+}
+
+/**
+ * Checks a move being undone: the Block goes back to where it was, even a start that has passed, as long as that
+ * time hasn't ended. Returns null when it can go back.
+ */
+export function validateRestoredTime(back: { end: Date }, context: { now: Date; current: { end: Date } }): MoveBlockErrors | null {
+  const { now, current } = context;
+  if (current.end <= now) return { block: BLOCK_ENDED_WORDS };
+  if (back.end <= now) return { block: TIME_ENDED_STAYS_WORDS };
+  return null;
 }

@@ -1,12 +1,22 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, type ComponentProps, type ReactNode } from "react";
 import { useCheckInLink } from "../../tasks/check-in-link";
 import { TaskEditorSlot } from "../../tasks/task-editor-slot";
+import { BlockSheet } from "./block-sheet";
 import { EmptyWeekList, PhoneSchedule, type PhoneScheduleData } from "./phone-schedule";
 import styles from "./phone.module.css";
 
 type Tab = "schedule" | "tasks";
+
+/** A When line's sheet, placed as the Schedule tab's is. */
+function SheetOverTask(props: ComponentProps<typeof BlockSheet>) {
+  return (
+    <div className={styles.overlays}>
+      <BlockSheet {...props} />
+    </div>
+  );
+}
 
 /**
  * The home screen below 640px wide: the masthead, then two tabs at the bottom. Schedule (the default) holds the
@@ -50,7 +60,7 @@ export function PhoneHome({
   }
 
   return (
-    <TaskEditorSlot>
+    <TaskEditorSlot schedule={schedule} Sheet={SheetOverTask}>
       <div className={styles.page}>
         {masthead}
         <div role="tabpanel" className={styles.tabPanel} id="phone-panel-schedule" aria-labelledby="phone-tab-schedule" hidden={tab !== "schedule"}>

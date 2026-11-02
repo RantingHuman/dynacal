@@ -36,9 +36,10 @@ const TIME_ZONE = "Europe/London";
 
 /**
  * Data the test runtime seeds before the test starts. "past-times": three one-hour Tasks whose times passed this
- * morning and wait for a Check-in (see `seedPastTimes` in test-runtime.ts).
+ * morning and wait for a Check-in (see `seedPastTimes` in test-runtime.ts). "started-time": a one-hour Task that
+ * started at 08:30 (see `seedStartedTime`). "full-day": fourteen short Tasks today (see `seedFullDay`).
  */
-export type Seed = "past-times";
+export type Seed = "past-times" | "started-time" | "full-day";
 
 export async function withApp(
   browser: Browser,

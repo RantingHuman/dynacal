@@ -2,14 +2,16 @@
 
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { startTransition, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { TaskListItem } from "@/core/commands";
 import { checkInHref } from "@/core/headline";
 import type { TaskFlag } from "@/core/scheduler";
 import type { TaskResult } from "@/core/tasks";
 import { deepWorkContext, deferred, taskItem, workContext } from "../testing/fixtures";
 import { renderGuarded } from "../testing/render";
 import { OFFLINE_REASON } from "../states/use-online";
-import { allowSplitting, checkIn, completeTask, createTask, reopenTask } from "./actions";
+import { allowSplitting, checkIn, completeTask, createTask, moveTasksToDay, reopenTask, undoDayMove } from "./actions";
 import { TaskEditorSlot } from "./task-editor-slot";
 import { WithTaskList } from "../testing/with-task-list";
 import { TaskPanel } from "./task-panel";
@@ -22,6 +24,8 @@ vi.mock("./actions", () => ({
   reopenTask: vi.fn(),
   allowSplitting: vi.fn(),
   checkIn: vi.fn(),
+  moveTasksToDay: vi.fn(),
+  undoDayMove: vi.fn(),
 }));
 
 function renderPanel(
@@ -186,6 +190,7 @@ describe("reopening a completed Task", () => {
     vi.mocked(reopenTask).mockReturnValue(reopening.promise);
     const task = done();
     renderPanel([task]);
+    await userEvent.click(screen.getByRole("button", { name: "Completed · 1" }));
 
     await userEvent.click(screen.getByRole("button", { name: "Mark “Write Q4 planning doc” not complete" }));
 
@@ -198,11 +203,167 @@ describe("reopening a completed Task", () => {
   it("shows it complete again and says why when the server refuses", async () => {
     vi.mocked(reopenTask).mockResolvedValue({ ok: false, notFound: true });
     renderPanel([done()]);
+    await userEvent.click(screen.getByRole("button", { name: "Completed · 1" }));
 
     await userEvent.click(screen.getByRole("button", { name: "Mark “Write Q4 planning doc” not complete" }));
 
     await waitFor(() => expect(screen.getByText("“Write Q4 planning doc” no longer exists.")).toBeTruthy());
     expect(await screen.findByRole("button", { name: "Mark “Write Q4 planning doc” not complete" })).toBeTruthy();
+  });
+});
+
+describe("the Completed line", () => {
+  /** The panel with a server behind it, which saves a tick and sends the new list back as the real one does. */
+  function renderWithServer(tasks: TaskListItem[]) {
+    let setSaved: (change: (tasks: TaskListItem[]) => TaskListItem[]) => void;
+    function Server() {
+      const [saved, set] = useState(tasks);
+      setSaved = set;
+      return (
+        <WithTaskList tasks={saved}>
+          <TaskPanel />
+        </WithTaskList>
+      );
+    }
+    const saving = (id: string, completedAt: Date | null) => {
+      startTransition(() => setSaved((list) => list.map((t) => (t.id === id ? { ...t, completedAt } : t))));
+      return Promise.resolve({ ok: true as const });
+    };
+    vi.mocked(completeTask).mockReset().mockImplementation((id) => saving(id, new Date()));
+    vi.mocked(reopenTask).mockReset().mockImplementation((id) => saving(id, null));
+    return renderGuarded(<Server />);
+  }
+
+  const completed = (title: string, at = new Date()) => taskItem({ title, completedAt: at });
+  const line = (n: number) => screen.getByRole("button", { name: `Completed · ${n}` });
+  const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000);
+
+  it("starts closed under the open Tasks, counting the completed ones", () => {
+    renderPanel([taskItem({ title: "Book flights" }), completed("Pay car insurance"), completed("Write board memo")]);
+
+    expect(line(2).getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("button", { name: "Mark “Pay car insurance” not complete" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Mark “Book flights” complete" })).toBeTruthy();
+    expect(line(2).compareDocumentPosition(screen.getByRole("list")) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+  });
+
+  it("isn't there when no Task is completed", () => {
+    renderPanel([taskItem({ title: "Book flights" })]);
+
+    expect(screen.queryByRole("button", { name: /^Completed/ })).toBeNull();
+  });
+
+  it("opens and closes again", async () => {
+    renderPanel([completed("Pay car insurance")]);
+
+    await userEvent.click(line(1));
+    expect(line(1).getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByRole("button", { name: "Mark “Pay car insurance” not complete" })).toBeTruthy();
+
+    await userEvent.click(line(1));
+    expect(screen.queryByRole("button", { name: "Mark “Pay car insurance” not complete" })).toBeNull();
+  });
+
+  it("groups Tasks by the day they were completed, the latest first", async () => {
+    renderPanel([
+      completed("Write board memo", daysAgo(2)),
+      completed("Reply to accountant"),
+      completed("Pay car insurance", daysAgo(1)),
+      completed("Renew passport photos"),
+    ]);
+
+    await userEvent.click(line(4));
+
+    const groups = screen.getAllByRole("heading", { level: 3 }).map((h) => [h.textContent, h.nextElementSibling!.textContent]);
+    expect(groups.map(([day]) => day)).toEqual(["Today", "Yesterday", "2 days ago"]);
+    expect(groups[0][1]).toContain("Reply to accountant");
+    expect(groups[0][1]).toContain("Renew passport photos");
+    expect(groups[1][1]).toContain("Pay car insurance");
+    expect(groups[2][1]).toContain("Write board memo");
+  });
+
+  it("uses the owner's own day, not the server's", async () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-01-06T00:00:00Z") });
+    try {
+      // 11:30 on the 5th in UTC is already half past midnight on the 6th in Auckland, where it's now 13:00 on the 6th.
+      renderGuarded(
+        <WithTaskList timeZone="Pacific/Auckland" tasks={[completed("Pay car insurance", new Date("2026-01-05T11:30:00Z"))]}>
+          <TaskPanel />
+        </WithTaskList>,
+      );
+
+      await userEvent.click(line(1));
+
+      expect(screen.getByRole("heading", { level: 3, name: "Today" })).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("lets a ticked row settle in place, then takes it in as the count goes up", async () => {
+    renderWithServer([taskItem({ title: "Book flights" }), taskItem({ title: "Call plumber" }), completed("Pay car insurance")]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Mark “Book flights” complete" }));
+
+    // Still in its place, ticked, with the count as it was.
+    expect(screen.getByRole("button", { name: "Mark “Book flights” not complete" })).toBeTruthy();
+    expect(line(1)).toBeTruthy();
+
+    expect(await screen.findByRole("button", { name: "Completed · 2" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Mark “Book flights” not complete" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Mark “Call plumber” complete" })).toBeTruthy();
+  });
+
+  it("appears when the first Task is ticked, once the row has settled", async () => {
+    renderWithServer([taskItem({ title: "Book flights" })]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Mark “Book flights” complete" }));
+    expect(screen.queryByRole("button", { name: /^Completed/ })).toBeNull();
+
+    expect(await screen.findByRole("button", { name: "Completed · 1" })).toBeTruthy();
+  });
+
+  it("reopens a Task un-ticked inside it, which goes back among the open Tasks", async () => {
+    const task = completed("Pay car insurance");
+    renderWithServer([taskItem({ title: "Book flights" }), task, completed("Write board memo")]);
+    await userEvent.click(line(2));
+
+    await userEvent.click(screen.getByRole("button", { name: "Mark “Pay car insurance” not complete" }));
+
+    expect(reopenTask).toHaveBeenCalledWith(task.id);
+    expect(await screen.findByRole("button", { name: "Completed · 1" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Mark “Pay car insurance” complete" })).toBeTruthy();
+    expect(screen.getByText("2 open")).toBeTruthy();
+  });
+
+  it("is closed again next time it has anything in it", async () => {
+    renderWithServer([completed("Pay car insurance")]);
+    await userEvent.click(line(1));
+    await userEvent.click(screen.getByRole("button", { name: "Mark “Pay car insurance” not complete" }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: /^Completed/ })).toBeNull());
+
+    await userEvent.click(screen.getByRole("button", { name: "Mark “Pay car insurance” complete" }));
+
+    expect((await screen.findByRole("button", { name: "Completed · 1" })).getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("still opens its Tasks, so they can be read and changed", async () => {
+    renderPanel([completed("Pay car insurance")]);
+    await userEvent.click(line(1));
+
+    expect(screen.getByRole("button", { name: "Pay car insurance" })).toBeTruthy();
+  });
+
+  it("opens offline, with its ticks disabled", async () => {
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: false });
+    try {
+      renderPanel([completed("Pay car insurance")]);
+      await userEvent.click(line(1));
+
+      expect(screen.getByRole("button", { name: "Mark “Pay car insurance” not complete" })).toHaveProperty("disabled", true);
+    } finally {
+      Object.defineProperty(navigator, "onLine", { configurable: true, value: true });
+    }
   });
 });
 
@@ -463,6 +624,95 @@ describe("a Task waiting for a Check-in", () => {
     expect(screen.queryByText("Nothing fits: Unscheduled")).toBeNull();
   });
 
+  describe("answered Tomorrow", () => {
+    const undo = { tasks: [{ id: "t1", earliestStart: null, deadline: null, times: [], waiting: [] }] };
+    const moved = {
+      ok: true as const,
+      undo,
+      moved: [{ id: "t1", nextStart: new Date("2026-10-28T09:00:00Z") }],
+    };
+    const dueToday = () => ({ ...packing(), id: "t1", deadline: { date: "2026-10-27", time: null } });
+    const refused = {
+      ok: false as const,
+      deadlineBefore: [{ id: "t1", title: "Pack for vegas", deadline: { date: "2026-10-27", time: null } }],
+    };
+
+    async function answerTomorrow(task: TaskListItem) {
+      renderPanel([task]);
+      await userEvent.click(screen.getByRole("button", { name: "Finished? ›" }));
+      await userEvent.click(within(sheet()).getByRole("button", { name: "Tomorrow" }));
+    }
+
+    beforeEach(() => {
+      vi.mocked(moveTasksToDay).mockReset();
+      vi.mocked(undoDayMove).mockReset();
+    });
+
+    it("closes the Check-in at once, moves the Task to tomorrow and says dynacal picks the time", async () => {
+      const moving = deferred<typeof moved>();
+      vi.mocked(moveTasksToDay).mockReturnValue(moving.promise);
+      await answerTomorrow({ ...packing(), id: "t1" });
+
+      expect(moveTasksToDay).toHaveBeenCalledWith(["t1"], "2026-10-28", { moveDeadlines: false });
+      expect(checkIn).not.toHaveBeenCalled();
+      await waitFor(() => expect(screen.queryByRole("complementary", { name: "Pack for vegas" })).toBeNull());
+      expect(screen.queryByRole("button", { name: "Finished? ›" })).toBeNull();
+      moving.resolve(moved);
+      expect(await screen.findByText("Moved to tomorrow. dynacal picks the time.")).toBeTruthy();
+    });
+
+    it("offers Undo", async () => {
+      vi.mocked(moveTasksToDay).mockResolvedValue(moved);
+      vi.mocked(undoDayMove).mockResolvedValue({ ok: true, skipped: 0 });
+      await answerTomorrow({ ...packing(), id: "t1" });
+
+      await userEvent.click(await screen.findByRole("button", { name: "Undo" }));
+
+      expect(undoDayMove).toHaveBeenCalledWith(undo);
+      expect(await screen.findByText("Moved back")).toBeTruthy();
+    });
+
+    it("doesn't claim a Task it skipped was moved back", async () => {
+      vi.mocked(moveTasksToDay).mockResolvedValue(moved);
+      vi.mocked(undoDayMove).mockResolvedValue({ ok: true, skipped: 1 });
+      await answerTomorrow({ ...packing(), id: "t1" });
+
+      await userEvent.click(await screen.findByRole("button", { name: "Undo" }));
+
+      expect(await screen.findByText("Not moved back: it's completed or deleted.")).toBeTruthy();
+    });
+
+    it("asks about a Task due before tomorrow, and Move both moves its due date too", async () => {
+      vi.mocked(moveTasksToDay).mockResolvedValueOnce(refused).mockResolvedValueOnce(moved);
+      await answerTomorrow(dueToday());
+
+      const question = await screen.findByRole("alertdialog", { name: "Due today. Move the due date too?" });
+      await userEvent.click(within(question).getByRole("button", { name: "Move both" }));
+
+      expect(moveTasksToDay).toHaveBeenLastCalledWith(["t1"], "2026-10-28", { moveDeadlines: true });
+      expect(await screen.findByText("Moved to tomorrow. dynacal picks the time.")).toBeTruthy();
+    });
+
+    it("cancelled at the question, moves nothing and still asks “Finished?”", async () => {
+      vi.mocked(moveTasksToDay).mockResolvedValueOnce(refused);
+      await answerTomorrow(dueToday());
+
+      const question = await screen.findByRole("alertdialog");
+      await userEvent.click(within(question).getByRole("button", { name: "Cancel" }));
+
+      await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+      expect(moveTasksToDay).toHaveBeenCalledOnce();
+      expect(await screen.findByRole("button", { name: "Finished? ›" })).toBeTruthy();
+    });
+
+    it("while Google needs reconnecting, says the Task isn't placed yet", async () => {
+      vi.mocked(moveTasksToDay).mockResolvedValue({ ok: true, undo, recalculationPaused: true });
+      await answerTomorrow({ ...packing(), id: "t1" });
+
+      expect(await screen.findByText("Not placed yet: planning is paused until you reconnect Google")).toBeTruthy();
+    });
+  });
+
   it("says so, and asks again, when the Task has gone or changed elsewhere", async () => {
     vi.mocked(checkIn).mockResolvedValue({ ok: false, notFound: true });
     renderPanel([packing()]);
@@ -488,6 +738,7 @@ describe("a Task waiting for a Check-in", () => {
     expect(moreTime).toHaveProperty("disabled", true);
     expect(moreTime.title).toBe("Offline: this needs a connection.");
     expect(within(sheet()).getByRole("button", { name: "Didn't start" })).toHaveProperty("disabled", true);
+    expect(within(sheet()).getByRole("button", { name: "Tomorrow" })).toHaveProperty("disabled", true);
   });
 
   describe("answered More time", () => {

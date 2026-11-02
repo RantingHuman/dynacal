@@ -1,11 +1,12 @@
 import type { TaskListItem } from "./commands";
 import { checkInViews } from "./completion";
-import { compareTasks, type TaskInput } from "./tasks";
+import type { DayMoveUndo } from "./day-moves";
+import { compareTasks, startsAfterDeadline, type TaskInput } from "./tasks";
 
 /**
  * A change the owner has just made to the Task list, shown before the server has saved it: adding a Task (with
  * a placeholder id until the server gives it one), saving an edit, completing one, reopening a completed one,
- * allowing one to split, answering its Check-in More time, or deleting one.
+ * allowing one to split, answering its Check-in More time, deleting one, or moving Tasks to a day and undoing that.
  */
 export type TaskChange =
   | { kind: "add"; id: string; input: TaskInput }
@@ -14,7 +15,9 @@ export type TaskChange =
   | { kind: "reopen"; id: string }
   | { kind: "allow-splitting"; id: string }
   | { kind: "more-time"; id: string; blockId: string; minutes: number }
-  | { kind: "delete"; id: string };
+  | { kind: "delete"; id: string }
+  | { kind: "move-to-day"; ids: string[]; day: string; moveDeadlines?: boolean }
+  | { kind: "undo-day-move"; undo: DayMoveUndo };
 
 /** Whether `a` comes before `b` in the list: open Tasks first, then in Task order. Ties keep `a` after `b`. */
 function before(a: TaskListItem, b: TaskListItem): boolean {
@@ -44,6 +47,38 @@ export function applyTaskChange(
 ): TaskListItem[] {
   if (change.kind === "delete") {
     return tasks.filter((t) => t.id !== change.id);
+  }
+  if (change.kind === "move-to-day") {
+    const earliestStart = { date: change.day, time: null };
+    return change.ids.reduce((list, id) => {
+      const task = list.find((t) => t.id === id);
+      if (!task) return list;
+      // Moving it answers its waiting Check-ins.
+      const moved = { ...task, earliestStart, checkIns: [] };
+      if (change.moveDeadlines && task.deadline && startsAfterDeadline(earliestStart, task.deadline)) {
+        return place(
+          list.filter((t) => t !== task),
+          { ...moved, deadline: earliestStart },
+        );
+      }
+      return list.map((t) => (t === task ? moved : t));
+    }, tasks);
+  }
+  if (change.kind === "undo-day-move") {
+    return change.undo.tasks.reduce((list, old) => {
+      const task = list.find((t) => t.id === old.id);
+      if (!task || task.completedAt) return list;
+      // Undoing it asks its Check-ins again.
+      const checkIns = checkInViews(task, old.waiting.map(({ id: blockId, start, end }) => ({ blockId, start, end })));
+      const restored = { ...task, earliestStart: old.earliestStart, deadline: old.deadline, checkIns };
+      if (task.deadline?.date === old.deadline?.date && task.deadline?.time === old.deadline?.time) {
+        return list.map((t) => (t === task ? restored : t));
+      }
+      return place(
+        list.filter((t) => t !== task),
+        restored,
+      );
+    }, tasks);
   }
   if (change.kind === "complete") {
     const task = tasks.find((t) => t.id === change.id);

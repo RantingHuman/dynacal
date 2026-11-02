@@ -11,8 +11,7 @@ export interface BlockEvent {
 
 /** A Task's Block event as the dynacal calendar holds it: timed, and marked as a Block of that Task. */
 export function blockCalendarEvent(taskId: string, { title, start, end, reminderMinutes }: BlockEvent): DynacalCalendarEvent {
-  // A Block has no description; writing an empty one clears any the owner added in Google.
-  return { title, description: "", reminderMinutes, allDay: false, start, end, marker: { kind: "block", dynacalId: taskId } };
+  return { title, reminderMinutes, allDay: false, start, end, marker: { kind: "block", dynacalId: taskId } };
 }
 
 /** A Block as it should appear in the dynacal calendar. */
