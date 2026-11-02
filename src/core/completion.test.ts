@@ -161,6 +161,53 @@ describe("reopening a completed Task", () => {
   });
 });
 
+describe("a completed Task leaving the Task List", () => {
+  /** A Task whose time ran 09:00–10:00 on Monday, completed there at 10:00. */
+  function completedOnMonday() {
+    const app = appInLondon();
+    const task = createTask(app.commands, { title: "Pack for vegas" });
+    at(app.clock, "2026-01-05T10:00:00Z");
+    expect(app.commands.completeTask(task.id).ok).toBe(true);
+    return { ...app, task };
+  }
+  const listed = (commands: App["commands"]) => commands.listTasks().map((t) => t.title);
+
+  it("stays listed until 7 days after it was completed", () => {
+    const { commands, clock } = completedOnMonday();
+
+    at(clock, "2026-01-12T09:59:59Z");
+
+    expect(listed(commands)).toEqual(["Pack for vegas"]);
+  });
+
+  it("is no longer listed 7 days after it was completed", () => {
+    const { commands, clock } = completedOnMonday();
+
+    at(clock, "2026-01-12T10:00:00Z");
+
+    expect(listed(commands)).toEqual([]);
+  });
+
+  it("stays saved: its past time stays on the Schedule, and it can still be reopened", () => {
+    const { commands, clock, task } = completedOnMonday();
+
+    at(clock, "2026-01-20T10:00:00Z");
+
+    expect(blocks(commands)).toEqual([["Pack for vegas", "2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"]]);
+    expect(commands.reopenTask(task.id)).toEqual({ ok: true });
+    expect(listed(commands)).toEqual(["Pack for vegas"]);
+  });
+
+  it("never takes an open Task out, however old", () => {
+    const { commands, clock } = appInLondon();
+    createTask(commands, { title: "Laundry" });
+
+    at(clock, "2026-03-01T09:00:00Z");
+
+    expect(listed(commands)).toEqual(["Laundry"]);
+  });
+});
+
 function scheduleBlocks(commands: App["commands"]) {
   const view = commands.getSchedule();
   if (view.status !== "ready") throw new Error(`Schedule not ready: ${view.status}`);

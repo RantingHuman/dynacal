@@ -11,7 +11,7 @@ A unit of work the user wants done, with an estimated duration, a deadline and a
 _Avoid_: To-do, item, job
 
 **Task List**:
-All of the user's Tasks, open and complete, the same on every screen; a change shows in it straight away and is undone, with a message saying why, if it can't be saved.
+All of the user's Tasks, open and completed in the last 7 days, the same on every screen; a change shows in it straight away and is undone, with a message saying why, if it can't be saved.
 _Avoid_: To-do list, backlog
 
 **Priority**:
