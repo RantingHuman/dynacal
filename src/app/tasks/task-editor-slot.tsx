@@ -17,6 +17,24 @@ import { TaskEditor } from "./task-editor";
 import editorStyles from "./task-editor.module.css";
 import { useTaskList } from "./task-list";
 
+/** The editable fields of a Task. */
+export function inputOf(task: TaskInput): TaskInput {
+  const { title, notes, estimatedMinutes, deadline, earliestStart, priority, splittable, contextId } = task;
+  const { bufferBeforeMinutes = null, bufferAfterMinutes = null } = task;
+  return {
+    title,
+    notes,
+    estimatedMinutes,
+    deadline,
+    earliestStart,
+    priority,
+    splittable,
+    contextId,
+    bufferBeforeMinutes,
+    bufferAfterMinutes,
+  };
+}
+
 /** What the full-page Task editor has open: an existing Task by id, or a new one, starting from `initial`. */
 export interface OpenTask {
   taskId: string | null;

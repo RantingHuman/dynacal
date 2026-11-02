@@ -45,6 +45,9 @@ export function spanWords(span: { start: Date; end: Date }, today: string, timeZ
   return start.date === today ? times : `${dayWord(start.date, today)} ${times}`;
 }
 
+/** What a move says while Recalculation is paused, so the Task wasn't placed anywhere. */
+export const NOT_PLACED_WORDS = "Not placed yet: planning is paused until you reconnect Google";
+
 /**
  * Where a Task went after Didn't start: e.g. "Moved to Thu 09:00"; with no start, "Moved to Later" if it isn't needed
  * in the Planning Horizon, else "Nothing fits: Unscheduled".
@@ -74,6 +77,13 @@ export function movedManyToDayWords(moved: { nextStart: Date | null; later?: tru
   const [day] = days;
   const where = days.size === 1 ? `to ${dayWord(day, today)}` : "off today";
   return `Moved ${count} ${where}. dynacal picks the times.`;
+}
+
+/** Where a Task was pinned: e.g. "Pinned at 10:15." today, else "Pinned at 10:00 tomorrow." */
+export function pinnedWords(start: Date, today: string, timeZone: string): string {
+  const at = toZoned(start, timeZone);
+  const day = at.date === today ? "" : ` ${dayWord(at.date, today)}`;
+  return `Pinned at ${formatMinutes(at.minutes)}${day}.`;
 }
 
 /** e.g. "due Fri" or, once it's passed, "was due Mon". */

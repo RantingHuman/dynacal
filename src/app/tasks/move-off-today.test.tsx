@@ -13,7 +13,7 @@ import { deferred, taskItem } from "../testing/fixtures";
 import { renderGuarded } from "../testing/render";
 import { WithTaskList } from "../testing/with-task-list";
 import { moveTasksToDay, undoDayMove } from "./actions";
-import { NOT_PLACED_WORDS } from "./check-in-answers";
+import { NOT_PLACED_WORDS } from "./day-words";
 
 vi.mock("../schedule/actions", () => ({ recalculate: vi.fn(), moveBlock: vi.fn(), unpinBlock: vi.fn(), setBusyOverride: vi.fn() }));
 vi.mock("./actions", () => ({
