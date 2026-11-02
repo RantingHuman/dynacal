@@ -36,6 +36,7 @@ import {
   type CheckInResult,
   type CheckInView,
 } from "./completion";
+import { dueBeforeDayWords, type DayMoveUndo, type MoveToDayResult, type UndoDayMoveResult } from "./day-moves";
 import type { Db } from "./db";
 import {
   markBroken,
@@ -113,6 +114,7 @@ import {
 } from "./settings";
 import {
   compareTasks,
+  startsAfterDeadline,
   validateTask,
   type DateOrDateTime,
   type Task,
@@ -592,7 +594,8 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     for (const event of writes.create) {
       record(await calendar.createDynacalCalendarEvent(calendarId, blockCalendarEvent(event.taskId, event)), event);
     }
-    // An in-progress Block cut short (its Task completed part-way through) ends early in Google too.
+    // An in-progress Block cut short (its Task completed part-way through) ends early in Google too, and one that
+    // has gone (its Task moved to a day) leaves it.
     const inProgress = db
       .select()
       .from(blockEvents)
@@ -605,7 +608,12 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         .from(blocks)
         .where(and(eq(blocks.taskId, written.taskId), eq(blocks.start, written.start)))
         .get();
-      if (!block || block.end >= written.end) continue;
+      if (!block) {
+        await calendar.deleteDynacalCalendarEvent(calendarId, written.eventId);
+        forget(written.eventId);
+        continue;
+      }
+      if (block.end >= written.end) continue;
       const { title, start, reminderMinutes } = written;
       const event = { title, start, end: block.end, reminderMinutes };
       if ((await calendar.updateDynacalCalendarEvent(calendarId, written.eventId, blockCalendarEvent(written.taskId, event))) === "updated") {
@@ -821,7 +829,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
   }
 
   /** Where a Task went after Didn't start: its next start, or none, and then whether it's Later rather than Unscheduled. */
-  function whereItWent(taskId: string): CheckInResult & { ok: true } {
+  function whereItWent(taskId: string): { ok: true; nextStart: Date | null; later?: true } {
     const start = nextStart(taskId);
     if (start) return { ok: true, nextStart: start };
     const row = db.select({ flag: tasks.scheduleFlag }).from(tasks).where(eq(tasks.id, taskId)).get();
@@ -1397,6 +1405,90 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       }
       recalculateAutomatically();
       return { ok: true };
+    },
+
+    /**
+     * Moves open Tasks to a day, with one Recalculation at the end: each gets that day as its Earliest Start, loses
+     * its Blocks that haven't ended, pinned or not, and has any past Block waiting for a Check-in answered Didn't
+     * start, so dynacal picks its time. A Task due before the day refuses the whole move, unless `moveDeadlines` says
+     * to bring its deadline to that day. What it returns lets `undoDayMove` put things back.
+     */
+    moveTasksToDay(ids: string[], day: string, { moveDeadlines = false }: { moveDeadlines?: boolean } = {}): MoveToDayResult {
+      const open = ids.flatMap((id) => db.select().from(tasks).where(and(eq(tasks.id, id), isNull(tasks.completedAt))).all());
+      if (open.length !== ids.length) return { ok: false, notFound: true };
+      const earliestStart = { date: day, time: null };
+      const dueBefore = open.flatMap((row) => {
+        const { id, title, deadline } = toTask(row);
+        return deadline && startsAfterDeadline(earliestStart, deadline) ? [{ id, title, deadline }] : [];
+      });
+      if (dueBefore.length > 0 && !moveDeadlines) {
+        return { ok: false, errors: { deadline: dueBeforeDayWords(dueBefore, day) }, dueBefore };
+      }
+      const now = clock.now();
+      const undo: DayMoveUndo = db.transaction((tx) => ({
+        tasks: open.map((row) => {
+          const { earliestStart: oldEarliestStart, deadline } = toTask(row);
+          const unended = and(eq(blocks.taskId, row.id), gt(blocks.end, now));
+          const pinned = tx
+            .select({ id: blocks.id, start: blocks.start, end: blocks.end })
+            .from(blocks)
+            .where(and(unended, eq(blocks.pinned, true)))
+            .all();
+          tx.delete(blocks)
+            .where(or(unended, and(eq(blocks.taskId, row.id), isNull(blocks.review))))
+            .run();
+          const movesDeadline = dueBefore.some((due) => due.id === row.id);
+          tx.update(tasks)
+            .set({
+              earliestStartDate: day,
+              earliestStartTime: null,
+              ...(movesDeadline && { deadlineDate: day, deadlineTime: null }),
+            })
+            .where(eq(tasks.id, row.id))
+            .run();
+          return { id: row.id, earliestStart: oldEarliestStart, deadline, pinned };
+        }),
+      }));
+      if (!recalculateAutomatically().ok) return { ok: true, undo, recalculationPaused: true };
+      return {
+        ok: true,
+        undo,
+        moved: ids.map((id) => {
+          const { ok: _ok, ...where } = whereItWent(id);
+          return { id, ...where };
+        }),
+      };
+    },
+
+    /**
+     * Reverses a move to a day: each Task that's still open gets back its Earliest Start, its deadline and its pinned
+     * times that haven't passed. Recalculation places the rest.
+     */
+    undoDayMove(undo: DayMoveUndo): UndoDayMoveResult {
+      const now = clock.now();
+      db.transaction((tx) => {
+        for (const { id, earliestStart, deadline, pinned } of undo.tasks) {
+          const row = tx
+            .update(tasks)
+            .set({
+              earliestStartDate: earliestStart?.date ?? null,
+              earliestStartTime: earliestStart?.time ?? null,
+              deadlineDate: deadline?.date ?? null,
+              deadlineTime: deadline?.time ?? null,
+            })
+            .where(and(eq(tasks.id, id), isNull(tasks.completedAt)))
+            .returning({ id: tasks.id })
+            .get();
+          if (!row) continue;
+          tx.delete(blocks)
+            .where(and(eq(blocks.taskId, id), gt(blocks.end, now)))
+            .run();
+          for (const block of pinned) {
+            if (block.end > now) tx.insert(blocks).values({ ...block, taskId: id, pinned: true }).run();
+          }
+        }
+      });
+      return recalculateAutomatically().ok ? { ok: true } : { ok: true, recalculationPaused: true };
     },
 
     /**

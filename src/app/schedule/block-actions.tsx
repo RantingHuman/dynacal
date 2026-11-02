@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import type { MoveBlockResult } from "@/core/pinning";
 import { OFFLINE_REASON, useOnline } from "../states/use-online";
 import { useCompleteTask } from "../tasks/complete-task-button";
+import { useMoveToTomorrow } from "../tasks/day-moves";
 import { moveBlock, unpinBlock } from "./actions";
 import type { CalendarBlock, CalendarEvent } from "./calendar";
 import { LabelNote } from "./floating-label";
@@ -23,7 +24,7 @@ export function moveError(result: MoveBlockResult, title: string): string | null
 
 /**
  * What the Block label (desktop) and the Block sheet (phone) can do to an open Block: move it (which pins it),
- * unpin it, or mark its whole Task done. Offline none of them can be attempted: `disabled` is set and `title`
+ * unpin it, mark its whole Task done, or send its Task to tomorrow. Offline none of them can be attempted: `disabled` is set and `title`
  * says why. A refusal shows in `error`.
  */
 export function useBlockActions(block: CalendarBlock, onClose: () => void) {
@@ -31,6 +32,7 @@ export function useBlockActions(block: CalendarBlock, onClose: () => void) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const complete = useCompleteTask();
+  const moveToTomorrow = useMoveToTomorrow();
 
   /** Moves the Block to the given span; `onMoved` runs once the move is saved. */
   function move(to: { start: Date; end: Date }, onMoved: () => void) {
@@ -61,10 +63,18 @@ export function useBlockActions(block: CalendarBlock, onClose: () => void) {
     onClose();
   }
 
+  /** Moves the Block's whole Task to tomorrow, where dynacal picks its time, and closes. A message says what happened. */
+  function tomorrow() {
+    setError(null);
+    moveToTomorrow({ id: block.taskId, title: block.taskTitle });
+    onClose();
+  }
+
   return {
     move,
     unpin,
     markTaskDone,
+    tomorrow,
     error,
     pending,
     /** For every control that changes the Block: while one runs, and offline. */

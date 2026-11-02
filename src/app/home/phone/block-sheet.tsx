@@ -10,18 +10,17 @@ import type { CalendarBlock, CalendarEvent } from "../../schedule/calendar";
 import { LabelFrame, LabelNote, LabelTime, LabelTitle, useLabelClose } from "../../schedule/floating-label";
 import styles from "./phone.module.css";
 
-/** The Move chips: a few minutes either way, or the next day. */
+/** The Move chips: a few minutes either way. */
 const CHIPS: { label: string; move: BlockMove }[] = [
   { label: "−30m", move: { by: -30 } },
   { label: "−15m", move: { by: -15 } },
   { label: "+15m", move: { by: 15 } },
   { label: "+30m", move: { by: 30 } },
-  { label: "Next day", move: { nextDay: true } },
 ];
 
 /**
  * A Block that hasn't ended, on a phone, where Blocks don't drag: a sheet above the tab bar to move it by a
- * chip or to an exact day and start, mark its Task done, or unpin it. Moves go through the move command, so a
+ * chip or to an exact day and start, send its Task to tomorrow, mark its Task done, or unpin it. Moves go through the move command, so a
  * moved Block is pinned, and a refused move leaves it where it was and says why. The sheet stays open after a
  * move, so the Block can be nudged again. It opens and closes like the floating label, and Escape closes it.
  */
@@ -134,6 +133,9 @@ export function BlockSheet({
           : "Moving it pins it, so Recalculation plans around it."}
       </LabelNote>
       <div className={styles.sheetButtons}>
+        <button type="button" className="button" disabled={actions.disabled} title={actions.title} onClick={actions.tomorrow}>
+          Tomorrow
+        </button>
         {block.pinned && (
           <button type="button" className="button" disabled={actions.disabled} title={actions.title} onClick={actions.unpin}>
             Unpin
