@@ -55,6 +55,24 @@ test("test server refuses an external connection", (t) => {
   assert.match(result.stderr.toString(), /BROWSER_TEST_EXTERNAL_CONNECTION_BLOCKED/);
 });
 
+test("names a build by its files' contents, so a change to any of them needs a new build", async (t) => {
+  const { buildKey } = await import("./build-key.mjs");
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "dynacal-build-key-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  for (const dir of ["src/app", "public", "drizzle", "browser-tests"]) fs.mkdirSync(path.join(root, dir), { recursive: true });
+  for (const file of ["src/app/page.tsx", "package.json", "pnpm-lock.yaml", "tsconfig.json", "next.config.ts",
+    "browser-tests/test-runtime.ts", "browser-tests/bootstrap.cjs", "browser-tests/network-guard.cjs",
+    "browser-tests/test-only-markers.mjs", "browser-tests/setup.ts"]) fs.writeFileSync(path.join(root, file), file);
+
+  const first = await buildKey(root);
+  assert.equal(await buildKey(root), first);
+  fs.writeFileSync(path.join(root, "src/app/page.tsx"), "changed");
+  assert.notEqual(await buildKey(root), first);
+  fs.writeFileSync(path.join(root, "src/app/page.tsx"), "src/app/page.tsx");
+  fs.writeFileSync(path.join(root, "src/app/new.tsx"), "");
+  assert.notEqual(await buildKey(root), first);
+});
+
 test("copies linked dependencies into the build while preserving links inside them", async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "dynacal-copy-"));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));

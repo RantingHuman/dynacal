@@ -1,6 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
 import { withApp } from "./test-app";
 
+/** Just after loading, the page also holds the other width's hidden copy of the Task list, so a search skips that. */
+function visibleWords(page: Page, words: string) {
+  return page.getByText(words).filter({ visible: true });
+}
+
 async function addTask(page: Page) {
   const add = page.getByRole("textbox", { name: "Add a Task" });
   await add.fill("Write a report");
@@ -208,7 +213,7 @@ test("asks before moving a due date with its Task, and Undo puts both back", asy
     await page.getByRole("tab", { name: "Tasks" }).click();
     await page.getByRole("textbox", { name: "Add a Task" }).fill("Write a report 1h by today");
     await page.getByRole("textbox", { name: "Add a Task" }).press("Enter");
-    await expect(page.getByText("due today")).toBeVisible();
+    await expect(visibleWords(page, "due today")).toBeVisible();
     await page.getByRole("tab", { name: "Schedule" }).click();
 
     await page.getByRole("button", { name: /Write a report, 09:00, 1h/ }).click();
@@ -219,7 +224,7 @@ test("asks before moving a due date with its Task, and Undo puts both back", asy
     await page.reload();
     await expect(page.getByRole("button", { name: /Write a report, 09:00, 1h/ })).toBeVisible();
     await page.getByRole("tab", { name: "Tasks" }).click();
-    await expect(page.getByText("due today")).toBeVisible();
+    await expect(visibleWords(page, "due today")).toBeVisible();
     await page.getByRole("tab", { name: "Schedule" }).click();
 
     await page.getByRole("button", { name: /Write a report, 09:00, 1h/ }).click();
@@ -227,13 +232,13 @@ test("asks before moving a due date with its Task, and Undo puts both back", asy
     await question.getByRole("button", { name: "Move both" }).click();
     await expect(page.getByText("Moved to tomorrow. dynacal picks the time.")).toBeVisible();
     await page.getByRole("tab", { name: "Tasks" }).click();
-    await expect(page.getByText("due tomorrow")).toBeVisible();
+    await expect(visibleWords(page, "due tomorrow")).toBeVisible();
 
     await page.getByRole("button", { name: "Undo" }).click();
-    await expect(page.getByText("due today")).toBeVisible();
+    await expect(visibleWords(page, "due today")).toBeVisible();
     await page.reload();
     await page.getByRole("tab", { name: "Tasks" }).click();
-    await expect(page.getByText("due today")).toBeVisible();
+    await expect(visibleWords(page, "due today")).toBeVisible();
   });
 });
 
@@ -342,7 +347,7 @@ test("moves several Tasks off today on a computer, asks once about due dates, an
     await expect(page.getByText("Moved back")).toBeVisible();
     await expect(page.getByRole("button", { name: "Move off today" })).toBeVisible();
     await page.reload();
-    await expect(page.getByText("due today")).toBeVisible();
+    await expect(visibleWords(page, "due today")).toBeVisible();
     await expect(page.getByRole("button", { name: "Move off today" })).toBeVisible();
   });
 });
