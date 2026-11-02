@@ -1,0 +1,57 @@
+/*
+ * The due date question: a card over everything, even the message and the tab bar, in the middle of the screen on
+ * desktop and low down, where a thumb reaches, on a phone (the breakpoint matches PHONE_QUERY in width-switch.tsx).
+ */
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--ink) 30%, transparent);
+}
+
+@media (max-width: 639.98px) {
+  .scrim {
+    align-items: flex-end;
+    padding: var(--space-2);
+    padding-bottom: calc(var(--tab-bar) + var(--space-2));
+  }
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: min(380px, 100%);
+  max-height: 100%;
+  padding: var(--space-4);
+  border: var(--hairline) solid var(--ink);
+  outline: var(--hairline) solid var(--ink);
+  outline-offset: 3px;
+  background: var(--card);
+}
+
+/* Several Tasks: the list scrolls, so the answers stay in view. */
+.tasks {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+/* The answers: large buttons side by side, for a thumb. */
+.answers {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.answers :global(.button) {
+  flex: 1;
+  min-height: 48px;
+  white-space: nowrap;
+}

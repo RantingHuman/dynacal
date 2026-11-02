@@ -66,10 +66,14 @@ export async function allowSplitting(id: string): Promise<AllowSplittingResult> 
   return result;
 }
 
-/** Moves Tasks to a day, where dynacal picks their time. The result says what Undo needs. */
-export async function moveTasksToDay(ids: unknown, day: unknown): Promise<MoveToDayResult> {
+/** Moves Tasks to a day, where dynacal picks their time, and their deadlines if told to. The result says what Undo needs. */
+export async function moveTasksToDay(ids: unknown, day: unknown, options?: unknown): Promise<MoveToDayResult> {
   await requireOwner();
-  const result = getRuntime().commands.moveTasksToDay(z.array(z.string()).parse(ids), z.iso.date().parse(day));
+  const result = getRuntime().commands.moveTasksToDay(
+    z.array(z.string()).parse(ids),
+    z.iso.date().parse(day),
+    z.strictObject({ moveDeadlines: z.boolean() }).optional().parse(options),
+  );
   revalidatePath("/");
   return result;
 }
