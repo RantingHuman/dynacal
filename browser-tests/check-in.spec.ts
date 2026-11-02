@@ -67,6 +67,24 @@ test("answers three past times from the phone's week list", async ({ browser }) 
   );
 });
 
+test("sends a past time's Task to tomorrow from the phone's week list", async ({ browser }) => {
+  await withApp(
+    browser,
+    async (page) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto("/");
+      await line(page, "Pack for vegas, 06:00, 1h, Finished?").click();
+      await page.getByRole("complementary", { name: "Pack for vegas" }).getByRole("button", { name: "Tomorrow" }).click();
+
+      await expect(page.getByRole("status").filter({ hasText: "Moved to tomorrow. dynacal picks the time." }).first()).toBeVisible();
+      await expect(page.getByRole("button", { name: /^Pack for vegas, 06:00.*Finished\?$/ })).toHaveCount(0);
+      await page.reload();
+      await expect(page.getByRole("button", { name: /^Pack for vegas, 06:00.*Finished\?$/ })).toHaveCount(0);
+    },
+    { seed: "past-times" },
+  );
+});
+
 test("answers a past time from the desktop calendar", async ({ browser }) => {
   await withApp(
     browser,
