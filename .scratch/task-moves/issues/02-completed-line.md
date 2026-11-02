@@ -4,10 +4,10 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] The line starts closed, and is hidden when N is 0
-- [ ] Ticking lets the row settle, then it slides into the line as the count goes up
-- [ ] Opened, it groups Tasks by day, and un-ticking reopens a Task
-- [ ] A Task completed 7 or more days ago no longer appears, stays saved, and its past times stay on the Schedule
-- [ ] Phone and computer work the same
+- [x] The line starts closed, and is hidden when N is 0
+- [x] Ticking lets the row settle, then it slides into the line as the count goes up
+- [x] Opened, it groups Tasks by day, and un-ticking reopens a Task
+- [x] A Task completed 7 or more days ago no longer appears, stays saved, and its past times stay on the Schedule
+- [x] Phone and computer work the same
