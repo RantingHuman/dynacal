@@ -116,7 +116,7 @@ import { validatePushSubscription, type PushSender, type PushSubscriptionInput, 
 import { isHttps } from "./urls";
 import { validateBlockTime, type MoveBlockResult, type UnpinBlockResult } from "./pinning";
 import { REMINDER_GRACE_MS, dueReminders, reminderKey, reminderMessage } from "./reminders";
-import { blockEventsInGoogle, editWindow, readGoogleEdit, type BlockEventInGoogle } from "./google-edits";
+import { blockEventsInGoogle, editWindow, readGoogleEdit } from "./google-edits";
 import { channelExpiry, planChannels } from "./push-channels";
 import { schedulerTasks } from "./scheduler-input";
 import {
@@ -789,7 +789,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     // An event that had ended when dynacal last saw it is no longer kept in step.
     const written = readDynacalEventWrites(db, calendarId).filter((w) => !hasEnded(w.content, now));
     const inGoogle = await calendar.listDynacalCalendarEvents(calendarId, editReadRange(editWindow(now), written));
-    const blocksChanged = await applyBlockEdits(calendarId, blockEventsInGoogle(inGoogle), now);
+    const blocksChanged = await applyBlockEdits(calendarId, inGoogle, now);
     const found = new Map(inGoogle.map((e) => [e.id, e]));
     // One missing from the read was either deleted or moved out of its range; only Google can say which.
     for (const { eventId } of written) {
@@ -834,7 +834,9 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
   }
 
   /** Applies the owner's edits to Block events in Google. Returns whether the Schedule changed. */
-  async function applyBlockEdits(calendarId: string, inGoogle: Map<string, BlockEventInGoogle>, now: Date): Promise<boolean> {
+  async function applyBlockEdits(calendarId: string, events: DynacalCalendarEventInGoogle[], now: Date): Promise<boolean> {
+    const inGoogle = blockEventsInGoogle(events);
+    const allDay = new Set(events.filter((e) => e.allDay).map((e) => e.id));
     const recorded = db
       .select()
       .from(blockEvents)
@@ -845,6 +847,8 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       const event = inGoogle.get(record.eventId);
       const edit = readGoogleEdit(record, event);
       if (edit.kind === "deleted") {
+        // One turned all-day is still in Google; left there, its Task would show twice once it's placed again.
+        if (allDay.has(record.eventId)) await calendar.deleteDynacalCalendarEvent(calendarId, record.eventId);
         const block = blockFor(record);
         if (block) {
           db.delete(blocks).where(eq(blocks.id, block.id)).run();

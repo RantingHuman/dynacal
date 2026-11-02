@@ -6,6 +6,7 @@ import { DAY_MS, PLANNING_HORIZON_DAYS, type Interval } from "./time";
  *
  * - Deleted: the Block goes, pin and all. The Task keeps its Remaining Duration and is placed again wherever it
  *   fits, which may be the same time.
+ * - Turned all-day: as deleted, and the all-day event is deleted from Google too.
  * - Moved or resized: the Block is pinned at the new time.
  * - Retitled, or given a description: dynacal is the source of truth for a Block's content, so what it wrote
  *   is put back, wherever the event now is.

@@ -73,6 +73,7 @@ You can also adjust your Schedule from any Google Calendar app, by editing Block
 
 - **Move or resize a Block** and dynacal pins it at its new time, just as dragging it in dynacal does.
 - **Delete a Block** and dynacal places its Task again wherever it fits, which may be the same time. The Task itself isn't deleted; to remove it, delete it in dynacal.
+- **Turn a Block into an all-day event** and dynacal treats it as deleted, and removes the all-day event from Google.
 - **Title and description** edits are put back at the next sync; edit the Task in dynacal instead.
 
 ## 7. Instant sync (push notifications)
