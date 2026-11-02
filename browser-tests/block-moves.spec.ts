@@ -280,6 +280,8 @@ test("opens a Task's time from its When line on the computer, with exact boxes, 
     await expect(label).toHaveCount(0);
     await expect(editor.getByRole("button", { name: /^When, / })).toHaveAccessibleName(/11:00–12:00/);
     await expect(title).toHaveValue("Write a long report");
+  });
+});
 
 test("moves several Tasks off today on a computer, asks once about due dates, and undoes it all", async ({ browser }) => {
   await withApp(browser, async (page) => {
