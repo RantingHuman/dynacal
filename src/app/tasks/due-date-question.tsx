@@ -3,22 +3,16 @@
 import type { TaskDueBefore } from "@/core/day-moves";
 import { LabelFrame, LabelTitle, useLabelClose } from "../schedule/floating-label";
 import { OFFLINE_REASON, useOnline } from "../states/use-online";
-import { deadlineWords } from "./day-words";
+import { deadlineWords, sentenceWords } from "./day-words";
 import styles from "./due-date-question.module.css";
 
-/** Starting a sentence: "Due today" or "Was due Mon". */
-function dueWords({ deadline }: TaskDueBefore, today: string): string {
-  const words = deadlineWords(deadline, today);
-  return words[0].toUpperCase() + words.slice(1);
-}
-
-/** Keeps Tab among the question's own buttons, as nothing behind it can be used while it's up. */
-function keepTabInside(e: React.KeyboardEvent<HTMLElement>) {
+/** Keeps Tab among a modal card's own controls, as nothing behind it can be used while it's up. */
+export function keepTabInside(e: React.KeyboardEvent<HTMLElement>) {
   if (e.key !== "Tab") return;
-  const buttons = [...e.currentTarget.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")];
-  const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
+  const controls = [...e.currentTarget.querySelectorAll<HTMLElement>("button:not(:disabled), input:not(:disabled)")];
+  const at = controls.indexOf(document.activeElement as HTMLElement);
   e.preventDefault();
-  buttons[(at + (e.shiftKey ? -1 : 1) + buttons.length) % buttons.length]?.focus();
+  controls[(at + (e.shiftKey ? -1 : 1) + controls.length) % controls.length]?.focus();
 }
 
 /**
@@ -55,7 +49,7 @@ export function DueDateQuestion({
         <LabelTitle id="due-date-question">
           {several
             ? `${dueBefore.length} Tasks due earlier. Move the due dates too?`
-            : `${dueWords(dueBefore[0], today)}. Move the due date too?`}
+            : `${sentenceWords(deadlineWords(dueBefore[0].deadline, today))}. Move the due date too?`}
         </LabelTitle>
         {several && (
           <ul className={styles.tasks}>

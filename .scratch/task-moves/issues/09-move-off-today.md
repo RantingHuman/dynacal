@@ -4,13 +4,13 @@
 
 **Blocked by:** 04
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Ordinary Tasks, including a started one, start ticked
-- [ ] Pinned Tasks, Tasks due today and past "Finished?" Tasks start unticked, each saying why
-- [ ] Select all ticks everything and becomes Clear all
-- [ ] "Move N to tomorrow" follows the ticks, and Pick a day applies to everything ticked
-- [ ] One due date question covers all ticked Tasks that need it, and Cancel moves nothing
-- [ ] One message and one Undo cover the whole move
-- [ ] Moving a past "Finished?" Task counts as Didn't start, and Google Events aren't listed
-- [ ] Works on phone and computer
+- [x] Ordinary Tasks, including a started one, start ticked
+- [x] Pinned Tasks, Tasks due today and past "Finished?" Tasks start unticked, each saying why
+- [x] Select all ticks everything and becomes Clear all
+- [x] "Move N to tomorrow" follows the ticks, and Pick a day applies to everything ticked
+- [x] One due date question covers all ticked Tasks that need it, and Cancel moves nothing
+- [x] One message and one Undo cover the whole move
+- [x] Moving a past "Finished?" Task counts as Didn't start, and Google Events aren't listed
+- [x] Works on phone and computer

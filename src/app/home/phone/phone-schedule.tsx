@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { weekListDays, type WeekListEntry } from "@/core/week-list";
 import { dateParts, dayLabel, spanLabel, weekdayName } from "@/core/day-labels";
 import { formatMinutes } from "@/core/settings";
@@ -10,6 +10,7 @@ import { useOnline } from "../../states/use-online";
 import { useScheduleCheckIns } from "../../tasks/check-in-answers";
 import { CheckInSheet } from "../../tasks/check-in-sheet";
 import { CompleteTaskButton } from "../../tasks/complete-task-button";
+import { MoveOffToday, useCanMoveOffToday } from "../../tasks/move-off-today";
 import { useTaskList } from "../../tasks/task-list";
 import type { CalendarBlock, CalendarConflict, CalendarEvent } from "../../schedule/calendar";
 import { ConflictStrip } from "../../schedule/conflict-strip";
@@ -43,13 +44,16 @@ type Item = { kind: "block"; block: CalendarBlock } | { kind: "event"; event: Ca
  */
 type Open = { kind: "block" | "event"; id: string } | null;
 
-/** A day's heading: the date as a large numeral, then the weekday, with a squiggle under today. */
-function DayHeading({ date, today }: { date: string; today: boolean }) {
+/** A day's heading: the date as a large numeral, then the weekday, with a squiggle under today, and `action` beside it. */
+function DayHeading({ date, today, action }: { date: string; today: boolean; action?: ReactNode }) {
   return (
-    <h3 className={styles.dayHeading} data-today={today}>
-      <span className={styles.dayNumber}>{dateParts(date).day}</span> {weekdayName(date)}
-      {today && <Squiggle waves={3} className={styles.daySquiggle} />}
-    </h3>
+    <div className={styles.dayHead}>
+      <h3 className={styles.dayHeading} data-today={today}>
+        <span className={styles.dayNumber}>{dateParts(date).day}</span> {weekdayName(date)}
+        {today && <Squiggle waves={3} className={styles.daySquiggle} />}
+      </h3>
+      {action}
+    </div>
   );
 }
 
@@ -80,6 +84,9 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
   const lastDay = toZoned(new Date(horizon.end), timeZone).date;
   const [open, setOpen] = useState<Open>(openBlockId ? { kind: "block", id: openBlockId } : null);
   const close = useCallback(() => setOpen(null), []);
+  const todayOnSchedule = { blocks, timeZone, now: new Date(now), today };
+  const canMoveOffToday = useCanMoveOffToday(todayOnSchedule);
+  const [movingOffToday, setMovingOffToday] = useState(false);
   const online = useOnline();
   const checkIns = useScheduleCheckIns();
   // Tasks complete in the Task List, at once when ticked: all of a completed Task's lines dim together.
@@ -127,7 +134,17 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
       <div className={styles.weekList}>
         {weekListDays(days, entries, timeZone).map(({ date, lines }) => (
           <section key={date} className={styles.day} aria-label={dayLabel(date)}>
-            <DayHeading date={date} today={date === today} />
+            <DayHeading
+              date={date}
+              today={date === today}
+              action={
+                date === today && canMoveOffToday ? (
+                  <button type="button" className={`link ${styles.moveOffToday}`} onClick={() => setMovingOffToday(true)}>
+                    Move off today
+                  </button>
+                ) : undefined
+              }
+            />
             {lines.length === 0 && <p className={styles.nothing}>Nothing planned</p>}
             {lines.map(({ item, allDay, minutes, length }) => {
               const isBlock = item.kind === "block";
@@ -177,6 +194,8 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
           </section>
         ))}
       </div>
+
+      {movingOffToday && <MoveOffToday {...todayOnSchedule} onClose={() => setMovingOffToday(false)} />}
 
       <div className={styles.overlays}>
         {openBlock && !ended(openBlock) && (
