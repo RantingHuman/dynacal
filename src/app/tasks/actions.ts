@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { AllowSplittingResult, CompleteTaskResult } from "@/core/commands";
 import type { CheckInResult } from "@/core/completion";
+import type { MoveToDayResult, UndoDayMoveResult } from "@/core/day-moves";
 import { PRIORITIES, type TaskResult, type UpdateTaskResult } from "@/core/tasks";
 import { getRuntime } from "@/server/runtime";
 import { requireOwner } from "@/server/session";
@@ -61,6 +62,32 @@ export async function reopenTask(id: string): Promise<CompleteTaskResult> {
 export async function allowSplitting(id: string): Promise<AllowSplittingResult> {
   await requireOwner();
   const result = getRuntime().commands.allowSplitting(z.string().parse(id));
+  revalidatePath("/");
+  return result;
+}
+
+/** Moves Tasks to a day, where dynacal picks their time. The result says what Undo needs. */
+export async function moveTasksToDay(ids: unknown, day: unknown): Promise<MoveToDayResult> {
+  await requireOwner();
+  const result = getRuntime().commands.moveTasksToDay(z.array(z.string()).parse(ids), z.iso.date().parse(day));
+  revalidatePath("/");
+  return result;
+}
+
+const dayMoveUndoSchema = z.strictObject({
+  tasks: z.array(
+    z.strictObject({
+      id: z.string(),
+      earliestStart: dateOrDateTimeSchema,
+      deadline: dateOrDateTimeSchema,
+      pinned: z.array(z.strictObject({ id: z.string(), start: z.date(), end: z.date() })),
+    }),
+  ),
+});
+
+export async function undoDayMove(undo: unknown): Promise<UndoDayMoveResult> {
+  await requireOwner();
+  const result = getRuntime().commands.undoDayMove(dayMoveUndoSchema.parse(undo));
   revalidatePath("/");
   return result;
 }

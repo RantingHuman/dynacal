@@ -48,13 +48,27 @@
   cursor: pointer;
 }
 
-/* On a touch screen, the × is tapped through a 44px square around it, like the links (see globals). */
+.action {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-style: normal;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* On a touch screen, the × and the action are tapped through a 44px square around them, like the links (see globals). */
 @media (pointer: coarse) {
-  .dismiss {
+  .dismiss,
+  .action {
     position: relative;
   }
 
-  .dismiss::after {
+  .dismiss::after,
+  .action::after {
     content: "";
     position: absolute;
     inset: min(0px, calc((100% - 44px) / 2));

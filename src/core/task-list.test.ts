@@ -25,6 +25,32 @@ function appWithTasks(...inputs: Partial<TaskInput>[]) {
 const titles = (tasks: { title: string }[]) => tasks.map((t) => t.title);
 
 describe("an optimistic change to the Task list", () => {
+  it("shows a Task moved to a day as the server will have it, with its Check-ins answered", () => {
+    const app = appWithTasks({ title: "Waiting", earliestStart: { date: "2026-01-05", time: "09:00" } }, { title: "Other" });
+    app.commands.updateSettings({ timeZone: "Europe/London" });
+    app.clock.set(new Date("2026-01-05T17:30:00Z"));
+    app.commands.recalculate();
+    const before = app.commands.listTasks();
+    const { id } = before.find((t) => t.title === "Waiting")!;
+    expect(before.find((t) => t.id === id)!.checkIns).not.toEqual([]);
+
+    const shown = applyTaskChange(before, { kind: "move-to-day", ids: [id], day: "2026-01-06" }, new Date(), "work");
+    app.commands.moveTasksToDay([id], "2026-01-06");
+
+    expect(shown).toEqual(app.commands.listTasks());
+  });
+
+  it("shows an undone move to a day as the server will have it", () => {
+    const app = appWithTasks({ title: "Moved", earliestStart: { date: "2026-01-05", time: "12:00" } });
+    const before = app.commands.listTasks();
+    const moved = app.commands.moveTasksToDay([before[0].id], "2026-01-06");
+    if (!moved.ok) throw new Error("move refused");
+
+    const shown = applyTaskChange(app.commands.listTasks(), { kind: "undo-day-move", undo: moved.undo }, new Date(), "work");
+
+    expect(shown).toEqual(before);
+  });
+
   it("puts an added Task where the list will have it once the server has saved it", () => {
     const app = appWithTasks(
       { title: "Board memo", deadline: { date: "2026-01-09", time: null } },

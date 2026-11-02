@@ -13,7 +13,7 @@ import { useSlow } from "../states/use-slow";
 /**
  * A Block's details, in the floating label. Moving a Block without dragging: pick a date, a start and an end.
  * Saving pins it. Also where a Pinned Block is unpinned, where its Conflicts are spelled out, and where its whole
- * Task can be marked done.
+ * Task can be marked done or sent to tomorrow.
  */
 export function BlockEditor({
   block,
@@ -74,6 +74,15 @@ export function BlockEditor({
         <div className={styles.editorActions}>
           <button type="submit" className="button" disabled={actions.disabled} title={actions.title}>
             {slow ? "…" : block.pinned ? "Save" : "Save and pin"}
+          </button>
+          <button
+            type="button"
+            className="button secondary"
+            disabled={actions.disabled}
+            title={actions.title}
+            onClick={actions.tomorrow}
+          >
+            Tomorrow
           </button>
           {block.pinned && (
             <button

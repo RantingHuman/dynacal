@@ -60,6 +60,29 @@ test("gives the phone's small controls a 44px tap area without overlapping", asy
   });
 });
 
+test("gives Tomorrow and its Undo a 44px tap area, with no sideways scroll", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await asPhone(page);
+    await page.goto("/");
+    await page.getByRole("tab", { name: "Tasks" }).click();
+    await page.getByRole("textbox", { name: "Add a Task" }).fill("Write a report 1h");
+    await page.getByRole("textbox", { name: "Add a Task" }).press("Enter");
+    await page.getByRole("tab", { name: "Schedule" }).click();
+    await page.getByRole("button", { name: /Write a report, 09:00, 1h/ }).click();
+
+    const tomorrow = page.getByRole("button", { name: "Tomorrow" });
+    await expectTappable(tomorrow);
+    await tomorrow.click();
+
+    const undo = page.getByRole("button", { name: "Undo" });
+    await expectTappable(undo);
+    const widths = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
+    expect(widths[0]).toBeLessThanOrEqual(widths[1]);
+    const box = await page.getByRole("status").filter({ hasText: "Moved to tomorrow" }).boundingBox();
+    expect(box && box.x + box.width).toBeLessThanOrEqual(390);
+  });
+});
+
 test("gives every line and choice on the Task screen a 44px tap area, with no sideways scroll", async ({ browser }) => {
   await withApp(browser, async (page) => {
     await asPhone(page);
