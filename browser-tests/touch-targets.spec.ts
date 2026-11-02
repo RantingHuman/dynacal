@@ -246,6 +246,28 @@ test("gives every line and choice on the Task screen a 44px tap area, with no si
   });
 });
 
+test("gives the When line and its sheet 44px tap areas, clear of Save, with no sideways scroll", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await asPhone(page);
+    await page.goto("/");
+    await page.getByRole("tab", { name: "Tasks" }).click();
+    await page.getByRole("textbox", { name: "Add a Task" }).fill("Write a report 1h");
+    await page.getByRole("textbox", { name: "Add a Task" }).press("Enter");
+    await page.getByRole("button", { name: /^Write a report/ }).click();
+    const editor = page.getByRole("form", { name: "Edit Task" });
+    const when = editor.getByRole("button", { name: /^When, / });
+
+    await expectTappable(when);
+    await when.click();
+    const sheet = page.getByRole("complementary", { name: "Write a report" });
+    for (const name of ["Done", "Tomorrow", "Move"]) await expectTappable(sheet.getByRole("button", { name }));
+    await expectTappable(editor.getByRole("button", { name: "Save" }));
+    await sheet.getByRole("button", { name: "Move" }).click();
+    for (const name of ["−15m", "+15m", "Pick a time"]) await expectTappable(sheet.getByRole("button", { name }));
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  });
+});
+
 test("gives a past time's line a 44px tap area for its Check-in", async ({ browser }) => {
   await withApp(browser, async (page) => {
     await asPhone(page);

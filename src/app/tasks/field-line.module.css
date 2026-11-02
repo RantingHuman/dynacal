@@ -59,6 +59,11 @@
   transform: translateY(2px) rotate(225deg);
 }
 
+/* It opens something over the screen, so it points onward. */
+.chevron[data-opens] {
+  transform: translateX(-2px) rotate(-45deg);
+}
+
 .choices {
   padding-bottom: var(--space-3);
   animation: open var(--fast) var(--expo);

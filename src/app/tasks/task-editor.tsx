@@ -20,7 +20,7 @@ import { BufferChips } from "../buffer-chips";
 import { OFFLINE_REASON, useOnline } from "../states/use-online";
 import { createTask, deleteTask, updateTask } from "./actions";
 import { dateWords, spanWords } from "./day-words";
-import { FieldLine, MoreLine } from "./field-line";
+import { FieldLine, MoreLine, OpensLine } from "./field-line";
 import { FLAG_LABELS, isAlarm } from "./flags";
 import lineStyles from "./field-line.module.css";
 import type { TaskDraft } from "./task-editor-slot";
@@ -43,6 +43,10 @@ const LINE_OF_FIELD: [keyof TaskErrors, Line][] = [
   ["bufferBeforeMinutes", "more"],
   ["bufferAfterMinutes", "more"],
 ];
+
+function sameWhen(a: DateOrDateTime | null, b: DateOrDateTime | null): boolean {
+  return a?.date === b?.date && (a?.time ?? null) === (b?.time ?? null);
+}
 
 /**
  * The form's values as a string, to compare with what it opened with. Every field is named, so a new one can't escape
@@ -76,6 +80,7 @@ export function TaskEditor({
   initial,
   contexts,
   flag,
+  times = [],
   timeZone,
   today,
   defaultBuffers,
@@ -95,6 +100,8 @@ export function TaskEditor({
   /** Every Context, the Default Context first. */
   contexts: Context[];
   flag: TaskFlag | null;
+  /** The Task's times that haven't ended, in order: each has a When line, which opens its sheet. */
+  times?: { id: string; words: string; onOpen: () => void }[];
   timeZone: string | null;
   today: string;
   /** The Buffers in Settings, which a Task without its own follows. */
@@ -115,8 +122,19 @@ export function TaskEditor({
   onAdded?: () => void;
 }) {
   // A Task added without a Context goes to the Default Context, so its chip starts chosen.
-  const [opened] = useState<TaskInput>({ ...initial, contextId: initial.contextId ?? contexts[0].id });
+  const [opened, setOpened] = useState<TaskInput>({ ...initial, contextId: initial.contextId ?? contexts[0].id });
   const [input, setInput] = useState<TaskInput>(() => draft.current?.input ?? opened);
+  // Tomorrow on the sheet, or its Undo, changes the Task under the open form. The form follows, unless the owner has
+  // changed that field themselves, so that saving what's typed doesn't put the Task back where it was.
+  if (task && !(sameWhen(task.earliestStart, opened.earliestStart) && sameWhen(task.deadline, opened.deadline))) {
+    const moved = { earliestStart: task.earliestStart, deadline: task.deadline };
+    setOpened({ ...opened, ...moved });
+    setInput({
+      ...input,
+      earliestStart: sameWhen(input.earliestStart, opened.earliestStart) ? moved.earliestStart : input.earliestStart,
+      deadline: sameWhen(input.deadline, opened.deadline) ? moved.deadline : input.deadline,
+    });
+  }
   const [errors, setErrors] = useState<TaskErrors>({});
   const [openLine, setOpenLine] = useState<Line | null>(null);
   // Offline, the Task can be read but not saved or deleted.
@@ -251,6 +269,10 @@ export function TaskEditor({
         )}
 
         <div className={styles.lines}>
+          {times.map(({ id, words, onOpen }) => (
+            <OpensLine key={id} name="When" value={words} onOpen={onOpen} />
+          ))}
+
           <FieldLine
             name="How long"
             value={Number.isNaN(input.estimatedMinutes) ? "Not set" : formatDuration(input.estimatedMinutes)}

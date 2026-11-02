@@ -43,6 +43,19 @@ export function FieldLine({
   );
 }
 
+/** A line on the Task screen that opens something over it, rather than choices under it. */
+export function OpensLine({ name, value, onOpen }: { name: string; value: string; onOpen: () => void }) {
+  return (
+    <div className={styles.line}>
+      <button type="button" className={styles.head} aria-label={`${name}, ${value}`} onClick={onOpen}>
+        <span className={styles.name}>{name}</span>
+        <span className={styles.value}>{value}</span>
+        <span className={styles.chevron} data-opens aria-hidden />
+      </button>
+    </div>
+  );
+}
+
 /**
  * The rarely used fields, behind one line that names what's set inside, so nothing is hidden by surprise. The parent
  * decides whether it's open.
