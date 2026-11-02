@@ -91,6 +91,31 @@ test("nudges a Task from the phone sheet again and again, then keeps the new tim
   });
 });
 
+test("moves a started Task to a later time from the phone sheet, and Undo puts it back", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+    await page.getByRole("tab", { name: "Schedule" }).click();
+    await page.getByRole("button", { name: /Write a report, 08:30, 1h/ }).click();
+    await page.getByRole("button", { name: "Move" }).click();
+    await expect(page.getByRole("button", { name: "+15m" })).toHaveCount(0);
+    const pick = page.getByRole("button", { name: "Pick a time" });
+    expect((await pick.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await pick.click();
+    await page.getByLabel("Start").fill("14:00");
+    await page.getByRole("button", { name: "Move", exact: true }).click();
+
+    await expect(page.getByText("Pinned at 14:00.")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Write a report, 14:00, 1h, Pinned/ })).toBeVisible();
+    await expect(page.getByText("Finished?")).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Undo" }).click();
+    await expect(page.getByText("Moved back")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Write a report, 08:30, 1h/ })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  }, { seed: "started-time" });
+});
+
 test("closes the phone sheet by tapping outside, and tapping another Task opens that one", async ({ browser }) => {
   await withApp(browser, async (page) => {
     await page.setViewportSize({ width: 390, height: 844 });

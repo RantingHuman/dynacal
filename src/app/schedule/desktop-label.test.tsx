@@ -66,6 +66,23 @@ describe("desktop Block label", () => {
     await waitFor(() => expect(close).toHaveBeenCalledOnce());
   });
 
+  it("offers only Pick a time once its time has started, with the boxes set a full length ahead", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-27T10:40:00.000Z"));
+    vi.mocked(moveBlock).mockResolvedValue({ ok: true });
+    renderBlock();
+    await userEvent.click(screen.getByRole("button", { name: "Move" }));
+    expect(within(screen.getByRole("complementary")).getAllByRole("button").map((b) => b.textContent)).toEqual(["Write Q4 planning doc›", "Pick a time"]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Pick a time" }));
+    expect(screen.getByLabelText("Start")).toHaveProperty("value", "10:45");
+    expect(screen.getByLabelText("End")).toHaveProperty("value", "12:45");
+    await userEvent.click(screen.getByRole("button", { name: "Move" }));
+
+    await waitFor(() => expect(moveBlock).toHaveBeenCalledWith("block-1", { start: "2026-10-27T10:45:00.000Z", end: "2026-10-27T12:45:00.000Z" }));
+    vi.useRealTimers();
+  });
+
   it("takes an end before the start to mean the next day", async () => {
     vi.mocked(moveBlock).mockResolvedValue({ ok: true });
     renderBlock();

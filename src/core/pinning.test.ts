@@ -125,15 +125,61 @@ describe("a Block that has started", () => {
     ]);
   });
 
-  it("can't have its start changed", () => {
+  it("can't move to a start that has passed", () => {
     const app = appInLondon();
     createTask(app, { title: "Report" });
     app.clock.set(at("09:30"));
 
-    expect(app.commands.moveBlock(blockOf(app, "Report").id, { start: at("09:45"), end: at("10:00") })).toEqual({
+    expect(app.commands.moveBlock(blockOf(app, "Report").id, { start: at("09:15"), end: at("10:15") })).toEqual({
       ok: false,
-      errors: { start: "This time has started, so only its end can change." },
+      errors: { start: "Choose a start that hasn't passed yet." },
     });
+    expect(blocks(app)).toEqual([["Report", at("09:00"), at("10:00"), false]]);
+  });
+
+  it("can move wholly to a future time, pinned at its full length, even overlapping the time it left", () => {
+    const app = appInLondon();
+    createTask(app, { title: "Report" });
+    app.clock.set(at("09:30"));
+
+    expect(app.commands.moveBlock(blockOf(app, "Report").id, { start: at("09:45"), end: at("10:45") })).toEqual({ ok: true });
+
+    expect(blocks(app)).toEqual([["Report", at("09:45"), at("10:45"), true]]);
+  });
+
+  it("counts none of its time as done when it moves, so the Task needs all of it still", () => {
+    const app = appInLondon();
+    createTask(app, { title: "Report", estimatedMinutes: 120 });
+    app.clock.set(at("10:30"));
+
+    app.commands.moveBlock(blockOf(app, "Report").id, { start: at("14:00"), end: at("16:00") });
+
+    expect(blocks(app)).toEqual([["Report", at("14:00"), at("16:00"), true]]);
+    expect(app.commands.listTasks()[0].remainingMinutes).toBe(120);
+  });
+
+  it("places only the rest of a Splittable Task around it when it moves", () => {
+    const app = appInLondon();
+    createTask(app, { title: "Report", estimatedMinutes: 120 });
+    app.clock.set(at("09:30"));
+
+    app.commands.moveBlock(blockOf(app, "Report").id, { start: at("14:00"), end: at("15:00") });
+
+    expect(blocks(app)).toEqual([
+      ["Report", at("09:30"), at("10:30"), false],
+      ["Report", at("14:00"), at("15:00"), true],
+    ]);
+  });
+
+  it("asks no Check-in about the time it left", () => {
+    const app = appInLondon();
+    createTask(app, { title: "Report" });
+    app.clock.set(at("09:30"));
+    app.commands.moveBlock(blockOf(app, "Report").id, { start: at("14:00"), end: at("15:00") });
+
+    app.clock.set(at("11:00"));
+
+    expect(app.commands.listTasks()[0].checkIns).toEqual([]);
   });
 
   it("can't be moved once it has ended", () => {
@@ -144,6 +190,56 @@ describe("a Block that has started", () => {
     expect(app.commands.moveBlock(blockOf(app, "Report").id, { start: at("11:00"), end: at("12:00") })).toEqual({
       ok: false,
       errors: { block: "This time has already ended, so it can't be moved." },
+    });
+  });
+});
+
+describe("undoing a move", () => {
+  it("puts a Block that had started back at its time, as it was before", () => {
+    const app = appInLondon();
+    createTask(app, { title: "Report" });
+    app.clock.set(at("09:30"));
+    const { id } = blockOf(app, "Report");
+    app.commands.moveBlock(id, { start: at("14:00"), end: at("15:00") });
+
+    expect(app.commands.restoreBlockTime(id, { start: at("09:00"), end: at("10:00"), pinned: false })).toEqual({ ok: true });
+
+    expect(blocks(app)).toEqual([["Report", at("09:00"), at("10:00"), false]]);
+  });
+
+  it("keeps a Pinned Block pinned", () => {
+    const app = appInLondon();
+    createTask(app, { title: "Report" });
+    const { id } = blockOf(app, "Report");
+    app.commands.moveBlock(id, { start: at("14:00"), end: at("15:00") });
+    app.commands.moveBlock(id, { start: at("16:00"), end: at("17:00") });
+
+    app.commands.restoreBlockTime(id, { start: at("14:00"), end: at("15:00"), pinned: true });
+
+    expect(blocks(app)).toEqual([["Report", at("14:00"), at("15:00"), true]]);
+  });
+
+  it("refuses once the old time has ended, leaving the Task where it is", () => {
+    const app = appInLondon();
+    createTask(app, { title: "Report" });
+    app.clock.set(at("09:30"));
+    const { id } = blockOf(app, "Report");
+    app.commands.moveBlock(id, { start: at("14:00"), end: at("15:00") });
+    app.clock.set(at("10:30"));
+
+    expect(app.commands.restoreBlockTime(id, { start: at("09:00"), end: at("10:00"), pinned: false })).toEqual({
+      ok: false,
+      errors: { block: "That time has already ended, so the Task stays where it is." },
+    });
+    expect(blocks(app)).toEqual([["Report", at("14:00"), at("15:00"), true]]);
+  });
+
+  it("refuses a time that has gone", () => {
+    const app = appInLondon();
+
+    expect(app.commands.restoreBlockTime("gone", { start: at("10:00"), end: at("11:00"), pinned: false })).toEqual({
+      ok: false,
+      notFound: true,
     });
   });
 });

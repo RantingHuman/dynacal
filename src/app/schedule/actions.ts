@@ -26,6 +26,17 @@ export async function moveBlock(id: string, to: unknown): Promise<MoveBlockResul
   return result;
 }
 
+const restoredTimeSchema = z.strictObject({ start: z.iso.datetime(), end: z.iso.datetime(), pinned: z.boolean() });
+
+/** Undoes a move: puts a Block back at the time it left, pinned or not as it was. */
+export async function restoreBlockTime(id: string, back: unknown): Promise<MoveBlockResult> {
+  await requireOwner();
+  const { start, end, pinned } = restoredTimeSchema.parse(back);
+  const result = getRuntime().commands.restoreBlockTime(z.string().parse(id), { start: new Date(start), end: new Date(end), pinned });
+  revalidatePath("/");
+  return result;
+}
+
 export async function unpinBlock(id: string): Promise<UnpinBlockResult> {
   await requireOwner();
   const result = getRuntime().commands.unpinBlock(z.string().parse(id));

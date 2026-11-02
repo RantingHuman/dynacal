@@ -18,6 +18,19 @@ const globalRuntime = globalThis as unknown as {
 /** The Tasks `seedPastTimes` adds, one hour each, in the order they were scheduled from 06:00. */
 const PAST_TIMES = ["Pack for vegas", "Print mystery machine", "Create WhatsApp group"];
 
+/** A one-hour Task whose time started at 08:30, half an hour before the usual 09:00. */
+function seedStartedTime(commands: ReturnType<typeof createCommands>, clock: FakeClock) {
+  const usual = clock.now();
+  const [{ windows }] = commands.listContexts();
+  clock.set(new Date("2026-01-05T08:30:00Z"));
+  setDefaultWindows(commands, { mon: [{ start: 8 * 60 + 30, end: 17 * 60 }] });
+  const result = commands.createTask({ title: "Write a report", notes: "", estimatedMinutes: 60, deadline: null, earliestStart: null,
+    priority: "medium", splittable: false });
+  if (!result.ok) throw new Error("Could not seed a started time");
+  clock.set(usual);
+  setDefaultWindows(commands, windows);
+}
+
 /**
  * Three one-hour Tasks whose times passed this morning (06:00–09:00) and wait for a Check-in: they're added at
  * 06:00 with the working day starting then, and the clock is back at the usual 09:00 before the day is reset.
@@ -61,6 +74,7 @@ export function getRuntime(): Runtime {
   const commands = createCommands({ db, clock, ownerEmail: "owner@example.com", calendar, pushSender: new FakePushSender() });
   commands.updateSettings({ timeZone: "Europe/London" });
   if (process.env.DYNACAL_TEST_SEED === "past-times") seedPastTimes(commands, clock);
+  if (process.env.DYNACAL_TEST_SEED === "started-time") seedStartedTime(commands, clock);
   const session = commands.signIn({ email: "owner@example.com", emailVerified: true });
   if (!session.ok) throw new Error("Could not seed test session");
   writeSync(sessionFd, session.sessionId);

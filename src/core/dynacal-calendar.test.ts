@@ -351,6 +351,57 @@ describe("A moved Block in the dynacal calendar", () => {
     ]);
   });
 
+  it("moves its own event when it's moved on from a time that has started, leaving nothing behind", async () => {
+    const app = appInLondon();
+    const dynacal = await connect(app);
+    createTask(app, { estimatedMinutes: 120 });
+    await app.commands.writeBlocksToGoogle();
+    const eventId = onlyWrittenEvent(app);
+    app.clock.set(at("09:30"));
+
+    app.commands.moveBlock(blockOf(app).id, { start: at("14:00"), end: at("16:00") });
+    await app.commands.writeBlocksToGoogle();
+
+    expect(app.calendar.blockEvent(eventId)).toEqual(["Write report", at("14:00"), at("16:00")]);
+    expect(app.calendar.blockEventsOn(dynacal)).toEqual([["Write report", at("14:00"), at("16:00"), 10]]);
+  });
+
+  it("moves its event even if the time it left ended before Google heard of the move", async () => {
+    const app = appInLondon();
+    const dynacal = await connect(app);
+    createTask(app);
+    await app.commands.writeBlocksToGoogle();
+    app.clock.set(at("09:30"));
+    app.commands.moveBlock(blockOf(app).id, { start: at("14:00"), end: at("15:00") });
+
+    app.clock.set(at("11:00"));
+    await app.commands.writeBlocksToGoogle();
+
+    expect(app.calendar.blockEventsOn(dynacal)).toEqual([["Write report", at("14:00"), at("15:00"), 10]]);
+  });
+
+  it("goes back to its started time in Google when the move is undone", async () => {
+    const app = appInLondon();
+    const dynacal = await connect(app);
+    createTask(app, { estimatedMinutes: 120 });
+    await app.commands.writeBlocksToGoogle();
+    const eventId = onlyWrittenEvent(app);
+    app.clock.set(at("09:30"));
+    const { id } = blockOf(app);
+    app.commands.moveBlock(id, { start: at("14:00"), end: at("16:00") });
+    await app.commands.writeBlocksToGoogle();
+
+    app.commands.restoreBlockTime(id, { start: at("09:00"), end: at("11:00"), pinned: false });
+    await app.commands.writeBlocksToGoogle();
+
+    expect(app.calendar.blockEvent(eventId)).toEqual(["Write report", at("09:00"), at("11:00")]);
+    expect(app.calendar.blockEventsOn(dynacal)).toEqual([["Write report", at("09:00"), at("11:00"), 10]]);
+
+    app.calendar.writes = [];
+    await app.commands.writeBlocksToGoogle();
+    expect(app.calendar.writes).toEqual([]);
+  });
+
   it("keeps its event when it's moved after a Recalculation replaced the Task's Blocks", async () => {
     const app = appInLondon();
     await connect(app);
