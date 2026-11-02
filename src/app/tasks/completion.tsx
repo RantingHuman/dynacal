@@ -4,7 +4,7 @@ import { createContext, startTransition, useCallback, useContext, useEffect, use
 import { createSettle, REORDER_DELAY_MS } from "@/core/motion";
 
 interface CompletionContext {
-  /** Tasks ticked on this page, whose completion animates (a Task already complete on load doesn't). */
+  /** Tasks whose tick is still playing, until it settles: a mark left on would replay whenever a row is shown again. */
   ticked: ReadonlySet<string>;
   /** While true the Task list keeps its order, so rows don't jump under the pointer mid-burst. */
   holding: boolean;
@@ -19,12 +19,19 @@ const Context = createContext<CompletionContext>({ ticked: new Set(), holding: f
 /**
  * The motion of completing a Task: the list holds its order until 600ms after the last tick, then lets completed
  * Tasks slide to the bottom and reopened ones back up (in a Transition, so the rows' `<ViewTransition>`s animate
- * it). The delay restarts on each tick, so a burst reorders once.
+ * it), and the ticks' animations are over. The delay restarts on each tick, so a burst reorders once.
  */
 export function CompletionProvider({ children }: { children: ReactNode }) {
   const [ticked, setTicked] = useState<ReadonlySet<string>>(() => new Set());
   const [holding, setHolding] = useState(false);
-  const [settle] = useState(() => createSettle(REORDER_DELAY_MS, () => startTransition(() => setHolding(false))));
+  const [settle] = useState(() =>
+    createSettle(REORDER_DELAY_MS, () =>
+      startTransition(() => {
+        setHolding(false);
+        setTicked(new Set());
+      }),
+    ),
+  );
   useEffect(() => () => settle.cancel(), [settle]);
 
   const tick = useCallback(

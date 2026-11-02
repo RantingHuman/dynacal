@@ -53,11 +53,11 @@ export function PhoneHome({
     <TaskEditorSlot>
       <div className={styles.page}>
         {masthead}
-        <div role="tabpanel" id="phone-panel-schedule" aria-labelledby="phone-tab-schedule" hidden={tab !== "schedule"}>
+        <div role="tabpanel" className={styles.tabPanel} id="phone-panel-schedule" aria-labelledby="phone-tab-schedule" hidden={tab !== "schedule"}>
           <div className={styles.lead}>{lead}</div>
           {schedule ? <PhoneSchedule {...schedule} /> : <EmptyWeekList today={today} />}
         </div>
-        <div role="tabpanel" id="phone-panel-tasks" aria-labelledby="phone-tab-tasks" hidden={tab !== "tasks"}>
+        <div role="tabpanel" className={styles.tabPanel} id="phone-panel-tasks" aria-labelledby="phone-tab-tasks" hidden={tab !== "tasks"}>
           {tasks}
         </div>
       </div>

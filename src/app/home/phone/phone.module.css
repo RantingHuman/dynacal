@@ -32,12 +32,34 @@
   padding: var(--space-2) 0;
   border-top: var(--masthead-rule) solid var(--ink);
   border-bottom: var(--hairline) solid var(--ink);
-  font-size: 13px;
+  font-size: var(--text-control);
 }
 
 .title {
   font: italic 28px / 1 var(--font-serif);
   letter-spacing: -0.01em;
+}
+
+/* The Menu's icon, flush with the rule's right end; its tap area reaches past it without making the masthead taller. */
+.menuButton {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin: -8px -11px -8px 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.menuButton svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
 }
 
 .menu {
@@ -61,6 +83,15 @@
 
 .menu form {
   display: contents;
+}
+
+.menu :global(.muted) {
+  font-size: var(--text-control);
+}
+
+/* Lines the text buttons up with the links. */
+.menu :global(.link) {
+  padding: 0;
 }
 
 /* Far enough apart on a touch screen that the items' 44px tap areas (see globals) don't overlap. */
@@ -311,6 +342,19 @@
 }
 
 /* The tab bar, fixed to the bottom of the screen. */
+
+/*
+ * A tab that isn't showing stays laid out but unseen and unreachable. Hidden with display: none, its animations would
+ * start again each time it came back, so a Task ticked long ago would look as if it had just been ticked.
+ */
+.tabPanel[hidden] {
+  display: block;
+  position: absolute;
+  width: 100%;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+}
 
 .tabs {
   position: fixed;
