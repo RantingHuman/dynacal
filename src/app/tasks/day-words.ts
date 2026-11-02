@@ -1,6 +1,7 @@
 import { dateParts, dayLabel, monthName, weekdayName as weekday } from "@/core/day-labels";
 import { formatMinutes } from "@/core/settings";
 import type { DateOrDateTime } from "@/core/tasks";
+import { DAY_MS } from "@/core/time";
 import { addDays, toZoned } from "@/core/time-zone";
 
 /** The owner's date now: in their time zone once it's saved, else the browser's. */
@@ -22,6 +23,13 @@ function dayWord(date: string, today: string): string {
   if (near) return weekdayName(date);
   const { month, day } = dateParts(date);
   return `${day} ${monthName(month, "short")}`;
+}
+
+/** A day just gone, for a heading: "Today", "Yesterday" or "3 days ago". */
+export function daysAgoWords(date: string, today: string): string {
+  const days = (Date.parse(today) - Date.parse(date)) / DAY_MS;
+  if (days <= 0) return "Today";
+  return days === 1 ? "Yesterday" : `${days} days ago`;
 }
 
 /** e.g. "Fri", "tomorrow 16:00" or "6 Nov". */

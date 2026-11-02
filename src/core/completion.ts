@@ -1,8 +1,16 @@
-import { GRID_MINUTES, MINUTE_MS } from "./time";
+import { DAY_MS, GRID_MINUTES, MINUTE_MS } from "./time";
 
 /**
  * Completing Tasks and Check-ins.
  */
+
+/** How long a completed Task stays in the Task List, under its Completed line. It stays saved after that. */
+export const COMPLETED_KEEP_DAYS = 7;
+
+/** Whether a Task was completed long enough ago to have left the Task List. */
+export function hasLeftTaskList(completedAt: Date | null, now: Date): boolean {
+  return completedAt !== null && now.getTime() - completedAt.getTime() >= COMPLETED_KEEP_DAYS * DAY_MS;
+}
 
 /**
  * How the owner answered for a past Block at its Check-in: "finished" or "more-time" (Didn't start removes it).

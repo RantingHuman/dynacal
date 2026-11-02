@@ -31,6 +31,7 @@ import { connectionProblem, unlessRefused, watchConnectionHealth } from "./conne
 import {
   awaitsCheckIn,
   checkInViews,
+  hasLeftTaskList,
   validateMoreTimeMinutes,
   type CheckInAnswer,
   type CheckInResult,
@@ -1194,7 +1195,10 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       recalculateAutomatically();
     },
 
-    /** Every Task, in Task list order (completed Tasks last), with its Remaining Duration. */
+    /**
+     * The Task List, in its order (completed Tasks last), with each Task's Remaining Duration. A Task completed long
+     * enough ago has left it (see `COMPLETED_KEEP_DAYS`), though it stays saved and its past times stay on the Schedule.
+     */
     listTasks(): TaskListItem[] {
       const now = clock.now();
       const waiting = pastBlocks(db, now)
@@ -1204,6 +1208,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         .select()
         .from(tasks)
         .all()
+        .filter((row) => !hasLeftTaskList(row.completedAt, now))
         .map((row) => ({
           ...toTask(row),
           remainingMinutes: row.estimatedMinutes,

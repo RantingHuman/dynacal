@@ -16,7 +16,7 @@ test("ticks a past time on the phone's week list", async ({ browser }) => {
       // The time stays, faded, with nothing left to answer, and the Task is complete.
       await expect(line(page, "Pack for vegas, 06:00, 1h")).toHaveAttribute("data-past", "true");
       await page.getByRole("tab", { name: "Tasks" }).click();
-      await expect(page.getByRole("button", { name: "Mark “Pack for vegas” not complete" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Completed · 1" })).toBeVisible();
     },
     { seed: "past-times" },
   );
@@ -40,7 +40,7 @@ test("answers three past times from the phone's week list", async ({ browser }) 
       await sheet("Pack for vegas").getByRole("button", { name: "Finished", exact: true }).click();
       await expect(line(page, "Pack for vegas, 06:00, 1h")).toHaveAttribute("data-past", "true");
       await page.getByRole("tab", { name: "Tasks" }).click();
-      await expect(page.getByRole("button", { name: "Mark “Pack for vegas” not complete" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Completed · 1" })).toBeVisible();
       await page.getByRole("tab", { name: "Schedule" }).click();
 
       // More time with 30m adds a new time and keeps the old one, faded.

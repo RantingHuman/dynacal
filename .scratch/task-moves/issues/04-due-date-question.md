@@ -4,9 +4,9 @@
 
 **Blocked by:** 03
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Move both moves the deadline to that day, date only, and moves the Task
-- [ ] Cancel changes nothing
-- [ ] Undo also restores the deadline
-- [ ] The words name the Task's real due day, not always "today"
+- [x] Move both moves the deadline to that day, date only, and moves the Task
+- [x] Cancel changes nothing
+- [x] Undo also restores the deadline
+- [x] The words name the Task's real due day, not always "today"

@@ -2,7 +2,9 @@
 
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { startTransition, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { TaskListItem } from "@/core/commands";
 import { checkInHref } from "@/core/headline";
 import type { TaskFlag } from "@/core/scheduler";
 import type { TaskResult } from "@/core/tasks";
@@ -186,6 +188,7 @@ describe("reopening a completed Task", () => {
     vi.mocked(reopenTask).mockReturnValue(reopening.promise);
     const task = done();
     renderPanel([task]);
+    await userEvent.click(screen.getByRole("button", { name: "Completed · 1" }));
 
     await userEvent.click(screen.getByRole("button", { name: "Mark “Write Q4 planning doc” not complete" }));
 
@@ -198,11 +201,167 @@ describe("reopening a completed Task", () => {
   it("shows it complete again and says why when the server refuses", async () => {
     vi.mocked(reopenTask).mockResolvedValue({ ok: false, notFound: true });
     renderPanel([done()]);
+    await userEvent.click(screen.getByRole("button", { name: "Completed · 1" }));
 
     await userEvent.click(screen.getByRole("button", { name: "Mark “Write Q4 planning doc” not complete" }));
 
     await waitFor(() => expect(screen.getByText("“Write Q4 planning doc” no longer exists.")).toBeTruthy());
     expect(await screen.findByRole("button", { name: "Mark “Write Q4 planning doc” not complete" })).toBeTruthy();
+  });
+});
+
+describe("the Completed line", () => {
+  /** The panel with a server behind it, which saves a tick and sends the new list back as the real one does. */
+  function renderWithServer(tasks: TaskListItem[]) {
+    let setSaved: (change: (tasks: TaskListItem[]) => TaskListItem[]) => void;
+    function Server() {
+      const [saved, set] = useState(tasks);
+      setSaved = set;
+      return (
+        <WithTaskList tasks={saved}>
+          <TaskPanel />
+        </WithTaskList>
+      );
+    }
+    const saving = (id: string, completedAt: Date | null) => {
+      startTransition(() => setSaved((list) => list.map((t) => (t.id === id ? { ...t, completedAt } : t))));
+      return Promise.resolve({ ok: true as const });
+    };
+    vi.mocked(completeTask).mockReset().mockImplementation((id) => saving(id, new Date()));
+    vi.mocked(reopenTask).mockReset().mockImplementation((id) => saving(id, null));
+    return renderGuarded(<Server />);
+  }
+
+  const completed = (title: string, at = new Date()) => taskItem({ title, completedAt: at });
+  const line = (n: number) => screen.getByRole("button", { name: `Completed · ${n}` });
+  const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000);
+
+  it("starts closed under the open Tasks, counting the completed ones", () => {
+    renderPanel([taskItem({ title: "Book flights" }), completed("Pay car insurance"), completed("Write board memo")]);
+
+    expect(line(2).getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("button", { name: "Mark “Pay car insurance” not complete" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Mark “Book flights” complete" })).toBeTruthy();
+    expect(line(2).compareDocumentPosition(screen.getByRole("list")) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+  });
+
+  it("isn't there when no Task is completed", () => {
+    renderPanel([taskItem({ title: "Book flights" })]);
+
+    expect(screen.queryByRole("button", { name: /^Completed/ })).toBeNull();
+  });
+
+  it("opens and closes again", async () => {
+    renderPanel([completed("Pay car insurance")]);
+
+    await userEvent.click(line(1));
+    expect(line(1).getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByRole("button", { name: "Mark “Pay car insurance” not complete" })).toBeTruthy();
+
+    await userEvent.click(line(1));
+    expect(screen.queryByRole("button", { name: "Mark “Pay car insurance” not complete" })).toBeNull();
+  });
+
+  it("groups Tasks by the day they were completed, the latest first", async () => {
+    renderPanel([
+      completed("Write board memo", daysAgo(2)),
+      completed("Reply to accountant"),
+      completed("Pay car insurance", daysAgo(1)),
+      completed("Renew passport photos"),
+    ]);
+
+    await userEvent.click(line(4));
+
+    const groups = screen.getAllByRole("heading", { level: 3 }).map((h) => [h.textContent, h.nextElementSibling!.textContent]);
+    expect(groups.map(([day]) => day)).toEqual(["Today", "Yesterday", "2 days ago"]);
+    expect(groups[0][1]).toContain("Reply to accountant");
+    expect(groups[0][1]).toContain("Renew passport photos");
+    expect(groups[1][1]).toContain("Pay car insurance");
+    expect(groups[2][1]).toContain("Write board memo");
+  });
+
+  it("uses the owner's own day, not the server's", async () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-01-06T00:00:00Z") });
+    try {
+      // 11:30 on the 5th in UTC is already half past midnight on the 6th in Auckland, where it's now 13:00 on the 6th.
+      renderGuarded(
+        <WithTaskList timeZone="Pacific/Auckland" tasks={[completed("Pay car insurance", new Date("2026-01-05T11:30:00Z"))]}>
+          <TaskPanel />
+        </WithTaskList>,
+      );
+
+      await userEvent.click(line(1));
+
+      expect(screen.getByRole("heading", { level: 3, name: "Today" })).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("lets a ticked row settle in place, then takes it in as the count goes up", async () => {
+    renderWithServer([taskItem({ title: "Book flights" }), taskItem({ title: "Call plumber" }), completed("Pay car insurance")]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Mark “Book flights” complete" }));
+
+    // Still in its place, ticked, with the count as it was.
+    expect(screen.getByRole("button", { name: "Mark “Book flights” not complete" })).toBeTruthy();
+    expect(line(1)).toBeTruthy();
+
+    expect(await screen.findByRole("button", { name: "Completed · 2" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Mark “Book flights” not complete" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Mark “Call plumber” complete" })).toBeTruthy();
+  });
+
+  it("appears when the first Task is ticked, once the row has settled", async () => {
+    renderWithServer([taskItem({ title: "Book flights" })]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Mark “Book flights” complete" }));
+    expect(screen.queryByRole("button", { name: /^Completed/ })).toBeNull();
+
+    expect(await screen.findByRole("button", { name: "Completed · 1" })).toBeTruthy();
+  });
+
+  it("reopens a Task un-ticked inside it, which goes back among the open Tasks", async () => {
+    const task = completed("Pay car insurance");
+    renderWithServer([taskItem({ title: "Book flights" }), task, completed("Write board memo")]);
+    await userEvent.click(line(2));
+
+    await userEvent.click(screen.getByRole("button", { name: "Mark “Pay car insurance” not complete" }));
+
+    expect(reopenTask).toHaveBeenCalledWith(task.id);
+    expect(await screen.findByRole("button", { name: "Completed · 1" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Mark “Pay car insurance” complete" })).toBeTruthy();
+    expect(screen.getByText("2 open")).toBeTruthy();
+  });
+
+  it("is closed again next time it has anything in it", async () => {
+    renderWithServer([completed("Pay car insurance")]);
+    await userEvent.click(line(1));
+    await userEvent.click(screen.getByRole("button", { name: "Mark “Pay car insurance” not complete" }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: /^Completed/ })).toBeNull());
+
+    await userEvent.click(screen.getByRole("button", { name: "Mark “Pay car insurance” complete" }));
+
+    expect((await screen.findByRole("button", { name: "Completed · 1" })).getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("still opens its Tasks, so they can be read and changed", async () => {
+    renderPanel([completed("Pay car insurance")]);
+    await userEvent.click(line(1));
+
+    expect(screen.getByRole("button", { name: "Pay car insurance" })).toBeTruthy();
+  });
+
+  it("opens offline, with its ticks disabled", async () => {
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: false });
+    try {
+      renderPanel([completed("Pay car insurance")]);
+      await userEvent.click(line(1));
+
+      expect(screen.getByRole("button", { name: "Mark “Pay car insurance” not complete" })).toHaveProperty("disabled", true);
+    } finally {
+      Object.defineProperty(navigator, "onLine", { configurable: true, value: true });
+    }
   });
 });
 
