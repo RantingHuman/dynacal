@@ -70,7 +70,7 @@ test("nudges a Task from the phone sheet again and again, then keeps the new tim
     await addTask(page);
     await page.getByRole("tab", { name: "Schedule" }).click();
     await page.getByRole("button", { name: /Write a report, 09:00, 1h/ }).click();
-    await page.getByRole("button", { name: "Move" }).click();
+    await page.getByRole("button", { name: "Move", exact: true }).click();
     await page.getByRole("button", { name: "+15m" }).click();
     await expect(page.getByRole("button", { name: /Write a report, 09:15, 1h, Pinned/ })).toBeVisible();
     await expect(page.getByText("Pinned at 09:15.")).toBeVisible();
@@ -137,7 +137,7 @@ test("sends a Task to tomorrow from the phone sheet, then Undo puts its pinned t
     await addTask(page);
     await page.getByRole("tab", { name: "Schedule" }).click();
     await page.getByRole("button", { name: /Write a report, 09:00, 1h/ }).click();
-    await page.getByRole("button", { name: "Move" }).click();
+    await page.getByRole("button", { name: "Move", exact: true }).click();
     await page.getByRole("button", { name: "+15m" }).click();
     await expect(page.getByRole("button", { name: /Write a report, 09:15, 1h, Pinned/ })).toBeVisible();
 
@@ -169,7 +169,7 @@ test("sends a Task to tomorrow from the desktop label and keeps it there after r
     await expect(page.getByText("Moved to tomorrow. dynacal picks the time.")).toBeVisible();
     await page.reload();
     await page.getByRole("button", { name: /Write a report, 09:00–10:00/ }).click();
-    await page.getByRole("button", { name: "Move" }).click();
+    await page.getByRole("button", { name: "Move", exact: true }).click();
     await page.getByRole("button", { name: "Pick a time" }).click();
     await expect(page.getByLabel("Day")).toHaveValue("2026-01-06");
     await expect(page.getByLabel("End", { exact: true })).toHaveValue("10:00");

@@ -135,11 +135,11 @@ test("gives the sheet's title and options a 44px tap area, clear of the tab bar,
     for (const name of ["Done", "Tomorrow", "Move"]) await expectTappable(sheet.getByRole("button", { name, exact: true }));
     await noSidewaysScroll();
 
-    await sheet.getByRole("button", { name: "Move" }).click();
+    await sheet.getByRole("button", { name: "Move", exact: true }).click();
     for (const name of ["−15m", "+15m", "Pick a time"]) await expectTappable(sheet.getByRole("button", { name }));
     await sheet.getByRole("button", { name: "Pick a time" }).click();
     for (const name of ["Day", "Start"]) await expectTappable(sheet.getByLabel(name));
-    await expectTappable(sheet.getByRole("button", { name: "Move" }));
+    await expectTappable(sheet.getByRole("button", { name: "Move", exact: true }));
     await noSidewaysScroll();
 
     await sheet.getByRole("button", { name: "+15m" }).click();
@@ -328,6 +328,8 @@ for (const [value, label] of [["no time before", "Before Events"], ["no time aft
 }
 
 test("keeps Move off today's controls tappable and in view however long the list, with no sideways scroll", async ({ browser }) => {
+  // Adding this many Tasks takes a while on a busy machine.
+  test.slow();
   await withApp(browser, async (page) => {
     await asPhone(page);
     await page.goto("/");
