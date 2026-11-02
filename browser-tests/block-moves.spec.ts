@@ -97,7 +97,7 @@ test("moves a started Task to a later time from the phone sheet, and Undo puts i
     await page.goto("/");
     await page.getByRole("tab", { name: "Schedule" }).click();
     await page.getByRole("button", { name: /Write a report, 08:30, 1h/ }).click();
-    await page.getByRole("button", { name: "Move" }).click();
+    await page.getByRole("button", { name: "Move", exact: true }).click();
     await expect(page.getByRole("button", { name: "+15m" })).toHaveCount(0);
     const pick = page.getByRole("button", { name: "Pick a time" });
     expect((await pick.boundingBox())!.height).toBeGreaterThanOrEqual(44);
