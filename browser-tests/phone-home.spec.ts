@@ -99,6 +99,42 @@ test("doesn't replay an animation that closing and opening the Task editor inter
   );
 });
 
+test("fits the screen's width on both tabs", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+    const widerThanTheScreen = () => page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+    expect(await widerThanTheScreen()).toBe(false);
+    await tab(page, "Tasks").click();
+    expect(await widerThanTheScreen()).toBe(false);
+  });
+});
+
+test("closes the Menu on a tap outside it, and not on one inside it", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+    const button = page.getByRole("button", { name: "Menu" });
+    const menu = page.getByRole("navigation", { name: "Menu" });
+
+    await button.click();
+    await menu.click({ position: { x: 4, y: 4 } });
+    await expect(menu).toBeVisible();
+    await page.getByRole("heading", { name: "The week ahead" }).click();
+    await expect(menu).toBeHidden();
+
+    await button.click();
+    await tab(page, "Tasks").click();
+    await expect(menu).toBeHidden();
+    await expect(page.getByRole("button", { name: "+ Task" })).toBeVisible();
+
+    await button.click();
+    await expect(menu).toBeVisible();
+    await button.click();
+    await expect(menu).toBeHidden();
+  });
+});
+
 test("shows the Menu as an icon at the far right, and its controls at one size", async ({ browser }) => {
   await withApp(browser, async (page) => {
     await page.setViewportSize({ width: 390, height: 844 });
