@@ -211,3 +211,74 @@ test("asks before moving a due date with its Task, and Undo puts both back", asy
     await expect(page.getByText("due today")).toBeVisible();
   });
 });
+
+test("moves a Task from its When line on a phone, keeping what's typed, and Tomorrow survives saving it", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+    await page.getByRole("tab", { name: "Tasks" }).click();
+    await addTask(page);
+    await page.getByRole("button", { name: /^Write a report/ }).click();
+    const editor = page.getByRole("form", { name: "Edit Task" });
+    const title = editor.getByRole("textbox", { name: "Title" });
+    await title.fill("Write a long report");
+
+    const when = editor.getByRole("button", { name: /^When, / });
+    await expect(when).toHaveAccessibleName(/09:00–10:00/);
+    await when.click();
+    const sheet = page.getByRole("complementary", { name: "Write a report" });
+    await sheet.getByRole("button", { name: "Move" }).click();
+    await sheet.getByRole("button", { name: "+15m" }).click();
+    await expect(page.getByText("Pinned at 09:15")).toBeVisible();
+
+    // The move is saved, and shows on the line, while the Task screen keeps what's typed.
+    await expect(when).toHaveAccessibleName(/09:15–10:15/);
+    await expect(title).toHaveValue("Write a long report");
+    await expect(sheet).toBeVisible();
+
+    await page.getByRole("button", { name: "Undo" }).click();
+    await expect(when).toHaveAccessibleName(/09:00–10:00/);
+    await expect(title).toHaveValue("Write a long report");
+
+    await expect(sheet).toHaveCount(0);
+    await when.click();
+    await sheet.getByRole("button", { name: "Tomorrow" }).click();
+    await expect(page.getByText("dynacal picks the time.")).toBeVisible();
+    await expect(sheet).toHaveCount(0);
+    await expect(title).toHaveValue("Write a long report");
+
+    // Saving what's typed leaves the Task on tomorrow.
+    await editor.getByRole("button", { name: "Save" }).click();
+    await expect(editor).toHaveCount(0);
+    await page.reload();
+    await page.getByRole("tab", { name: "Tasks" }).click();
+    await page.getByRole("button", { name: /^Write a long report/ }).click();
+    await expect(editor.getByRole("button", { name: /^Earliest Start, / })).not.toHaveAccessibleName(/Any time/);
+    await expect(editor.getByRole("button", { name: /^When, / })).toBeVisible();
+  });
+});
+
+test("opens a Task's time from its When line on the computer, with exact boxes, keeping what's typed", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto("/");
+    await addTask(page);
+    await page.getByRole("button", { name: /^Write a report/ }).first().click();
+    const editor = page.getByRole("form", { name: "Edit Task" });
+    const title = editor.getByRole("textbox", { name: "Title" });
+    await title.fill("Write a long report");
+
+    await editor.getByRole("button", { name: /^When, / }).click();
+    const label = page.getByRole("complementary", { name: "Write a report" });
+    await label.getByRole("button", { name: "Move" }).click();
+    await label.getByRole("button", { name: "Pick a time" }).click();
+    await expect(label.getByLabel("End")).toBeVisible();
+    await label.getByLabel("Start").fill("11:00");
+    await label.getByLabel("End").fill("12:00");
+    await label.getByRole("button", { name: "Move", exact: true }).click();
+
+    await expect(label).toHaveCount(0);
+    await expect(editor.getByRole("button", { name: /^When, / })).toHaveAccessibleName(/11:00–12:00/);
+    await expect(title).toHaveValue("Write a long report");
+  });
+});
