@@ -414,7 +414,9 @@ input[type="checkbox"]:disabled {
   text-overflow: ellipsis;
 }
 
+/* Its Move off today link has a tap area reaching past the label. */
 .calendar-day-label.today {
+  overflow: visible;
   color: var(--accent);
 }
 

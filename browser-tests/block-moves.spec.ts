@@ -127,3 +127,42 @@ test("asks before moving a due date with its Task, and Undo puts both back", asy
     await expect(page.getByText("due today")).toBeVisible();
   });
 });
+
+test("moves several Tasks off today on a computer, asks once about due dates, and undoes it all", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto("/");
+    const add = page.getByRole("textbox", { name: "Add a Task" });
+    for (const [line, title] of [["Write a report 1h", "Write a report"], ["Call the bank 1h by today", "Call the bank"]]) {
+      await add.fill(line);
+      await add.press("Enter");
+      await expect(page.getByRole("button", { name: `Mark “${title}” complete` })).toBeVisible();
+    }
+    await expect(page.getByRole("button", { name: /^Write a report, \d\d:\d\d–/ })).toBeVisible();
+
+    await page.getByRole("button", { name: "Move off today" }).click();
+    const list = page.getByRole("dialog", { name: "Move off today" });
+    await expect(list.getByRole("checkbox", { name: /Write a report/ })).toBeChecked();
+    await expect(list.getByRole("checkbox", { name: /Call the bank.*Due today/ })).not.toBeChecked();
+
+    await list.getByRole("button", { name: "Select all" }).click();
+    await list.getByRole("button", { name: "Move 2 to tomorrow" }).click();
+    const question = page.getByRole("alertdialog", { name: "Due today. Move the due date too?" });
+    await question.getByRole("button", { name: "Cancel" }).click();
+    await expect(question).toHaveCount(0);
+    await expect(list.getByRole("checkbox", { name: /Call the bank/ })).toBeChecked();
+
+    await list.getByRole("button", { name: "Move 2 to tomorrow" }).click();
+    await question.getByRole("button", { name: "Move both" }).click();
+    await expect(page.getByText("Moved 2 to tomorrow. dynacal picks the times.")).toBeVisible();
+    await expect(list).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Move off today" })).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Undo" }).click();
+    await expect(page.getByText("Moved back")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Move off today" })).toBeVisible();
+    await page.reload();
+    await expect(page.getByText("due today")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Move off today" })).toBeVisible();
+  });
+});
