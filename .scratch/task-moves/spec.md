@@ -1,6 +1,6 @@
 # Spec: Quick Task moves, a shorter Schedule sheet, and fewer things to keep track of
 
-Status: ready-for-agent
+Status: resolved
 
 ## Problem Statement
 

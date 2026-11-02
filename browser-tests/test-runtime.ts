@@ -51,6 +51,15 @@ function seedPastTimes(commands: ReturnType<typeof createCommands>, clock: FakeC
   setDefaultWindows(commands, windows);
 }
 
+/** Fourteen 15-minute Tasks, "Errand A" to "Errand N", all placed today. */
+function seedFullDay(commands: ReturnType<typeof createCommands>) {
+  for (const letter of "ABCDEFGHIJKLMN") {
+    const result = commands.createTask({ title: `Errand ${letter}`, notes: "", estimatedMinutes: 15, deadline: null,
+      earliestStart: null, priority: "medium", splittable: false });
+    if (!result.ok) throw new Error("Could not seed a full day");
+  }
+}
+
 /** This file is substituted only into a disposable browser-test build. */
 export function getRuntime(): Runtime {
   if (globalRuntime.dynacalRuntime) return globalRuntime.dynacalRuntime;
@@ -74,6 +83,7 @@ export function getRuntime(): Runtime {
   const commands = createCommands({ db, clock, ownerEmail: "owner@example.com", calendar, pushSender: new FakePushSender() });
   commands.updateSettings({ timeZone: "Europe/London" });
   if (process.env.DYNACAL_TEST_SEED === "past-times") seedPastTimes(commands, clock);
+  if (process.env.DYNACAL_TEST_SEED === "full-day") seedFullDay(commands);
   if (process.env.DYNACAL_TEST_SEED === "started-time") seedStartedTime(commands, clock);
   const session = commands.signIn({ email: "owner@example.com", emailVerified: true });
   if (!session.ok) throw new Error("Could not seed test session");

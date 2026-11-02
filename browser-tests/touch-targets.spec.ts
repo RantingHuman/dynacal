@@ -233,7 +233,8 @@ test("gives every line and choice on the Task screen a 44px tap area, with no si
       }
     }
     const remove = editor.getByRole("button", { name: "Delete", exact: true });
-    await remove.scrollIntoViewIfNeeded();
+    // Clear of the pinned Save, which the owner would scroll past too.
+    await remove.evaluate((el) => el.scrollIntoView({ block: "center" }));
     await expectTappable(remove);
     await remove.click();
     await expectTappable(remove);
@@ -350,21 +351,9 @@ for (const [value, label] of [["no time before", "Before Events"], ["no time aft
 }
 
 test("keeps Move off today's controls tappable and in view however long the list, with no sideways scroll", async ({ browser }) => {
-  // Adding this many Tasks takes a while on a busy machine.
-  test.slow();
   await withApp(browser, async (page) => {
     await asPhone(page);
     await page.goto("/");
-    await page.getByRole("tab", { name: "Tasks" }).click();
-    const add = page.getByRole("textbox", { name: "Add a Task" });
-    const titles = [..."ABCDEFGHIJKLMN"].map((letter) => `Errand ${letter}`);
-    for (const title of titles) {
-      await add.fill(`${title} 15m`);
-      await add.press("Enter");
-      await expect(page.getByRole("button", { name: `Mark “${title}” complete` })).toBeVisible();
-    }
-    await page.getByRole("tab", { name: "Schedule" }).click();
-
     const link = page.getByRole("button", { name: "Move off today" });
     await expectTappable(link);
     await link.click();
@@ -392,5 +381,5 @@ test("keeps Move off today's controls tappable and in view however long the list
     await expect(list.getByLabel("Day", { exact: true })).toBeInViewport({ ratio: 1 });
     await expect(move).toBeInViewport({ ratio: 1 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
-  });
+  }, { seed: "full-day" });
 });
