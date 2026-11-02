@@ -4,11 +4,11 @@
 
 **Blocked by:** 03
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] The sheet opens with only the title with "›", the time, and the three actions, plus a Conflict note when there is one
-- [ ] A pinned Task shows "Pinned · Unpin" under its time
-- [ ] Nudges pin the Task and leave the sheet open
-- [ ] It closes by tapping outside or swiping down, with no Close button
-- [ ] ±30m and the explanation of Recalculation are gone, and each move's message says what happened, with Undo
-- [ ] The computer has the same options, plus dragging, with exact start and end boxes under Pick a time
+- [x] The sheet opens with only the title with "›", the time, and the three actions, plus a Conflict note when there is one
+- [x] A pinned Task shows "Pinned · Unpin" under its time
+- [x] Nudges pin the Task and leave the sheet open
+- [x] It closes by tapping outside or swiping down, with no Close button
+- [x] ±30m and the explanation of Recalculation are gone, and each move's message says what happened, with Undo
+- [x] The computer has the same options, plus dragging, with exact start and end boxes under Pick a time
