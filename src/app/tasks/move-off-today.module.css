@@ -1,0 +1,86 @@
+/* The tick list: the rows scroll, so the buttons stay in view. */
+.card {
+  gap: var(--space-2);
+  width: min(420px, 100%);
+}
+
+.head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.selectAll {
+  align-self: flex-start;
+  /* Clear of the first row, whose tap area its own mustn't cover. */
+  margin-bottom: var(--space-2);
+  font-size: 14px;
+}
+
+.rows {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+  border-top: var(--hairline) solid var(--rule);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 48px;
+  padding: var(--space-1) 0;
+  border-bottom: var(--hairline) solid var(--rule);
+  cursor: pointer;
+}
+
+.row input {
+  flex: none;
+}
+
+.body {
+  display: grid;
+  min-width: 0;
+}
+
+.title {
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  color: var(--soft);
+  font-size: 14px;
+}
+
+.day {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 14px;
+}
+
+.day input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+}
+
+/* The buttons: large and side by side, for a thumb. */
+.buttons {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.buttons :global(.button) {
+  min-height: 48px;
+  white-space: nowrap;
+}
+
+.buttons :global(.button):first-child {
+  flex: 1;
+}
