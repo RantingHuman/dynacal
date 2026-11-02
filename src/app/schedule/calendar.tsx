@@ -10,6 +10,7 @@ import { useScheduleCheckIns } from "../tasks/check-in-answers";
 import { CheckInSheet } from "../tasks/check-in-sheet";
 import { useCompleteTask } from "../tasks/complete-task-button";
 import { useCompletion } from "../tasks/completion";
+import { MoveOffToday, useCanMoveOffToday } from "../tasks/move-off-today";
 import { useTaskList } from "../tasks/task-list";
 import { moveBlock } from "./actions";
 import { moveError, useSayPinned } from "./block-actions";
@@ -225,6 +226,9 @@ export function Calendar({
   const [shift, setShift] = useState<{ n: number; way: "back" | "forward" | "view" } | null>(null);
   // Tasks complete in the Task list, at once when ticked: all of a completed Task's Blocks dim together.
   const { tasks } = useTaskList();
+  const todayOnSchedule = { blocks, timeZone, now: new Date(horizon.start), today };
+  const canMoveOffToday = useCanMoveOffToday(todayOnSchedule);
+  const [movingOffToday, setMovingOffToday] = useState(false);
   const sayPinned = useSayPinned();
   const completedTasks = new Set(tasks.filter((t) => t.completedAt !== null).map((t) => t.id));
   // A Block that has ended and waits for a Check-in asks "Finished?"; its label answers.
@@ -573,6 +577,8 @@ export function Calendar({
         />
       )}
 
+      {movingOffToday && <MoveOffToday {...todayOnSchedule} onClose={() => setMovingOffToday(false)} />}
+
       <Toast message={toast?.text ?? null} tone={toast?.tone} onDone={clearToast} />
 
       <div
@@ -585,6 +591,11 @@ export function Calendar({
         {days.map((day) => (
           <div key={day} className={`calendar-day-label${day === today ? " today" : ""}`}>
             {dayLabel(day)}
+            {day === today && canMoveOffToday && (
+              <button type="button" className={`link ${calendarStyles.moveOffToday}`} onClick={() => setMovingOffToday(true)}>
+                Move off today
+              </button>
+            )}
           </div>
         ))}
 

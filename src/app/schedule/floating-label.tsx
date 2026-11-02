@@ -40,12 +40,12 @@ export function FloatingLabel({
 }
 
 /**
- * Closes a label, or anything that opens like one, in a Transition so its exit shows; Escape closes it too. Use
- * what it returns for every way of closing.
+ * Closes a label, or anything that opens like one, in a Transition so its exit shows; Escape closes it too, unless
+ * `escapes` says something over it should have Escape instead. Use what it returns for every way of closing.
  */
-export function useLabelClose(onClose: () => void): () => void {
+export function useLabelClose(onClose: () => void, escapes = true): () => void {
   const close = useCallback(() => startTransition(onClose), [onClose]);
-  useEscape(close);
+  useEscape(close, escapes);
   return close;
 }
 

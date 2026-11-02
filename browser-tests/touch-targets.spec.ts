@@ -135,11 +135,11 @@ test("gives the sheet's title and options a 44px tap area, clear of the tab bar,
     for (const name of ["Done", "Tomorrow", "Move"]) await expectTappable(sheet.getByRole("button", { name, exact: true }));
     await noSidewaysScroll();
 
-    await sheet.getByRole("button", { name: "Move" }).click();
+    await sheet.getByRole("button", { name: "Move", exact: true }).click();
     for (const name of ["−15m", "+15m", "Pick a time"]) await expectTappable(sheet.getByRole("button", { name }));
     await sheet.getByRole("button", { name: "Pick a time" }).click();
     for (const name of ["Day", "Start"]) await expectTappable(sheet.getByLabel(name));
-    await expectTappable(sheet.getByRole("button", { name: "Move" }));
+    await expectTappable(sheet.getByRole("button", { name: "Move", exact: true }));
     await noSidewaysScroll();
 
     await sheet.getByRole("button", { name: "+15m" }).click();
@@ -326,3 +326,49 @@ for (const [value, label] of [["no time before", "Before Events"], ["no time aft
     });
   });
 }
+
+test("keeps Move off today's controls tappable and in view however long the list, with no sideways scroll", async ({ browser }) => {
+  // Adding this many Tasks takes a while on a busy machine.
+  test.slow();
+  await withApp(browser, async (page) => {
+    await asPhone(page);
+    await page.goto("/");
+    await page.getByRole("tab", { name: "Tasks" }).click();
+    const add = page.getByRole("textbox", { name: "Add a Task" });
+    const titles = [..."ABCDEFGHIJKLMN"].map((letter) => `Errand ${letter}`);
+    for (const title of titles) {
+      await add.fill(`${title} 15m`);
+      await add.press("Enter");
+      await expect(page.getByRole("button", { name: `Mark “${title}” complete` })).toBeVisible();
+    }
+    await page.getByRole("tab", { name: "Schedule" }).click();
+
+    const link = page.getByRole("button", { name: "Move off today" });
+    await expectTappable(link);
+    await link.click();
+
+    const list = page.getByRole("dialog", { name: "Move off today" });
+    const move = list.getByRole("button", { name: "Move 14 to tomorrow" });
+    const pick = list.getByRole("button", { name: "Pick a day" });
+    await expect(move).toBeInViewport({ ratio: 1 });
+    for (const control of [list.getByRole("button", { name: "Cancel" }), list.getByRole("button", { name: "Select all" }).or(list.getByRole("button", { name: "Clear all" })), move, pick]) {
+      await expectTappable(control);
+    }
+
+    // Clear of the tab bar, and the rows scroll under the buttons, which stay put.
+    const tabBar = await page.getByRole("tablist", { name: "Home" }).boundingBox();
+    const moveBox = await move.boundingBox();
+    expect(moveBox!.y + moveBox!.height).toBeLessThanOrEqual(tabBar!.y);
+    const lastRow = list.getByRole("checkbox", { name: /Errand N/ });
+    await lastRow.scrollIntoViewIfNeeded();
+    await expect(lastRow).toBeInViewport();
+    await expect(move).toBeInViewport({ ratio: 1 });
+    const rowBox = await list.locator("label").filter({ hasText: "Errand N" }).boundingBox();
+    expect(rowBox!.height).toBeGreaterThanOrEqual(44);
+
+    await pick.click();
+    await expect(list.getByLabel("Day", { exact: true })).toBeInViewport({ ratio: 1 });
+    await expect(move).toBeInViewport({ ratio: 1 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  });
+});

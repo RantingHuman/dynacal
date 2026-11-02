@@ -64,6 +64,21 @@ export function movedToDayWords(start: Date | null, later: boolean, today: strin
   return `Moved to ${dayWord(toZoned(start, timeZone).date, today)}. dynacal picks the time.`;
 }
 
+/**
+ * Where several Tasks moved to a day went, in one message: e.g. "Moved 3 to Fri. dynacal picks the times.", or "off
+ * today" when they're on different days. Flags stay apart: Later only when all are, Unscheduled counted by itself.
+ */
+export function movedManyToDayWords(moved: { nextStart: Date | null; later?: true }[], today: string, timeZone: string): string {
+  const count = moved.length;
+  const unscheduled = moved.filter((m) => !m.nextStart && !m.later).length;
+  if (unscheduled > 0) return `Moved ${count}. Nothing fits ${unscheduled}: Unscheduled`;
+  if (moved.every((m) => m.later)) return `Moved ${count} to Later`;
+  const days = new Set(moved.map((m) => (m.nextStart ? toZoned(m.nextStart, timeZone).date : "later")));
+  const [day] = days;
+  const where = days.size === 1 ? `to ${dayWord(day, today)}` : "off today";
+  return `Moved ${count} ${where}. dynacal picks the times.`;
+}
+
 /** Where a Task was pinned: e.g. "Pinned at 10:15." today, else "Pinned at 10:00 tomorrow." */
 export function pinnedWords(start: Date, today: string, timeZone: string): string {
   const at = toZoned(start, timeZone);
@@ -74,6 +89,11 @@ export function pinnedWords(start: Date, today: string, timeZone: string): strin
 /** e.g. "due Fri" or, once it's passed, "was due Mon". */
 export function deadlineWords(deadline: DateOrDateTime, today: string): string {
   return `${deadline.date < today ? "was due" : "due"} ${whenWords(deadline, today)}`;
+}
+
+/** Words to start a sentence with: "due today" as "Due today". */
+export function sentenceWords(words: string): string {
+  return words[0].toUpperCase() + words.slice(1);
 }
 
 /** A date in full, for reading on its own: e.g. "Wed 28 Oct" or "Wed 28 Oct, 16:00". */
