@@ -4,10 +4,10 @@
 
 **Blocked by:** 05
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] A started Task moves wholly to a future time, with none of its time counted as done
-- [ ] No Check-in is asked about the time it left
-- [ ] Its event in Google moves with it
-- [ ] Its Move offers only Pick a time
-- [ ] Dragging its end on the computer still works
+- [x] A started Task moves wholly to a future time, with none of its time counted as done
+- [x] No Check-in is asked about the time it left
+- [x] Its event in Google moves with it
+- [x] Its Move offers only Pick a time
+- [x] Dragging its end on the computer still works
