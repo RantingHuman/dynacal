@@ -13,11 +13,13 @@ import {
 } from "react";
 import type { TaskListItem } from "@/core/commands";
 import type { Context as TaskContext } from "@/core/contexts";
+import type { TaskDueBefore } from "@/core/day-moves";
 import type { TaskFlag } from "@/core/scheduler";
 import type { Buffers } from "@/core/settings";
 import { applyTaskChange, type TaskChange } from "@/core/task-list";
 import { Toast, type ToastAction } from "../schedule/toast";
 import { todayIn } from "./day-words";
+import { DueDateQuestion } from "./due-date-question";
 
 /**
  * Makes a change to the Task List: shows it straight away, then sends it with `perform`. If the server refuses,
@@ -44,6 +46,11 @@ export interface TaskList {
   act: ActOnTasks;
   /** Says something about a Task that isn't an error, such as where Didn't start moved it, perhaps offering Undo. */
   notify: (text: string, action?: ToastAction) => void;
+  /**
+   * Asks whether to move these Tasks' due dates too, when a move to a day was refused because they're due before it.
+   * `moveBoth` runs on Move both, and should make the move again saying to move deadlines. Cancel changes nothing.
+   */
+  askDueDate: (dueBefore: TaskDueBefore[], moveBoth: () => void) => void;
 }
 
 const Context = createContext<TaskList | null>(null);
@@ -61,7 +68,7 @@ export function TaskListProvider({
   today: serverToday,
   defaultBuffers,
   children,
-}: Omit<TaskList, "savedTasks" | "act" | "notify"> & { children: ReactNode }) {
+}: Omit<TaskList, "savedTasks" | "act" | "notify" | "askDueDate"> & { children: ReactNode }) {
   // It starts as the server drew it, so a saved copy of the page wakes up without a mismatch, then follows this device.
   const [today, setToday] = useState(serverToday);
   useEffect(() => setToday(todayIn(timeZone)), [timeZone, tasks]);
@@ -72,6 +79,13 @@ export function TaskListProvider({
   const [message, setMessage] = useState<{ text: string; tone: "info" | "error"; action?: ToastAction } | null>(null);
   const clearMessage = useCallback(() => setMessage(null), []);
   const notify = useCallback((text: string, action?: ToastAction) => setMessage({ text, tone: "info", action }), []);
+  const [question, setQuestion] = useState<{ dueBefore: TaskDueBefore[]; today: string; moveBoth: () => void } | null>(null);
+  const clearQuestion = useCallback(() => setQuestion(null), []);
+  const askDueDate = useCallback(
+    // Today as this device has it now: the page may have been open since yesterday.
+    (dueBefore: TaskDueBefore[], moveBoth: () => void) => setQuestion({ dueBefore, today: todayIn(timeZone), moveBoth }),
+    [timeZone],
+  );
   const act: ActOnTasks = useCallback(
     (change, perform) => {
       setMessage(null);
@@ -89,13 +103,25 @@ export function TaskListProvider({
     [showChange],
   );
   const value = useMemo(
-    () => ({ contexts, tasks: shown, savedTasks: tasks, flags, timeZone, today, defaultBuffers, act, notify }),
-    [contexts, shown, tasks, flags, timeZone, today, defaultBuffers, act, notify],
+    () => ({ contexts, tasks: shown, savedTasks: tasks, flags, timeZone, today, defaultBuffers, act, notify, askDueDate }),
+    [contexts, shown, tasks, flags, timeZone, today, defaultBuffers, act, notify, askDueDate],
   );
   return (
     <Context.Provider value={value}>
       {children}
       <Toast message={message?.text ?? null} tone={message?.tone} action={message?.action} onDone={clearMessage} />
+      {question && (
+        <DueDateQuestion
+          dueBefore={question.dueBefore}
+          today={question.today}
+          onMoveBoth={() => {
+            // Gone at once, not once the move is saved, so it can't be pressed twice.
+            setQuestion(null);
+            question.moveBoth();
+          }}
+          onCancel={clearQuestion}
+        />
+      )}
     </Context.Provider>
   );
 }

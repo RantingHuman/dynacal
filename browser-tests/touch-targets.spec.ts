@@ -60,6 +60,24 @@ test("gives the phone's small controls a 44px tap area without overlapping", asy
   });
 });
 
+test("gives the due date question's answers a 44px tap area, with no sideways scroll", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await asPhone(page);
+    await page.goto("/");
+    await page.getByRole("tab", { name: "Tasks" }).click();
+    await page.getByRole("textbox", { name: "Add a Task" }).fill("Write a report 1h by today");
+    await page.getByRole("textbox", { name: "Add a Task" }).press("Enter");
+    await page.getByRole("tab", { name: "Schedule" }).click();
+    await page.getByRole("button", { name: /Write a report, 09:00, 1h/ }).click();
+    await page.getByRole("button", { name: "Tomorrow" }).click();
+
+    await expectTappable(page.getByRole("button", { name: "Move both" }));
+    await expectTappable(page.getByRole("button", { name: "Cancel" }));
+    const widths = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
+    expect(widths[0]).toBeLessThanOrEqual(widths[1]);
+  });
+});
+
 test("gives the Completed line a 44px tap area and opens it with no sideways scroll", async ({ browser }) => {
   await withApp(browser, async (page) => {
     await asPhone(page);

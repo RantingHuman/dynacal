@@ -91,3 +91,39 @@ test("sends a Task to tomorrow from the desktop label and keeps it there after r
     await expect(page.getByLabel("Date")).toHaveValue("2026-01-06");
   });
 });
+
+test("asks before moving a due date with its Task, and Undo puts both back", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+    await page.getByRole("tab", { name: "Tasks" }).click();
+    await page.getByRole("textbox", { name: "Add a Task" }).fill("Write a report 1h by today");
+    await page.getByRole("textbox", { name: "Add a Task" }).press("Enter");
+    await expect(page.getByText("due today")).toBeVisible();
+    await page.getByRole("tab", { name: "Schedule" }).click();
+
+    await page.getByRole("button", { name: /Write a report, 09:00, 1h/ }).click();
+    await page.getByRole("button", { name: "Tomorrow" }).click();
+    const question = page.getByRole("alertdialog", { name: "Due today. Move the due date too?" });
+    await question.getByRole("button", { name: "Cancel" }).click();
+    await expect(question).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByRole("button", { name: /Write a report, 09:00, 1h/ })).toBeVisible();
+    await page.getByRole("tab", { name: "Tasks" }).click();
+    await expect(page.getByText("due today")).toBeVisible();
+    await page.getByRole("tab", { name: "Schedule" }).click();
+
+    await page.getByRole("button", { name: /Write a report, 09:00, 1h/ }).click();
+    await page.getByRole("button", { name: "Tomorrow" }).click();
+    await question.getByRole("button", { name: "Move both" }).click();
+    await expect(page.getByText("Moved to tomorrow. dynacal picks the time.")).toBeVisible();
+    await page.getByRole("tab", { name: "Tasks" }).click();
+    await expect(page.getByText("due tomorrow")).toBeVisible();
+
+    await page.getByRole("button", { name: "Undo" }).click();
+    await expect(page.getByText("due today")).toBeVisible();
+    await page.reload();
+    await page.getByRole("tab", { name: "Tasks" }).click();
+    await expect(page.getByText("due today")).toBeVisible();
+  });
+});

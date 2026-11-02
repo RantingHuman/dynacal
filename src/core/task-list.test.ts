@@ -51,6 +51,35 @@ describe("an optimistic change to the Task list", () => {
     expect(shown).toEqual(before);
   });
 
+  it("shows a move that brings a deadline along as the server will have it, in the server's order", () => {
+    const app = appWithTasks(
+      { title: "Due first", deadline: { date: "2026-01-05", time: "17:00" } },
+      { title: "Due next", deadline: { date: "2026-01-07", time: null } },
+      { title: "Due far off", deadline: { date: "2026-02-20", time: null } },
+    );
+    const before = app.commands.listTasks();
+    const ids = before.filter((t) => t.title !== "Due next").map((t) => t.id);
+
+    const shown = applyTaskChange(before, { kind: "move-to-day", ids, day: "2026-01-08", moveDeadlines: true }, new Date(), "work");
+    app.commands.moveTasksToDay(ids, "2026-01-08", { moveDeadlines: true });
+
+    expect(shown).toEqual(app.commands.listTasks());
+  });
+
+  it("shows an undone move that brought a deadline along as the server will have it, in the server's order", () => {
+    const app = appWithTasks(
+      { title: "Due first", deadline: { date: "2026-01-05", time: "17:00" } },
+      { title: "Due next", deadline: { date: "2026-01-07", time: null } },
+    );
+    const before = app.commands.listTasks();
+    const moved = app.commands.moveTasksToDay([before[0].id], "2026-01-08", { moveDeadlines: true });
+    if (!moved.ok) throw new Error("move refused");
+
+    const shown = applyTaskChange(app.commands.listTasks(), { kind: "undo-day-move", undo: moved.undo }, new Date(), "work");
+
+    expect(shown).toEqual(before);
+  });
+
   it("puts an added Task where the list will have it once the server has saved it", () => {
     const app = appWithTasks(
       { title: "Board memo", deadline: { date: "2026-01-09", time: null } },

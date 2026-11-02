@@ -228,19 +228,72 @@ describe("the Block sheet on a phone", () => {
       expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
     });
 
-    it("gives the reason when the Task is due before tomorrow", async () => {
-      const deadline = "“Write Q4 planning doc” is due 27 Oct 2026, so it can't move to 28 Oct 2026.";
-      vi.mocked(moveTasksToDay).mockResolvedValue({
-        ok: false,
-        errors: { deadline },
-        dueBefore: [{ id: "t1", title: "Write Q4 planning doc", deadline: { date: "2026-10-27", time: null } }],
+    describe("a Task due before tomorrow", () => {
+      const deadline = { date: "2026-10-27", time: "16:00" };
+      const refused = {
+        ok: false as const,
+        errors: { deadline: "“Write Q4 planning doc” is due 27 Oct 2026, so it can't move to 28 Oct 2026." },
+        dueBefore: [{ id: "t1", title: "Write Q4 planning doc", deadline }],
+      };
+
+      beforeEach(() => {
+        vi.mocked(moveTasksToDay).mockResolvedValueOnce(refused);
       });
-      renderSheet();
 
-      await userEvent.click(screen.getByRole("button", { name: "Tomorrow" }));
+      it("asks about the due date instead of moving it unasked", async () => {
+        renderSheet();
 
-      await waitFor(() => expect(screen.getByRole("status").textContent).toContain(deadline));
-      expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+        await userEvent.click(screen.getByRole("button", { name: "Tomorrow" }));
+
+        expect(await screen.findByRole("alertdialog", { name: "Due today 16:00. Move the due date too?" })).toBeTruthy();
+        expect(moveTasksToDay).toHaveBeenCalledOnce();
+        expect(screen.getByRole("status").textContent).not.toContain("can't move");
+      });
+
+      it("moves both on Move both, says so, and Undo restores them", async () => {
+        const undoDeadline = { tasks: [{ id: "t1", earliestStart: null, deadline, pinned: [] }] };
+        vi.mocked(moveTasksToDay).mockResolvedValueOnce({
+          ok: true,
+          undo: undoDeadline,
+          moved: [{ id: "t1", nextStart: new Date("2026-10-28T09:00:00.000Z") }],
+        });
+        vi.mocked(undoDayMove).mockResolvedValue({ ok: true });
+        renderSheet();
+
+        await userEvent.click(screen.getByRole("button", { name: "Tomorrow" }));
+        await userEvent.click(await screen.findByRole("button", { name: "Move both" }));
+
+        expect(moveTasksToDay).toHaveBeenLastCalledWith(["t1"], "2026-10-28", { moveDeadlines: true });
+        await waitFor(() => expect(screen.getByRole("status").textContent).toContain("Moved to tomorrow. dynacal picks the time."));
+        expect(screen.queryByRole("alertdialog")).toBeNull();
+
+        await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+
+        expect(undoDayMove).toHaveBeenCalledWith(undoDeadline);
+      });
+
+      it("changes nothing on Cancel", async () => {
+        renderSheet();
+
+        await userEvent.click(screen.getByRole("button", { name: "Tomorrow" }));
+        await userEvent.click(await screen.findByRole("button", { name: "Cancel" }));
+
+        await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+        expect(moveTasksToDay).toHaveBeenCalledOnce();
+        expect(screen.getByRole("status").textContent).not.toContain("Moved");
+      });
+
+      it("names the Task when it has gone before Move both lands", async () => {
+        vi.mocked(moveTasksToDay).mockResolvedValueOnce({ ok: false, notFound: true });
+        renderSheet();
+
+        await userEvent.click(screen.getByRole("button", { name: "Tomorrow" }));
+        await userEvent.click(await screen.findByRole("button", { name: "Move both" }));
+
+        await waitFor(() =>
+          expect(screen.getByRole("status").textContent).toContain("“Write Q4 planning doc” was deleted or changed elsewhere."),
+        );
+      });
     });
 
     it("names the Task when it has gone before the move lands", async () => {
