@@ -4,9 +4,9 @@
 
 **Blocked by:** 05
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Tapping it opens the sheet, and moves apply straight away
-- [ ] Unsaved edits on the Task screen survive using the sheet
-- [ ] A Task with several times shows one line for each
-- [ ] A Task with no time yet, a new Task and a completed Task show no line
+- [x] Tapping it opens the sheet, and moves apply straight away
+- [x] Unsaved edits on the Task screen survive using the sheet
+- [x] A Task with several times shows one line for each
+- [x] A Task with no time yet, a new Task and a completed Task show no line
