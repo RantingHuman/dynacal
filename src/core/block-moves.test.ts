@@ -15,12 +15,6 @@ describe("movedBlockTime", () => {
     expect(movedBlockTime(block, { by: 15 }, TZ)).toEqual(span("2026-01-05T10:15", "2026-01-05T11:45"));
   });
 
-  it("moves a Block to the same time on the next day, even when the clocks change overnight", () => {
-    // London's clocks go forward on 29 March 2026, so 10:00 that day is 09:00 UTC.
-    const block = span("2026-03-28T10:00", "2026-03-28T11:00");
-    expect(movedBlockTime(block, { nextDay: true }, TZ)).toEqual(span("2026-03-29T09:00", "2026-03-29T10:00"));
-  });
-
   it("nudges across midnight into the day before", () => {
     const block = span("2026-01-06T00:15", "2026-01-06T01:15");
     expect(movedBlockTime(block, { by: -30 }, TZ)).toEqual(span("2026-01-05T23:45", "2026-01-06T00:45"));

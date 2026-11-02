@@ -26,7 +26,7 @@ export type CalendarEvent = {
   free: boolean;
 } & EventTiming;
 
-/** The kinds of event dynacal writes to the dynacal calendar: Blocks, and dynacal Events. */
+/** The kinds of event marked on the dynacal calendar: Blocks, and "event" from when dynacal also wrote Events there. */
 export type DynacalEventKind = "block" | "event";
 
 /**
@@ -35,7 +35,7 @@ export type DynacalEventKind = "block" | "event";
  */
 export interface DynacalMarker {
   kind: DynacalEventKind;
-  /** For a dynacal Event, its ID; for a Block, its Task's ID, since Block IDs don't survive a Recalculation. */
+  /** A Block's Task's ID, since Block IDs don't survive a Recalculation. */
   dynacalId: string;
 }
 
@@ -45,7 +45,7 @@ export interface DynacalMarker {
  */
 export type DynacalCalendarEvent = {
   title: string;
-  /** The event's description in Google: a dynacal Event's notes; empty for a Block. */
+  /** The event's description in Google: empty for a Block. */
   description: string;
   /** Minutes before the start that Google pops up a reminder: the Reminder Lead Time. */
   reminderMinutes: number;
@@ -107,11 +107,6 @@ export interface CalendarGateway {
    * in Google. Deleted events aren't included.
    */
   listDynacalCalendarEvents(calendarId: string, range: Interval): Promise<DynacalCalendarEventInGoogle[]>;
-  /**
-   * One event on the dynacal calendar, by ID, wherever it now is; null if it's gone (missing, or deleted and
-   * kept by Google as cancelled). Tells an event moved out of a read range from a deleted one.
-   */
-  getDynacalCalendarEvent(calendarId: string, eventId: string): Promise<DynacalCalendarEventInGoogle | null>;
   /** Opens a push notification channel for changes to a calendar's events; returns Google's ID for the calendar and when the channel closes. */
   watchEvents(calendarId: string, channel: WatchChannel): Promise<{ resourceId: string; expiresAt: Date }>;
   /** Closes a push notification channel; one that has already closed counts as closed. */

@@ -16,7 +16,7 @@ import type { Context as TaskContext } from "@/core/contexts";
 import type { TaskFlag } from "@/core/scheduler";
 import type { Buffers } from "@/core/settings";
 import { applyTaskChange, type TaskChange } from "@/core/task-list";
-import { Toast } from "../schedule/toast";
+import { Toast, type ToastAction } from "../schedule/toast";
 import { todayIn } from "./day-words";
 
 /**
@@ -42,8 +42,8 @@ export interface TaskList {
   /** The Buffers around Tasks in Settings, which the editor offers as "Default". */
   defaultBuffers: Buffers;
   act: ActOnTasks;
-  /** Says something about a Task that isn't an error, such as where Didn't start moved it. */
-  notify: (text: string) => void;
+  /** Says something about a Task that isn't an error, such as where Didn't start moved it, perhaps offering Undo. */
+  notify: (text: string, action?: ToastAction) => void;
 }
 
 const Context = createContext<TaskList | null>(null);
@@ -69,9 +69,9 @@ export function TaskListProvider({
     applyTaskChange(current, change, new Date(), contexts[0].id),
   );
   const [, startTransition] = useTransition();
-  const [message, setMessage] = useState<{ text: string; tone: "info" | "error" } | null>(null);
+  const [message, setMessage] = useState<{ text: string; tone: "info" | "error"; action?: ToastAction } | null>(null);
   const clearMessage = useCallback(() => setMessage(null), []);
-  const notify = useCallback((text: string) => setMessage({ text, tone: "info" }), []);
+  const notify = useCallback((text: string, action?: ToastAction) => setMessage({ text, tone: "info", action }), []);
   const act: ActOnTasks = useCallback(
     (change, perform) => {
       setMessage(null);
@@ -95,7 +95,7 @@ export function TaskListProvider({
   return (
     <Context.Provider value={value}>
       {children}
-      <Toast message={message?.text ?? null} tone={message?.tone} onDone={clearMessage} />
+      <Toast message={message?.text ?? null} tone={message?.tone} action={message?.action} onDone={clearMessage} />
     </Context.Provider>
   );
 }

@@ -52,3 +52,42 @@ test("moves a Block from the phone sheet and keeps the new time after reload", a
     await expect(page.getByRole("button", { name: /Write a report, 09:15, 1h, Pinned/ })).toBeVisible();
   });
 });
+
+test("sends a Task to tomorrow from the phone sheet, then Undo puts its pinned time back", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+    await page.getByRole("tab", { name: "Tasks" }).click();
+    await addTask(page);
+    await page.getByRole("tab", { name: "Schedule" }).click();
+    await page.getByRole("button", { name: /Write a report, 09:00, 1h/ }).click();
+    await page.getByRole("button", { name: "+15m" }).click();
+    await expect(page.getByRole("button", { name: /Write a report, 09:15, 1h, Pinned/ })).toBeVisible();
+
+    await page.getByRole("button", { name: "Tomorrow" }).click();
+    await expect(page.getByText("Moved to tomorrow. dynacal picks the time.")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Write a report, 09:00, 1h/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Write a report, 09:15/ })).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Undo" }).click();
+    await expect(page.getByRole("button", { name: /Write a report, 09:15, 1h, Pinned/ })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole("button", { name: /Write a report, 09:15, 1h, Pinned/ })).toBeVisible();
+  });
+});
+
+test("sends a Task to tomorrow from the desktop label and keeps it there after reload", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto("/");
+    await addTask(page);
+    await untilViewTransitionsEnd(page);
+    await page.getByRole("button", { name: /Write a report, 09:00–10:00/ }).click();
+
+    await page.getByRole("button", { name: "Tomorrow" }).click();
+    await expect(page.getByText("Moved to tomorrow. dynacal picks the time.")).toBeVisible();
+    await page.reload();
+    await page.getByRole("button", { name: /Write a report, 09:00–10:00/ }).click();
+    await expect(page.getByLabel("Date")).toHaveValue("2026-01-06");
+  });
+});

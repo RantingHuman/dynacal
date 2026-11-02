@@ -16,13 +16,9 @@ import { moveError } from "./block-actions";
 import { BlockEditor } from "./block-editor";
 import calendarStyles from "./calendar.module.css";
 import { ConflictStrip } from "./conflict-strip";
-import { DynacalEventForm, type DynacalEventDetails } from "./dynacal-event-form";
-import dynacalStyles from "./dynacal-events.module.css";
 import { EventDetails } from "./event-details";
 import detailStyles from "./event-details.module.css";
-import { FloatingLabel, LabelTitle } from "./floating-label";
 import freeStyles from "./free-events.module.css";
-import { NEW_EVENT_MS, useNewEvent } from "./new-event";
 import styles from "./pinning.module.css";
 import { RecalculateButton, useRecalculate } from "./recalculate";
 import { PinMark } from "./pin-mark";
@@ -48,10 +44,7 @@ export interface CalendarConflict {
   eventId: string;
 }
 
-/**
- * An Event as sent to the browser. One from a Busy Calendar is read-only apart from its Busy Override; a
- * dynacal Event carries its details for editing.
- */
+/** An Event as sent to the browser: read-only apart from its Busy Override. */
 export interface CalendarEvent {
   id: string;
   ref: EventRef;
@@ -65,8 +58,6 @@ export interface CalendarEvent {
   /** One that doesn't is drawn greyed out and labelled "Free": Blocks may be placed over it. */
   countsAsBusy: boolean;
   busyOverride: BusyOverride | null;
-  /** For a dynacal Event, its details as entered; null for Events from other calendars. */
-  dynacalEvent: DynacalEventDetails | null;
 }
 
 type View = "day" | "week";
@@ -248,17 +239,8 @@ export function Calendar({
   const dragHandlers = useRef({ continueDrag: (_e: PointerEvent) => {}, endDrag: (_e: PointerEvent) => {}, cancelDrag: () => {} });
   const columns = useRef(new Map<string, HTMLDivElement>());
   const now = new Date(horizon.start).getTime();
-  const newEvent = useNewEvent();
   /** Offline, the calendar is for looking only: nothing that changes data can be attempted. */
   const online = useOnline();
-
-  // The New Event form takes the place of any open Block editor or Event details.
-  useEffect(() => {
-    if (newEvent.draft === null) return;
-    setEditingId(null);
-    setOpenEventId(null);
-    setCheckingInId(null);
-  }, [newEvent.draft]);
 
   // A landing plays once; clearing it lets the same Block play it again next time. (The flash, the longest, is 900ms.)
   useEffect(() => {
@@ -395,7 +377,6 @@ export function Calendar({
     if (ended && !checkIns.waiting.has(block.id)) return;
     setToast(null);
     setOpenEventId(null);
-    newEvent.close();
     setEditingId(ended ? null : block.id);
     setCheckingInId(ended ? block.id : null);
   }
@@ -404,32 +385,13 @@ export function Calendar({
     if (!online) return showError(OFFLINE_REASON);
     setEditingId(null);
     setCheckingInId(null);
-    newEvent.close();
     setOpenEventId(event.id);
-  }
-
-  /**
-   * Clicking empty time opens the New Event form with a one-hour Event from the clicked quarter hour. The end
-   * of a drag isn't a click, and clicking time that has passed does nothing.
-   */
-  function createAt(e: React.MouseEvent<HTMLDivElement>, day: string) {
-    if (drag.current || justDragged.current || !online) return;
-    const y = e.clientY - e.currentTarget.getBoundingClientRect().top;
-    const clicked = first + (y / HOUR_PX) * 60;
-    if (fromZoned({ date: day, minutes: Math.floor(clicked) }, timeZone).getTime() < now) return;
-    const minutes = Math.floor(clicked / GRID_MINUTES) * GRID_MINUTES;
-    const start = fromZoned({ date: day, minutes }, timeZone);
-    newEvent.open({
-      start: start.toISOString(),
-      end: new Date(start.getTime() + NEW_EVENT_MS).toISOString(),
-    });
   }
 
   /** What makes an Event clickable, and how it's marked when it has a Busy Override or its details are open. */
   function eventProps(event: CalendarEvent, label: string) {
     const classes = [
       detailStyles.clickable,
-      event.dynacalEvent && dynacalStyles.dynacalEvent,
       !event.countsAsBusy && freeStyles.free,
       event.busyOverride !== null && detailStyles.overridden,
       conflictingEvents.has(event.id) && styles.eventConflict,
@@ -458,7 +420,7 @@ export function Calendar({
 
   /** e.g. ", Free, Busy Override" for an Event's label. */
   function eventNotes(event: CalendarEvent): string {
-    return `${event.dynacalEvent ? ", dynacal Event" : ""}${event.countsAsBusy ? "" : ", Free"}${event.busyOverride !== null ? ", Busy Override" : ""}${conflictingEvents.has(event.id) ? ", Conflict" : ""}${connectionBroken ? ", as dynacal last saw it" : ""}`;
+    return `${event.countsAsBusy ? "" : ", Free"}${event.busyOverride !== null ? ", Busy Override" : ""}${conflictingEvents.has(event.id) ? ", Conflict" : ""}${connectionBroken ? ", as dynacal last saw it" : ""}`;
   }
 
   function eventMarks(event: CalendarEvent) {
@@ -508,7 +470,6 @@ export function Calendar({
     timeZone,
   );
   const hasAllDay = days.some((d) => allDayByDay.get(d)!.length > 0);
-  const draftByDay = newEvent.draft && placeOnDays([newEvent.draft], days, timeZone);
 
   // Show the hours that matter: Contexts' windows on the days in view and any Block or Event, at least 08:00–18:00.
   let first = 8 * 60;
@@ -571,15 +532,6 @@ export function Calendar({
             ))}
           </span>
           <RecalculateButton recalculation={recalculation} connectionBroken={connectionBroken} />
-          <button
-            type="button"
-            className="link"
-            onClick={() => newEvent.open()}
-            disabled={!online}
-            title={online ? undefined : OFFLINE_REASON}
-          >
-            + Event
-          </button>
         </div>
       </WeekHeading>
 
@@ -607,19 +559,6 @@ export function Calendar({
           answers={checkIns.answers}
           onClose={() => setCheckingInId(null)}
         />
-      )}
-
-      {newEvent.draft && (
-        <FloatingLabel kind="dynacal Event" labelledBy="new-event-heading" onClose={newEvent.close}>
-          <LabelTitle id="new-event-heading">New Event</LabelTitle>
-          <DynacalEventForm
-            key={`${newEvent.draft.start}-${newEvent.draft.end}`}
-            event={null}
-            draft={newEvent.draft}
-            timeZone={timeZone}
-            onDone={newEvent.close}
-          />
-        </FloatingLabel>
       )}
 
       {openEvent && (
@@ -684,7 +623,6 @@ export function Calendar({
               className={`calendar-day${outside ? " outside-horizon" : ""}`}
               style={{ height: px(last), backgroundSize: `100% ${HOUR_PX}px` }}
               aria-label={dayLabel(day)}
-              onClick={(e) => createAt(e, day)}
             >
               {contextWindows[weekdayOf(day)].map((w) => (
                 <div
@@ -694,10 +632,6 @@ export function Calendar({
                 />
               ))}
               {day === nowZoned.date && <div className="now-line" style={{ top: px(nowZoned.minutes) }} />}
-              {/* Where a New Event from clicked time will go: a faint box. */}
-              {draftByDay?.get(day)!.map(({ top, bottom }) => (
-                <div key="draft" className={styles.draft} style={{ top: px(top), height: px(bottom) - px(top) }} aria-hidden />
-              ))}
               {eventsByDay.get(day)!.map(({ item: event, top, bottom }) => {
                 const props = eventProps(
                   event,

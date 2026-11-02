@@ -55,6 +55,12 @@ export function movedWords(start: Date | null, later: boolean, today: string, ti
   return `Moved to ${dayWord(at.date, today)} ${formatMinutes(at.minutes)}`;
 }
 
+/** Where a Task moved to a day went: e.g. "Moved to tomorrow. dynacal picks the time."; with no start, as `movedWords`. */
+export function movedToDayWords(start: Date | null, later: boolean, today: string, timeZone: string): string {
+  if (!start) return movedWords(start, later, today, timeZone);
+  return `Moved to ${dayWord(toZoned(start, timeZone).date, today)}. dynacal picks the time.`;
+}
+
 /** e.g. "due Fri" or, once it's passed, "was due Mon". */
 export function deadlineWords(deadline: DateOrDateTime, today: string): string {
   return `${deadline.date < today ? "was due" : "due"} ${whenWords(deadline, today)}`;

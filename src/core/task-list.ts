@@ -1,11 +1,12 @@
 import type { TaskListItem } from "./commands";
 import { checkInViews } from "./completion";
+import type { DayMoveUndo } from "./day-moves";
 import { compareTasks, type TaskInput } from "./tasks";
 
 /**
  * A change the owner has just made to the Task list, shown before the server has saved it: adding a Task (with
  * a placeholder id until the server gives it one), saving an edit, completing one, reopening a completed one,
- * allowing one to split, answering its Check-in More time, or deleting one.
+ * allowing one to split, answering its Check-in More time, deleting one, or moving Tasks to a day and undoing that.
  */
 export type TaskChange =
   | { kind: "add"; id: string; input: TaskInput }
@@ -14,7 +15,9 @@ export type TaskChange =
   | { kind: "reopen"; id: string }
   | { kind: "allow-splitting"; id: string }
   | { kind: "more-time"; id: string; blockId: string; minutes: number }
-  | { kind: "delete"; id: string };
+  | { kind: "delete"; id: string }
+  | { kind: "move-to-day"; ids: string[]; day: string }
+  | { kind: "undo-day-move"; undo: DayMoveUndo };
 
 /** Whether `a` comes before `b` in the list: open Tasks first, then in Task order. Ties keep `a` after `b`. */
 function before(a: TaskListItem, b: TaskListItem): boolean {
@@ -44,6 +47,18 @@ export function applyTaskChange(
 ): TaskListItem[] {
   if (change.kind === "delete") {
     return tasks.filter((t) => t.id !== change.id);
+  }
+  if (change.kind === "move-to-day") {
+    // Moving it answers its waiting Check-ins.
+    return tasks.map((t) =>
+      change.ids.includes(t.id) ? { ...t, earliestStart: { date: change.day, time: null }, checkIns: [] } : t,
+    );
+  }
+  if (change.kind === "undo-day-move") {
+    return tasks.map((t) => {
+      const old = change.undo.tasks.find((u) => u.id === t.id);
+      return old && !t.completedAt ? { ...t, earliestStart: old.earliestStart, deadline: old.deadline } : t;
+    });
   }
   if (change.kind === "complete") {
     const task = tasks.find((t) => t.id === change.id);

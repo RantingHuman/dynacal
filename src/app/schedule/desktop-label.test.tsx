@@ -4,7 +4,7 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WithTaskList } from "../testing/with-task-list";
-import { completeTask } from "../tasks/actions";
+import { completeTask, moveTasksToDay } from "../tasks/actions";
 import { renderGuarded } from "../testing/render";
 import { moveBlock, setBusyOverride, unpinBlock } from "./actions";
 import { BlockEditor } from "./block-editor";
@@ -12,7 +12,7 @@ import type { CalendarBlock, CalendarEvent } from "./calendar";
 import { EventDetails } from "./event-details";
 
 vi.mock("./actions", () => ({ moveBlock: vi.fn(), unpinBlock: vi.fn(), setBusyOverride: vi.fn() }));
-vi.mock("../tasks/actions", () => ({ completeTask: vi.fn() }));
+vi.mock("../tasks/actions", () => ({ completeTask: vi.fn(), moveTasksToDay: vi.fn() }));
 
 const block: CalendarBlock = {
   id: "block-1", displayKey: "t1#1", taskId: "t1", taskTitle: "Write Q4 planning doc",
@@ -21,7 +21,7 @@ const block: CalendarBlock = {
 const event: CalendarEvent = {
   id: "event-1", ref: { calendarId: "work", eventId: "event-1" }, title: "Lunch with Sam",
   calendarName: "Work", allDay: false, start: "2026-10-27T13:00:00.000Z", end: "2026-10-27T14:00:00.000Z",
-  free: false, countsAsBusy: true, busyOverride: null, dynacalEvent: null,
+  free: false, countsAsBusy: true, busyOverride: null,
 };
 
 function renderBlock(overrides: Partial<CalendarBlock> = {}) {
@@ -62,6 +62,25 @@ describe("desktop Block label", () => {
     await userEvent.click(screen.getByRole("button", { name: "Save and pin" }));
     expect((await screen.findByRole("alert")).textContent).toBe("That would overlap Lunch with Sam.");
     expect(close).not.toHaveBeenCalled();
+  });
+
+  it("moves the Task to tomorrow and closes, as on the phone", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-27T09:00:00.000Z"));
+    vi.mocked(moveTasksToDay).mockResolvedValue({
+      ok: true,
+      undo: { tasks: [] },
+      moved: [{ id: "t1", nextStart: new Date("2026-10-28T09:00:00.000Z") }],
+    });
+    const close = renderBlock();
+
+    await userEvent.click(screen.getByRole("button", { name: "Tomorrow" }));
+
+    expect(moveTasksToDay).toHaveBeenCalledWith(["t1"], "2026-10-28");
+    await waitFor(() => expect(close).toHaveBeenCalledOnce());
+    expect((await screen.findByRole("status")).textContent).toContain("Moved to tomorrow. dynacal picks the time.");
+    expect(screen.getByRole("button", { name: "Undo" })).toBeTruthy();
+    vi.useRealTimers();
   });
 
   it("unpins a Pinned Block and closes", async () => {

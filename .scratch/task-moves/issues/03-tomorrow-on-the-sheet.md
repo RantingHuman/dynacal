@@ -4,11 +4,11 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Tomorrow places the Task no earlier than tomorrow, unpinned, and goes to the next day with room if tomorrow is full
-- [ ] All of a Splittable Task's times that haven't ended are replaced, and Google matches
-- [ ] Past Blocks awaiting a Check-in are answered as Didn't start when their Task is moved
-- [ ] Undo restores the Earliest Start and pinned times that haven't passed
-- [ ] A Task due before the new day is refused with a clear reason (ticket 04 adds the question)
-- [ ] "Next day" is gone
+- [x] Tomorrow places the Task no earlier than tomorrow, unpinned, and goes to the next day with room if tomorrow is full
+- [x] All of a Splittable Task's times that haven't ended are replaced, and Google matches
+- [x] Past Blocks awaiting a Check-in are answered as Didn't start when their Task is moved
+- [x] Undo restores the Earliest Start and pinned times that haven't passed
+- [x] A Task due before the new day is refused with a clear reason (ticket 04 adds the question)
+- [x] "Next day" is gone

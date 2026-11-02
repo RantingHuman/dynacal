@@ -4,10 +4,10 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] No way to add or edit an Event remains on phone or computer
-- [ ] Events from connected calendars still show, count as busy, and keep Buffers and Busy Overrides
-- [ ] A migration drops the dynacal Events table and its write records, and the lived-in install test covers it
-- [ ] Blocks still reach the dynacal calendar in Google as before
-- [ ] The docs and setup steps stop mentioning dynacal Events
+- [x] No way to add or edit an Event remains on phone or computer
+- [x] Events from connected calendars still show, count as busy, and keep Buffers and Busy Overrides
+- [x] A migration drops the dynacal Events table and its write records, and the lived-in install test covers it
+- [x] Blocks still reach the dynacal calendar in Google as before
+- [x] The docs and setup steps stop mentioning dynacal Events

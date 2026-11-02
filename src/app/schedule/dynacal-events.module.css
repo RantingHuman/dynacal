@@ -1,9 +1,0 @@
-/*
- * dynacal Events: card with a double ink edge, so they read differently from both Blocks (the block fill with an
- * accent edge) and Events from other calendars (a thin ink edge).
- */
-
-.dynacalEvent {
-  border: 1px solid var(--rule);
-  border-left: 4px double var(--ink);
-}
