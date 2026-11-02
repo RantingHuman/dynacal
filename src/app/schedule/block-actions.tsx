@@ -7,7 +7,7 @@ import { useCompleteTask } from "../tasks/complete-task-button";
 import { useMoveToTomorrow } from "../tasks/day-moves";
 import { pinnedWords, todayIn } from "../tasks/day-words";
 import { useTaskList } from "../tasks/task-list";
-import { moveBlock, restoreBlockTime, unpinBlock } from "./actions";
+import { moveBlock, pinBlockAgain, restoreBlockTime, unpinBlock } from "./actions";
 import type { CalendarBlock, CalendarEvent } from "./calendar";
 import { LabelNote } from "./floating-label";
 
@@ -58,7 +58,7 @@ export function useBlockActions(block: CalendarBlock, onClose: () => void) {
   const complete = useCompleteTask();
   const moveToTomorrow = useMoveToTomorrow();
   const sayPinned = useSayPinned();
-  const { notify } = useTaskList();
+  const { act, notify, timeZone } = useTaskList();
 
   /** Moves the Block to the given span; `onMoved` runs once the move is saved, and a message says where it is. */
   function move(to: { start: Date; end: Date }, onMoved: () => void) {
@@ -80,7 +80,17 @@ export function useBlockActions(block: CalendarBlock, onClose: () => void) {
     startTransition(async () => {
       const result = await unpinBlock(block.id);
       if (result.ok) {
-        notify("Unpinned. dynacal picks the time.");
+        const { id, taskId, start, end, taskTitle } = block;
+        notify("Unpinned. dynacal picks the time.", {
+          label: "Undo",
+          run: () =>
+            act(null, async () => {
+              const refused = moveError(await pinBlockAgain({ id, taskId, start, end }), taskTitle);
+              if (refused) return refused;
+              notify(pinnedWords(new Date(start), todayIn(timeZone), timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone));
+              return null;
+            }),
+        });
         onClose();
       } else setError(`Couldn't unpin “${block.taskTitle}”: its time changed elsewhere.`);
     });

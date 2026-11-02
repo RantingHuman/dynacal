@@ -18,13 +18,25 @@ export interface TaskDueBefore {
   deadline: DateOrDateTime;
 }
 
-/** What Undo needs: each Task's Earliest Start and deadline, and its pinned times. Recalculation places the others. */
+/** A time a day move took from a Task, as it was. */
+export interface MovedOffTime {
+  id: string;
+  start: Date;
+  end: Date;
+  pinned: boolean;
+}
+
+/**
+ * What Undo needs: each Task's Earliest Start and deadline, its times that hadn't ended and that Recalculation wouldn't
+ * put back (pinned or started), and its past times whose Check-ins the move answered. Recalculation places the others.
+ */
 export interface DayMoveUndo {
   tasks: {
     id: string;
     earliestStart: DateOrDateTime | null;
     deadline: DateOrDateTime | null;
-    pinned: { id: string; start: Date; end: Date }[];
+    times: MovedOffTime[];
+    waiting: MovedOffTime[];
   }[];
 }
 
@@ -38,7 +50,8 @@ export type MoveToDayResult =
   | { ok: false; notFound: true }
   | { ok: false; errors: { deadline: string }; dueBefore: TaskDueBefore[] };
 
-export type UndoDayMoveResult = { ok: true } | { ok: true; recalculationPaused: true };
+/** `skipped` counts the Tasks left alone, as they've been completed or deleted since the move. */
+export type UndoDayMoveResult = { ok: true; skipped: number; recalculationPaused?: true };
 
 /** Why these Tasks can't move to `day`. */
 export function dueBeforeDayWords(dueBefore: TaskDueBefore[], day: string): string {

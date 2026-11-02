@@ -1,3 +1,4 @@
+import type { UndoDayMoveResult } from "@/core/day-moves";
 import { dateParts, dayLabel, monthName, weekdayName as weekday } from "@/core/day-labels";
 import { formatMinutes } from "@/core/settings";
 import type { DateOrDateTime } from "@/core/tasks";
@@ -47,6 +48,16 @@ export function spanWords(span: { start: Date; end: Date }, today: string, timeZ
 
 /** What a move says while Recalculation is paused, so the Task wasn't placed anywhere. */
 export const NOT_PLACED_WORDS = "Not placed yet: planning is paused until you reconnect Google";
+
+/**
+ * What Undo of a move to a day says. Tasks completed or deleted since the move are left alone, so aren't called moved
+ * back; while Recalculation is paused it says what the move itself says.
+ */
+export function movedBackWords({ skipped, recalculationPaused }: UndoDayMoveResult, count: number): string {
+  if (skipped > 0 && skipped === count) return `Not moved back: ${count === 1 ? "it's" : "they're"} completed or deleted.`;
+  if (recalculationPaused) return NOT_PLACED_WORDS;
+  return skipped > 0 ? `Moved back ${count - skipped}. ${skipped} completed or deleted.` : "Moved back";
+}
 
 /**
  * Where a Task went after Didn't start: e.g. "Moved to Thu 09:00"; with no start, "Moved to Later" if it isn't needed

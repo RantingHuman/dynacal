@@ -1015,13 +1015,51 @@ describe("the When line", () => {
     expect(((await saved(editor)) as TaskInput).deadline).toEqual(tomorrow);
   });
 
-  it("an Earliest Start being edited stays as typed when the Task moves", async () => {
-    const { rerender } = render(screenWith([time()]));
+  it("a day move wins over an Earliest Start being edited, and other unsaved fields stay", async () => {
+    const tomorrow = { date: "2026-10-28", time: null };
+    const { rerender } = render(screenWith([time()], { ...task, deadline: { date: "2026-10-30", time: null } }));
     const editor = await openScreen();
     await userEvent.click(line(editor, "Earliest Start"));
     await userEvent.click(within(editor.getByRole("group", { name: "Earliest Start" })).getByRole("button", { name: "Today" }));
+    await userEvent.click(line(editor, "Due"));
+    await userEvent.click(within(editor.getByRole("group", { name: "Deadline" })).getByRole("button", { name: "No deadline" }));
+    await userEvent.type(editor.getByRole("textbox", { name: "Title" }), " today");
 
-    rerender(screenWith([], { ...task, earliestStart: { date: "2026-10-28", time: null } }));
+    rerender(screenWith([], { ...task, deadline: { date: "2026-10-30", time: null }, earliestStart: tomorrow }));
+
+    const form = (await saved(editor)) as TaskInput;
+    expect(form.earliestStart).toEqual(tomorrow);
+    // The deadline didn't move, so what's typed stays.
+    expect(form.deadline).toBeNull();
+    expect(form.title).toBe("Write planning doc today");
+  });
+
+  it("a day move that moved the deadline wins over a deadline being edited", async () => {
+    const tomorrow = { date: "2026-10-28", time: null };
+    const due = { ...task, deadline: { date: TODAY, time: null } };
+    const { rerender } = render(screenWith([time()], due));
+    const editor = await openScreen();
+    await userEvent.click(line(editor, "Due"));
+    await userEvent.click(within(editor.getByRole("group", { name: "Deadline" })).getByRole("button", { name: "No deadline" }));
+
+    rerender(screenWith([], { ...due, earliestStart: tomorrow, deadline: tomorrow }));
+
+    expect(((await saved(editor)) as TaskInput).deadline).toEqual(tomorrow);
+  });
+
+  it("keeps an Earliest Start being edited when the move is refused", async () => {
+    vi.mocked(moveTasksToDay).mockResolvedValue({
+      ok: false,
+      dueBefore: [{ id: "task-1", title: task.title, deadline: { date: TODAY, time: null } }],
+    } as never);
+    render(screenWith([time()], { ...task, deadline: { date: TODAY, time: null } }));
+    const editor = await openScreen();
+    await userEvent.click(line(editor, "Earliest Start"));
+    await userEvent.click(within(editor.getByRole("group", { name: "Earliest Start" })).getByRole("button", { name: "Today" }));
+    await userEvent.click(editor.getByRole("button", { name: /^When, / }));
+
+    await userEvent.click(within(screen.getByRole("complementary")).getByRole("button", { name: "Tomorrow" }));
+    await userEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Cancel" }));
 
     expect(((await saved(editor)) as TaskInput).earliestStart?.date).toBe(TODAY);
   });

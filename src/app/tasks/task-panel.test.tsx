@@ -625,7 +625,7 @@ describe("a Task waiting for a Check-in", () => {
   });
 
   describe("answered Tomorrow", () => {
-    const undo = { tasks: [{ id: "t1", earliestStart: null, deadline: null, pinned: [] }] };
+    const undo = { tasks: [{ id: "t1", earliestStart: null, deadline: null, times: [], waiting: [] }] };
     const moved = {
       ok: true as const,
       undo,
@@ -664,13 +664,23 @@ describe("a Task waiting for a Check-in", () => {
 
     it("offers Undo", async () => {
       vi.mocked(moveTasksToDay).mockResolvedValue(moved);
-      vi.mocked(undoDayMove).mockResolvedValue({ ok: true });
+      vi.mocked(undoDayMove).mockResolvedValue({ ok: true, skipped: 0 });
       await answerTomorrow({ ...packing(), id: "t1" });
 
       await userEvent.click(await screen.findByRole("button", { name: "Undo" }));
 
       expect(undoDayMove).toHaveBeenCalledWith(undo);
       expect(await screen.findByText("Moved back")).toBeTruthy();
+    });
+
+    it("doesn't claim a Task it skipped was moved back", async () => {
+      vi.mocked(moveTasksToDay).mockResolvedValue(moved);
+      vi.mocked(undoDayMove).mockResolvedValue({ ok: true, skipped: 1 });
+      await answerTomorrow({ ...packing(), id: "t1" });
+
+      await userEvent.click(await screen.findByRole("button", { name: "Undo" }));
+
+      expect(await screen.findByText("Not moved back: it's completed or deleted.")).toBeTruthy();
     });
 
     it("asks about a Task due before tomorrow, and Move both moves its due date too", async () => {

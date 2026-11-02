@@ -174,7 +174,7 @@ export function TaskEditorSlot({
   children: ReactNode;
 }) {
   const { open, close, back, asking, discard, keepEditing, draft, markSaved } = useTaskEditor();
-  const { contexts, tasks, flags, timeZone, today, defaultBuffers, act } = useTaskList();
+  const { contexts, tasks, savedTasks, flags, timeZone, today, defaultBuffers, act } = useTaskList();
   const task = open?.taskId ? (tasks.find((t) => t.id === open.taskId) ?? null) : null;
   const gone = open?.taskId != null && task === null;
 
@@ -202,6 +202,7 @@ export function TaskEditorSlot({
         <TaskEditor
           key={open.key}
           task={task}
+          saved={savedTasks.find((t) => t.id === open.taskId) ?? null}
           initial={open.initial}
           contexts={contexts}
           flag={task ? (flags[task.id] ?? null) : null}

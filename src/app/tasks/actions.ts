@@ -78,13 +78,16 @@ export async function moveTasksToDay(ids: unknown, day: unknown, options?: unkno
   return result;
 }
 
+const movedOffTimeSchema = z.strictObject({ id: z.string(), start: z.date(), end: z.date(), pinned: z.boolean() });
+
 const dayMoveUndoSchema = z.strictObject({
   tasks: z.array(
     z.strictObject({
       id: z.string(),
       earliestStart: dateOrDateTimeSchema,
       deadline: dateOrDateTimeSchema,
-      pinned: z.array(z.strictObject({ id: z.string(), start: z.date(), end: z.date() })),
+      times: z.array(movedOffTimeSchema),
+      waiting: z.array(movedOffTimeSchema),
     }),
   ),
 });

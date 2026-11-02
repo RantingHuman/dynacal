@@ -4,7 +4,7 @@ import { act, fireEvent, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TaskListItem } from "@/core/commands";
-import type { DayMoveUndo, MoveToDayResult } from "@/core/day-moves";
+import type { DayMoveUndo, MoveToDayResult, UndoDayMoveResult } from "@/core/day-moves";
 import { DEFAULT_WINDOWS } from "@/core/settings";
 import { PhoneSchedule } from "../home/phone/phone-schedule";
 import { Calendar, type CalendarBlock, type CalendarEvent } from "../schedule/calendar";
@@ -241,7 +241,7 @@ describe("moving", () => {
 
   it("moves everything ticked to tomorrow in one go, with one message and one Undo", async () => {
     vi.mocked(moveTasksToDay).mockResolvedValue({ ok: true, undo, moved: [on("t1", "2026-10-28"), on("t2", "2026-10-28")] });
-    vi.mocked(undoDayMove).mockResolvedValue({ ok: true });
+    vi.mocked(undoDayMove).mockResolvedValue({ ok: true, skipped: 0 });
     threeToday();
     await openList();
 
@@ -256,6 +256,29 @@ describe("moving", () => {
     await waitFor(() => expect(undoDayMove).toHaveBeenCalledWith(undo));
     expect(undoDayMove).toHaveBeenCalledOnce();
     expect(await screen.findByText("Moved back")).toBeTruthy();
+  });
+
+  it.each<[string, UndoDayMoveResult, string]>([
+    ["planning paused, in the forward move's words", { ok: true, skipped: 0, recalculationPaused: true }, NOT_PLACED_WORDS],
+    ["one completed meanwhile", { ok: true, skipped: 1 }, "Moved back 1. 1 completed or deleted."],
+    ["all completed meanwhile", { ok: true, skipped: 2 }, "Not moved back: they're completed or deleted."],
+    ["all completed, with planning paused too", { ok: true, skipped: 2, recalculationPaused: true }, "Not moved back: they're completed or deleted."],
+  ])("Undo says what happened: %s", async (_, result, words) => {
+    const forTwo = (id: string) => ({ id, earliestStart: null, deadline: null, times: [], waiting: [] });
+    vi.mocked(moveTasksToDay).mockResolvedValue({
+      ok: true,
+      undo: { tasks: [forTwo("t1"), forTwo("t2")] },
+      moved: [on("t1", "2026-10-28"), on("t2", "2026-10-28")],
+    });
+    vi.mocked(undoDayMove).mockResolvedValue(result);
+    threeToday();
+    await openList();
+    await userEvent.click(button("Move 2 to tomorrow"));
+
+    await userEvent.click(await screen.findByRole("button", { name: "Undo" }));
+
+    expect(await screen.findByText(words)).toBeTruthy();
+    expect(screen.queryByText("Moved back")).toBeNull();
   });
 
   it.each<[string, MoveToDayResult, string]>([

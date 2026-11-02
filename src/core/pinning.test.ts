@@ -346,3 +346,74 @@ describe("Conflicts", () => {
     expect(view(app).conflicts).toEqual([]);
   });
 });
+
+describe("pinning a Task again at its old time, after Unpin", () => {
+  it("brings the pin back at that time, and Google matches", async () => {
+    const app = appInLondon();
+    app.calendar.addCalendar({ id: "work", name: "Work", primary: true });
+    await app.commands.connectGoogle({
+      email: "owner@example.com",
+      refreshToken: "refresh-token",
+      accessToken: "access-token",
+      accessTokenExpiresAt: new Date("2026-01-05T10:00:00Z"),
+    });
+    const dynacal = (await app.calendar.listCalendars()).find((c) => c.name === "dynacal")!.id;
+    const task = createTask(app);
+    const block = blockOf(app, "Write report");
+    const at = { start: new Date("2026-01-05T14:00:00Z"), end: new Date("2026-01-05T15:00:00Z") };
+    app.commands.moveBlock(block.id, at);
+    await app.commands.writeBlocksToGoogle();
+    app.commands.unpinBlock(block.id);
+    await app.commands.writeBlocksToGoogle();
+    expect(blockOf(app, "Write report").start).not.toEqual(at.start);
+
+    const result = app.commands.pinBlockAgain({ id: block.id, taskId: task.id, ...at });
+    await app.commands.writeBlocksToGoogle();
+
+    expect(result).toEqual({ ok: true });
+    expect(blockOf(app, "Write report")).toMatchObject({ ...at, pinned: true });
+    expect(app.calendar.blockEventsOn(dynacal).map(([, start]) => start)).toEqual([at.start]);
+  });
+
+  it("pins a time in progress again, which kept its place when unpinned", () => {
+    const app = appInLondon();
+    const task = createTask(app);
+    const block = blockOf(app, "Write report");
+    const at = { start: new Date("2026-01-05T09:00:00Z"), end: new Date("2026-01-05T10:00:00Z") };
+    app.commands.moveBlock(block.id, at);
+    app.clock.set(new Date("2026-01-05T09:30:00Z"));
+    app.commands.unpinBlock(block.id);
+
+    expect(app.commands.pinBlockAgain({ id: block.id, taskId: task.id, ...at })).toEqual({ ok: true });
+    expect(blockOf(app, "Write report")).toMatchObject({ ...at, pinned: true });
+  });
+
+  it("refuses a time that has passed, and the Task stays where it is", () => {
+    const app = appInLondon();
+    const task = createTask(app);
+    const block = blockOf(app, "Write report");
+    const at = { start: new Date("2026-01-05T14:00:00Z"), end: new Date("2026-01-05T15:00:00Z") };
+    app.commands.moveBlock(block.id, at);
+    app.commands.unpinBlock(block.id);
+    app.clock.set(new Date("2026-01-05T15:30:00Z"));
+    app.commands.recalculate();
+    const placed = blockOf(app, "Write report");
+
+    const result = app.commands.pinBlockAgain({ id: block.id, taskId: task.id, ...at });
+
+    expect(result).toEqual({ ok: false, errors: { block: "That time has already ended, so the Task stays where it is." } });
+    expect(blockOf(app, "Write report")).toEqual(placed);
+  });
+
+  it("says a Task completed or deleted meanwhile can't be pinned", () => {
+    const app = appInLondon();
+    const task = createTask(app);
+    const block = blockOf(app, "Write report");
+    const at = { start: new Date("2026-01-05T14:00:00Z"), end: new Date("2026-01-05T15:00:00Z") };
+    app.commands.moveBlock(block.id, at);
+    app.commands.unpinBlock(block.id);
+    app.commands.completeTask(task.id);
+
+    expect(app.commands.pinBlockAgain({ id: block.id, taskId: task.id, ...at })).toEqual({ ok: false, notFound: true });
+  });
+});

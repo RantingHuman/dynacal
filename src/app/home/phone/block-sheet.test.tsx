@@ -446,7 +446,7 @@ describe("the Block sheet on a phone", () => {
   });
 
   describe("Tomorrow", () => {
-    const undo = { tasks: [{ id: "t1", earliestStart: null, deadline: null, pinned: [] }] };
+    const undo = { tasks: [{ id: "t1", earliestStart: null, deadline: null, times: [], waiting: [] }] };
 
     beforeEach(() => {
       vi.useFakeTimers({ toFake: ["Date"] });
@@ -508,7 +508,7 @@ describe("the Block sheet on a phone", () => {
         undo,
         moved: [{ id: "t1", nextStart: new Date("2026-10-28T09:00:00.000Z") }],
       });
-      vi.mocked(undoDayMove).mockResolvedValue({ ok: true });
+      vi.mocked(undoDayMove).mockResolvedValue({ ok: true, skipped: 0 });
       renderSheet();
 
       await userEvent.click(screen.getByRole("button", { name: "Tomorrow" }));
@@ -542,13 +542,13 @@ describe("the Block sheet on a phone", () => {
       });
 
       it("moves both on Move both, says so, and Undo restores them", async () => {
-        const undoDeadline = { tasks: [{ id: "t1", earliestStart: null, deadline, pinned: [] }] };
+        const undoDeadline = { tasks: [{ id: "t1", earliestStart: null, deadline, times: [], waiting: [] }] };
         vi.mocked(moveTasksToDay).mockResolvedValueOnce({
           ok: true,
           undo: undoDeadline,
           moved: [{ id: "t1", nextStart: new Date("2026-10-28T09:00:00.000Z") }],
         });
-        vi.mocked(undoDayMove).mockResolvedValue({ ok: true });
+        vi.mocked(undoDayMove).mockResolvedValue({ ok: true, skipped: 0 });
         renderSheet();
 
         await userEvent.click(screen.getByRole("button", { name: "Tomorrow" }));

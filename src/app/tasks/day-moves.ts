@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { MoveToDayResult } from "@/core/day-moves";
 import { addDays } from "@/core/time-zone";
 import { moveTasksToDay, undoDayMove } from "./actions";
-import { movedManyToDayWords, movedToDayWords, NOT_PLACED_WORDS, todayIn } from "./day-words";
+import { movedBackWords, movedManyToDayWords, movedToDayWords, NOT_PLACED_WORDS, todayIn } from "./day-words";
 import { useTaskList } from "./task-list";
 
 /** A Task to move. */
@@ -53,8 +53,7 @@ export function useMoveToDay() {
             label: "Undo",
             run: () =>
               act({ kind: "undo-day-move", undo }, async () => {
-                await undoDayMove(undo);
-                notify("Moved back");
+                notify(movedBackWords(await undoDayMove(undo), undo.tasks.length));
                 return null;
               }),
           });

@@ -77,6 +77,7 @@ function formKey(input: TaskInput): string {
  */
 export function TaskEditor({
   task,
+  saved = task,
   initial,
   contexts,
   flag,
@@ -96,6 +97,8 @@ export function TaskEditor({
 }: {
   /** The Task being edited, or null for a new one. */
   task: TaskListItem | null;
+  /** That Task as the server last sent it, so a move that's refused never reaches the form. */
+  saved?: TaskListItem | null;
   initial: TaskInput;
   /** Every Context, the Default Context first. */
   contexts: Context[];
@@ -124,16 +127,15 @@ export function TaskEditor({
   // A Task added without a Context goes to the Default Context, so its chip starts chosen.
   const [opened, setOpened] = useState<TaskInput>({ ...initial, contextId: initial.contextId ?? contexts[0].id });
   const [input, setInput] = useState<TaskInput>(() => draft.current?.input ?? opened);
-  // Tomorrow on the sheet, or its Undo, changes the Task under the open form. The form follows, unless the owner has
-  // changed that field themselves, so that saving what's typed doesn't put the Task back where it was.
-  if (task && !(sameWhen(task.earliestStart, opened.earliestStart) && sameWhen(task.deadline, opened.deadline))) {
-    const moved = { earliestStart: task.earliestStart, deadline: task.deadline };
+  // Tomorrow on the sheet, or its Undo, changes the Task under the open form. The form takes whichever of the two
+  // moved, over anything typed there, so that a later Save can't silently put the Task back. Other fields stay.
+  if (saved && !(sameWhen(saved.earliestStart, opened.earliestStart) && sameWhen(saved.deadline, opened.deadline))) {
+    const moved = {
+      ...(!sameWhen(saved.earliestStart, opened.earliestStart) && { earliestStart: saved.earliestStart }),
+      ...(!sameWhen(saved.deadline, opened.deadline) && { deadline: saved.deadline }),
+    };
     setOpened({ ...opened, ...moved });
-    setInput({
-      ...input,
-      earliestStart: sameWhen(input.earliestStart, opened.earliestStart) ? moved.earliestStart : input.earliestStart,
-      deadline: sameWhen(input.deadline, opened.deadline) ? moved.deadline : input.deadline,
-    });
+    setInput({ ...input, ...moved });
   }
   const [errors, setErrors] = useState<TaskErrors>({});
   const [openLine, setOpenLine] = useState<Line | null>(null);
