@@ -78,4 +78,3 @@ export async function checkIn(blockId: string, answer: unknown): Promise<CheckIn
   revalidatePath("/");
   return result;
 }
-

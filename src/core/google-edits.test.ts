@@ -152,6 +152,36 @@ describe("a Block event deleted in Google", () => {
   });
 });
 
+describe("a Block event deleted in Google, whose Task is finished with", () => {
+  it("doesn't come back for a completed Task", async () => {
+    const { app, dynacal } = await connectedApp();
+    const task = await createTask(app);
+    const event = await eventAt(app, dynacal, at("09:00"));
+
+    app.calendar.deleteEvent(event);
+    app.commands.completeTask(task.id);
+    await app.commands.syncEvents();
+    await app.commands.writeBlocksToGoogle();
+
+    expect(blocks(app)).toEqual([]);
+    expect(app.calendar.blockEventsOn(dynacal)).toEqual([]);
+  });
+
+  it("doesn't come back for a deleted Task", async () => {
+    const { app, dynacal } = await connectedApp();
+    const task = await createTask(app);
+    const event = await eventAt(app, dynacal, at("09:00"));
+
+    app.calendar.deleteEvent(event);
+    app.commands.deleteTask(task.id);
+    await app.commands.syncEvents();
+    await app.commands.writeBlocksToGoogle();
+
+    expect(blocks(app)).toEqual([]);
+    expect(app.calendar.blockEventsOn(dynacal)).toEqual([]);
+  });
+});
+
 describe("title or description edits to a Block event in Google", () => {
   it("are overwritten at the next sync", async () => {
     const { app, dynacal } = await connectedApp();

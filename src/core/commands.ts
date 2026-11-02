@@ -846,9 +846,10 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       const edit = readGoogleEdit(record, event);
       if (edit.kind === "deleted") {
         const block = blockFor(record);
-        if (block) db.delete(blocks).where(eq(blocks.id, block.id)).run();
-        const task = db.select({ id: tasks.id }).from(tasks).where(eq(tasks.id, record.taskId)).get();
-        if (task) changed = true;
+        if (block) {
+          db.delete(blocks).where(eq(blocks.id, block.id)).run();
+          changed = true;
+        }
         forgetBlockEvent(calendarId, record.eventId);
         continue;
       }

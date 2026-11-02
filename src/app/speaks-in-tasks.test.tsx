@@ -74,10 +74,7 @@ const tasks = () => [
     checkIns: [{ blockId: "block-1", start: new Date(waiting.start), end: new Date(waiting.end) }],
   }),
   taskItem({ id: "t2", title: "Print mystery machine" }),
-  taskItem({
-    id: "t3",
-    title: "Board memo",
-  }),
+  taskItem({ id: "t3", title: "Board memo" }),
 ];
 const connected: CalendarView = {
   status: "connected",

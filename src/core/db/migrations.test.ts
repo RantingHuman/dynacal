@@ -377,17 +377,17 @@ describe("migrations", () => {
       INSERT INTO dynacal_event_writes
         VALUES ('dynacal', 'de', 'd', 'Lunch', '', 0, 0, 3600000, NULL, NULL, 10);
     `);
-    // sqlite_sequence goes too: its one row only counted the Declined Times' IDs.
-    const retired = ["declined_times", "sqlite_sequence"];
+    // sqlite_sequence's one row only counted the Declined Times' IDs, so it empties with them.
+    const notCompared = ["declined_times", "sqlite_sequence"];
     const seededTables = (
       sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE '\\_\\_%' ESCAPE '\\'").all() as {
         name: string;
       }[]
-    ).map((table) => table.name).filter((name) => !retired.includes(name));
+    ).map((table) => table.name).filter((name) => !notCompared.includes(name));
     const rowCount = (table: string) => (sqlite.prepare(`SELECT count(*) AS n FROM "${table}"`).get() as { n: number }).n;
     const rowCounts = () => Object.fromEntries(seededTables.map((table) => [table, rowCount(table)]));
     const seeded = rowCounts();
-    expect(Object.entries(seeded).filter(([table, rows]) => rows === 0)).toEqual([]);
+    expect(Object.entries(seeded).filter(([, rows]) => rows === 0)).toEqual([]);
 
     migrateDatabase(drizzle(sqlite, { schema }));
 
