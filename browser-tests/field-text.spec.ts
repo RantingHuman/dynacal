@@ -34,10 +34,21 @@ test("keeps every field at 16px or more on a phone, so Safari doesn't zoom in", 
     await line.press("Enter");
 
     await page.getByRole("button", { name: /^Write a report/ }).click();
-    expect(await expectFieldsAtLeast16px(page, "the Task editor")).toBeGreaterThan(0);
     // The title is larger already, and stays so.
     expect(parseFloat(await page.getByRole("textbox", { name: "Title" }).evaluate((el) => getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(34);
+    await page.getByRole("button", { name: /^How long, / }).click();
+    await page.getByRole("button", { name: "Other" }).click();
+    expect(await expectFieldsAtLeast16px(page, "How long")).toBeGreaterThan(1);
+    await page.getByRole("button", { name: /^Due, / }).click();
+    await page.getByRole("button", { name: "Pick a date" }).click();
+    await page.getByLabel("Deadline date").fill("2026-01-20");
+    await expect(page.getByLabel("Deadline time (optional)")).toBeVisible();
+    expect(await expectFieldsAtLeast16px(page, "Due")).toBeGreaterThan(2);
+    await page.getByRole("button", { name: /^More/ }).click();
+    await expect(page.getByRole("textbox", { name: "Notes" })).toBeVisible();
+    expect(await expectFieldsAtLeast16px(page, "More")).toBeGreaterThan(1);
     await page.getByRole("button", { name: "← Back to the week" }).click();
+    await page.getByRole("button", { name: "Discard changes" }).click();
 
     await page.getByRole("tab", { name: "Schedule" }).click();
     await page.getByRole("button", { name: /Write a report, 09:00, 1h/ }).click();

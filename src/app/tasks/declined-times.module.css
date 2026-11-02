@@ -16,3 +16,15 @@
   gap: var(--space-2);
   align-items: baseline;
 }
+
+/* Each row as tall as its Clear's tap area, so the areas of neighbouring rows don't overlap. */
+@media (pointer: coarse) {
+  .declined ul {
+    gap: 0;
+  }
+
+  .declined li {
+    align-items: center;
+    min-height: 44px;
+  }
+}

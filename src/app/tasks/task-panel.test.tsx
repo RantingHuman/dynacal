@@ -127,6 +127,7 @@ describe("adding a Task through the full form", () => {
     await userEvent.type(screen.getByRole("textbox", { name: /add a task/i }), "Pack for Vegas 1h");
 
     await userEvent.click(screen.getByRole("button", { name: "Full form" }));
+    await userEvent.click(screen.getByRole("button", { name: /^More/ }));
     const canSplit = screen.getByRole("switch", { name: "Can be split" });
     expect(canSplit.getAttribute("aria-checked")).toBe("false");
     await userEvent.click(canSplit);
@@ -137,13 +138,13 @@ describe("adding a Task through the full form", () => {
     await waitFor(() => expect(createTask).toHaveReturned());
   });
 
-  it("keeps the add line's text when the full form is cancelled", async () => {
+  it("keeps the add line's text on going Back from the full form", async () => {
     renderWithEditor();
     const line = screen.getByRole("textbox", { name: /add a task/i });
     await userEvent.type(line, "Pack for Vegas 1h");
 
     await userEvent.click(screen.getByRole("button", { name: "Full form" }));
-    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await userEvent.click(screen.getByRole("button", { name: "← Back to the week" }));
 
     expect(createTask).not.toHaveBeenCalled();
     expect(line).toHaveProperty("value", "Pack for Vegas 1h");
@@ -320,14 +321,14 @@ describe("offline", () => {
   beforeEach(() => Object.defineProperty(navigator, "onLine", { configurable: true, value: false }));
   afterEach(() => Object.defineProperty(navigator, "onLine", { configurable: true, value: true }));
 
-  it("can only be looked at: adding, ticking and opening Tasks are all disabled", () => {
+  it("can only be looked at: adding and ticking are disabled, but a Task still opens to be read", () => {
     renderPanel([taskItem({ title: "Write Q4 planning doc" })]);
 
     expect(screen.getByRole("button", { name: "+ Task" })).toHaveProperty("disabled", true);
     expect(screen.getByRole("textbox", { name: /add a task/i })).toHaveProperty("disabled", true);
     expect(screen.getByRole("button", { name: "Mark “Write Q4 planning doc” complete" })).toHaveProperty("disabled", true);
     const open = taskList().getAllByRole("button").find((b) => b.textContent?.startsWith("Write Q4 planning doc"));
-    expect(open).toHaveProperty("disabled", true);
+    expect(open).toHaveProperty("disabled", false);
   });
 
   it("can't allow a Task to split, and says why", () => {

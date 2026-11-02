@@ -110,7 +110,8 @@ function SavedNote() {
 /**
  * The Tasks column: a contents list of Tasks under a one-line add. Clicking a Task, or "Full form", opens the
  * full-page editor in place of the calendar column (see `TaskEditorSlot`). Adding, saving and completing show
- * at once and roll back with a message if the server refuses. Offline, the list can only be looked at.
+ * at once and roll back with a message if the server refuses. Offline, a Task can still be opened to read it, but
+ * nothing can be added, ticked or saved.
  *
  * Motion: a ticked Task sweeps a highlighter across its title, and the list holds its order until the ticks
  * settle, then completed Tasks slide to the bottom and the open count ticks down. A new Task's row slides in and
@@ -236,8 +237,7 @@ export function TaskPanel() {
               <button
                 type="button"
                 className={styles.open}
-                disabled={!online || adding}
-                title={online ? undefined : OFFLINE_REASON}
+                disabled={adding}
                 aria-current={openId === task.id || undefined}
                 onClick={() => openTask({ taskId: task.id, initial: inputOf(task) })}
               >

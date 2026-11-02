@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { Google } from "arctic";
 import { createCommands } from "@/core/commands";
 import { openDatabase } from "@/core/db";
-import { googleConnection } from "@/core/db/schema";
+import { declinedTimes, googleConnection } from "@/core/db/schema";
 import { FakeCalendarGateway } from "@/core/fake-calendar-gateway";
 import { FakeClock, FakePushSender, setDefaultWindows } from "@/core/testing";
 import type { Config } from "@/server/config";
@@ -38,6 +38,17 @@ function seedPastTimes(commands: ReturnType<typeof createCommands>, clock: FakeC
   setDefaultWindows(commands, windows);
 }
 
+/** One Task, "Board memo", with three Declined Times tomorrow. */
+function seedDeclinedTimes(commands: ReturnType<typeof createCommands>, db: ReturnType<typeof openDatabase>) {
+  const result = commands.createTask({ title: "Board memo", notes: "", estimatedMinutes: 60, deadline: null, earliestStart: null,
+    priority: "medium", splittable: false });
+  if (!result.ok) throw new Error("Could not seed Declined Times");
+  for (const hour of ["10", "12", "14"]) {
+    db.insert(declinedTimes).values({ taskId: result.task.id, start: new Date(`2026-01-06T${hour}:00:00Z`),
+      end: new Date(`2026-01-06T${hour}:30:00Z`) }).run();
+  }
+}
+
 /** This file is substituted only into a disposable browser-test build. */
 export function getRuntime(): Runtime {
   if (globalRuntime.dynacalRuntime) return globalRuntime.dynacalRuntime;
@@ -61,6 +72,7 @@ export function getRuntime(): Runtime {
   const commands = createCommands({ db, clock, ownerEmail: "owner@example.com", calendar, pushSender: new FakePushSender() });
   commands.updateSettings({ timeZone: "Europe/London" });
   if (process.env.DYNACAL_TEST_SEED === "past-times") seedPastTimes(commands, clock);
+  if (process.env.DYNACAL_TEST_SEED === "declined-times") seedDeclinedTimes(commands, db);
   const session = commands.signIn({ email: "owner@example.com", emailVerified: true });
   if (!session.ok) throw new Error("Could not seed test session");
   writeSync(sessionFd, session.sessionId);

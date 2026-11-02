@@ -1,4 +1,4 @@
-import { dateParts, monthName, weekdayName as weekday } from "@/core/day-labels";
+import { dateParts, dayLabel, monthName, weekdayName as weekday } from "@/core/day-labels";
 import { formatMinutes } from "@/core/settings";
 import type { DateOrDateTime } from "@/core/tasks";
 import { addDays, toZoned } from "@/core/time-zone";
@@ -9,13 +9,8 @@ export function todayIn(timeZone: string | null): string {
 }
 
 /** e.g. "Fri". */
-export function weekdayName(date: string): string {
+function weekdayName(date: string): string {
   return weekday(date, "short");
-}
-
-/** The next seven days from today, for quick picks. */
-export function nextSevenDays(today: string): string[] {
-  return [0, 1, 2, 3, 4, 5, 6].map((n) => addDays(today, n));
 }
 
 /** "today", "tomorrow", "yesterday", a weekday within the week either side, else "6 Nov". */
@@ -55,4 +50,9 @@ export function movedWords(start: Date | null, later: boolean, today: string, ti
 /** e.g. "due Fri" or, once it's passed, "was due Mon". */
 export function deadlineWords(deadline: DateOrDateTime, today: string): string {
   return `${deadline.date < today ? "was due" : "due"} ${whenWords(deadline, today)}`;
+}
+
+/** A date in full, for reading on its own: e.g. "Wed 28 Oct" or "Wed 28 Oct, 16:00". */
+export function dateWords({ date, time }: DateOrDateTime): string {
+  return time ? `${dayLabel(date)}, ${time}` : dayLabel(date);
 }
