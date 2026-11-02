@@ -2,15 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { fromWireTiming } from "@/core/event-timing";
 import type { SetBusyOverrideResult } from "@/core/busy-override";
 import type { RecalculateResult } from "@/core/commands";
-import type {
-  DeleteDynacalEventResult,
-  DynacalEventInput,
-  DynacalEventResult,
-  UpdateDynacalEventResult,
-} from "@/core/dynacal-events";
 import type { MoveBlockResult, UnpinBlockResult } from "@/core/pinning";
 import { getRuntime } from "@/server/runtime";
 import { requireOwner } from "@/server/session";
@@ -36,50 +29,6 @@ export async function moveBlock(id: string, to: unknown): Promise<MoveBlockResul
 export async function unpinBlock(id: string): Promise<UnpinBlockResult> {
   await requireOwner();
   const result = getRuntime().commands.unpinBlock(z.string().parse(id));
-  revalidatePath("/");
-  return result;
-}
-
-const dynacalEventInputSchema = z.discriminatedUnion("allDay", [
-  z.strictObject({
-    title: z.string(),
-    notes: z.string(),
-    allDay: z.literal(false),
-    start: z.iso.datetime(),
-    end: z.iso.datetime(),
-  }),
-  z.strictObject({
-    title: z.string(),
-    notes: z.string(),
-    allDay: z.literal(true),
-    startDate: z.iso.date(),
-    endDate: z.iso.date(),
-  }),
-]);
-
-/** A dynacal Event as the form sends it: instants as ISO strings, all-day `endDate` exclusive. */
-function parseDynacalEventInput(input: unknown): DynacalEventInput {
-  const parsed = dynacalEventInputSchema.parse(input);
-  return { title: parsed.title, notes: parsed.notes, ...fromWireTiming(parsed) };
-}
-
-export async function createDynacalEvent(input: unknown): Promise<DynacalEventResult> {
-  await requireOwner();
-  const result = getRuntime().commands.createDynacalEvent(parseDynacalEventInput(input));
-  revalidatePath("/");
-  return result;
-}
-
-export async function updateDynacalEvent(id: string, input: unknown): Promise<UpdateDynacalEventResult> {
-  await requireOwner();
-  const result = getRuntime().commands.updateDynacalEvent(z.string().parse(id), parseDynacalEventInput(input));
-  revalidatePath("/");
-  return result;
-}
-
-export async function deleteDynacalEvent(id: string): Promise<DeleteDynacalEventResult> {
-  await requireOwner();
-  const result = getRuntime().commands.deleteDynacalEvent(z.string().parse(id));
   revalidatePath("/");
   return result;
 }

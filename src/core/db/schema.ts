@@ -209,8 +209,7 @@ export const busyOverrides = sqliteTable(
     busy: integer("busy", { mode: "boolean" }).notNull(),
     /**
      * Where the Event was last seen, as its span in any time zone (see `anyZoneSpan`), so a sync can tell an
-     * Event that's simply outside the range it read from one that's gone. Null until first seen, and for
-     * dynacal Events, which dynacal holds itself.
+     * Event that's simply outside the range it read from one that's gone. Null until first seen.
      */
     lastSeenStart: integer("last_seen_start", { mode: "timestamp_ms" }),
     lastSeenEnd: integer("last_seen_end", { mode: "timestamp_ms" }),
@@ -218,43 +217,3 @@ export const busyOverrides = sqliteTable(
   (t) => [primaryKey({ columns: [t.calendarId, t.eventId] })],
 );
 
-/**
- * dynacal Events: Events the owner created in dynacal rather than on another calendar. Timed ones have
- * `start`/`end` (UTC instants, any minute); all-day ones have local `startDate`/`endDate` (exclusive), resolved
- * in the owner's time zone. They count as busy time from here, never by reading Google.
- */
-export const dynacalEvents = sqliteTable("dynacal_events", {
-  id: text("id").primaryKey(),
-  title: text("title").notNull(),
-  notes: text("notes").notNull(),
-  allDay: integer("all_day", { mode: "boolean" }).notNull(),
-  start: integer("start", { mode: "timestamp_ms" }),
-  end: integer("end", { mode: "timestamp_ms" }),
-  startDate: text("start_date"),
-  endDate: text("end_date"),
-  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-});
-
-/**
- * What dynacal last wrote to the dynacal calendar for each dynacal Event, so sync can tell the owner's edits in
- * Google from dynacal's own, and delete an event from Google after its dynacal Event is gone. A dynacal Event
- * with no record here hasn't been written to Google yet.
- */
-export const dynacalEventWrites = sqliteTable(
-  "dynacal_event_writes",
-  {
-    calendarId: text("calendar_id").notNull(),
-    eventId: text("event_id").notNull(),
-    /** No foreign key: a deleted dynacal Event's record must outlive it, so its event can be deleted from Google. */
-    dynacalEventId: text("dynacal_event_id").notNull(),
-    title: text("title").notNull(),
-    description: text("description").notNull(),
-    allDay: integer("all_day", { mode: "boolean" }).notNull(),
-    start: integer("start", { mode: "timestamp_ms" }),
-    end: integer("end", { mode: "timestamp_ms" }),
-    startDate: text("start_date"),
-    endDate: text("end_date"),
-    reminderMinutes: integer("reminder_minutes").notNull(),
-  },
-  (t) => [primaryKey({ columns: [t.calendarId, t.eventId] })],
-);

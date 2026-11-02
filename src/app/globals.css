@@ -194,13 +194,6 @@ main {
   transition-duration: var(--press);
 }
 
-.error {
-  padding: 0.75rem 1rem;
-  border-left: 2px solid var(--accent);
-  background: var(--card);
-  color: var(--accent);
-}
-
 .muted {
   color: var(--soft);
   font-size: 0.85rem;
@@ -284,12 +277,6 @@ a.button {
   animation: fade-in var(--base) var(--expo);
 }
 
-.actions {
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-}
-
 .task-panel {
   border-right: 1px solid var(--rule);
   padding: 1rem;
@@ -301,48 +288,6 @@ a.button {
 .task-title {
   font-size: var(--text-task);
   line-height: 1.2;
-}
-
-.task-form {
-  display: grid;
-  gap: 0.75rem;
-  padding: 0.75rem;
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-square);
-}
-
-.task-form label,
-.task-form fieldset {
-  display: grid;
-  gap: 0.3rem;
-}
-
-.task-form fieldset {
-  border: 0;
-  padding: 0;
-  margin: 0;
-}
-
-.task-form legend {
-  padding: 0;
-  margin-bottom: 0.3rem;
-}
-
-.task-form input,
-.task-form select,
-.task-form textarea {
-  font: inherit;
-  padding: 0.35rem 0.5rem;
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-square);
-  background: var(--card);
-  color: var(--ink);
-}
-
-.task-form .checkbox {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
 }
 
 /* Checkboxes are circles: card when clear, accent with an on-accent tick when checked. */
@@ -397,16 +342,6 @@ input[type="checkbox"]:checked::after {
 input[type="checkbox"]:disabled {
   opacity: 0.4;
   cursor: default;
-}
-
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
-}
-
-.danger {
-  margin-left: auto;
 }
 
 @media (max-width: 48rem) {

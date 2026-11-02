@@ -16,9 +16,6 @@ vi.mock("./actions", () => ({
   recalculate: vi.fn(),
   moveBlock: vi.fn(),
   unpinBlock: vi.fn(),
-  createDynacalEvent: vi.fn(),
-  updateDynacalEvent: vi.fn(),
-  deleteDynacalEvent: vi.fn(),
   setBusyOverride: vi.fn(),
 }));
 vi.mock("../tasks/actions", () => ({
@@ -71,6 +68,14 @@ beforeEach(() => {
   vi.mocked(checkIn).mockReset();
 });
 afterEach(() => vi.useRealTimers());
+
+describe("the desktop calendar", () => {
+  it("offers no way to add an Event", () => {
+    renderDesktop();
+
+    expect(screen.queryByRole("button", { name: /Event/ })).toBeNull();
+  });
+});
 
 describe("a past time on the desktop calendar", () => {
   it("keeps its check and time while it waits, and ticking it completes the Task", async () => {

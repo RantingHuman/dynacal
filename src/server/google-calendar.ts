@@ -199,12 +199,6 @@ export function createGoogleCalendarGateway({
       });
       return items.flatMap((e) => dynacalCalendarEvent(e) ?? []);
     },
-
-    async getDynacalCalendarEvent(calendarId: string, eventId: string): Promise<DynacalCalendarEventInGoogle | null> {
-      const response = await send("GET", `${eventsPath(calendarId)}/${encodeURIComponent(eventId)}`, { allow: [404, 410] });
-      if (!response.ok) return null;
-      return dynacalCalendarEvent((await response.json()) as GoogleEvent);
-    },
   };
 }
 

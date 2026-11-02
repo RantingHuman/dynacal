@@ -45,6 +45,12 @@ async function createTask(app: App, input: Partial<TaskInput> = {}) {
   return result.task;
 }
 
+/** An event as the dynacal calendar holds it in Google; undefined once it's gone. */
+async function inGoogle(app: App, dynacal: string, eventId: string) {
+  const events = await app.calendar.listDynacalCalendarEvents(dynacal, { start: at("00:00"), end: at("00:00", "2026-02-01") });
+  return events.find((e) => e.id === eventId);
+}
+
 /** The ID of the timed event in the dynacal calendar starting at `start`. */
 async function eventAt(app: App, dynacal: string, start: Date): Promise<string> {
   const events = await app.calendar.listEvents(dynacal, { start: at("00:00"), end: at("00:00", "2026-02-01") });
@@ -131,7 +137,7 @@ describe("a Block event the owner turned into an all-day event in Google", () =>
     await app.commands.syncEvents();
     await app.commands.writeBlocksToGoogle();
 
-    expect(await app.calendar.getDynacalCalendarEvent(dynacal, event)).toBeNull();
+    expect(await inGoogle(app, dynacal, event)).toBeUndefined();
     expect(app.calendar.blockEventsOn(dynacal).map(([title, start, end]) => [title, start, end])).toEqual([
       ["Write report", at("09:00"), at("10:00")],
     ]);
@@ -147,7 +153,7 @@ describe("a Block event the owner turned into an all-day event in Google", () =>
     await app.commands.syncEvents();
     await app.commands.writeBlocksToGoogle();
 
-    expect(await app.calendar.getDynacalCalendarEvent(dynacal, event)).toBeNull();
+    expect(await inGoogle(app, dynacal, event)).toBeUndefined();
   });
 
   it("is deleted from Google when its Task is deleted", async () => {
@@ -160,7 +166,25 @@ describe("a Block event the owner turned into an all-day event in Google", () =>
     await app.commands.syncEvents();
     await app.commands.writeBlocksToGoogle();
 
-    expect(await app.calendar.getDynacalCalendarEvent(dynacal, event)).toBeNull();
+    expect(await inGoogle(app, dynacal, event)).toBeUndefined();
+  });
+
+  it("leaves an Event an earlier version of dynacal wrote to the dynacal calendar alone", async () => {
+    const { app, dynacal } = await connectedApp();
+    await createTask(app);
+    const id = app.calendar.addEvent(dynacal, {
+      title: "Lunch",
+      start: at("12:00"),
+      end: at("13:00"),
+      marker: { kind: "event", dynacalId: "old-event" },
+    });
+
+    await app.commands.syncEvents();
+    await app.commands.writeBlocksToGoogle();
+
+    expect(await inGoogle(app, dynacal, id)).toMatchObject({ title: "Lunch", start: at("12:00"), end: at("13:00") });
+    const schedule = app.commands.getSchedule();
+    expect(schedule.status === "ready" && schedule.blocks.map((b) => b.pinned)).toEqual([false]);
   });
 
   it("leaves an all-day event the owner added to the dynacal calendar alone", async () => {
@@ -171,6 +195,6 @@ describe("a Block event the owner turned into an all-day event in Google", () =>
     await app.commands.syncEvents();
     await app.commands.writeBlocksToGoogle();
 
-    expect(await app.calendar.getDynacalCalendarEvent(dynacal, id)).not.toBeNull();
+    expect(await inGoogle(app, dynacal, id)).toBeDefined();
   });
 });

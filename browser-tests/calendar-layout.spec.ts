@@ -19,6 +19,20 @@ async function addTask(page: Page, line: string) {
   await add.press("Enter");
 }
 
+test("adds nothing when an empty spot on the calendar is clicked", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto("/");
+    const today = page.locator(".calendar-day").first();
+    const box = (await today.boundingBox())!;
+
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height - 10);
+
+    await expect(page.getByRole("complementary")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Event/ })).toHaveCount(0);
+  });
+});
+
 test("gives a 30-minute Block's whole line to its title on desktop", async ({ browser }) => {
   await withApp(browser, async (page) => {
     await addTask(page, "Quick call with Priya about the Q4 plan 30m");

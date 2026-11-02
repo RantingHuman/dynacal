@@ -166,19 +166,6 @@ export class FakeCalendarGateway implements CalendarGateway {
     return e && !e.allDay ? [e.title, e.start, e.end] : undefined;
   }
 
-  /** The dynacal Events written to a calendar (events marked as kind "event"), in time order, as Google holds them. */
-  dynacalEventsOn(calendarId: string) {
-    return this.events
-      .filter((e) => e.calendarId === calendarId && this.markers.get(e.id)?.kind === "event")
-      .map(({ calendarId: _calendarId, free: _free, ...e }) => ({
-        ...structuredClone(e),
-        description: this.descriptions.get(e.id) ?? "",
-        reminderMinutes: this.reminders.get(e.id),
-        marker: structuredClone(this.markers.get(e.id)),
-      }))
-      .sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
-  }
-
   async listCalendars(): Promise<GoogleCalendar[]> {
     this.checkCredentials();
     return structuredClone(this.calendars);
@@ -269,16 +256,6 @@ export class FakeCalendarGateway implements CalendarGateway {
   }
 
   /** How many single events dynacal has fetched from the dynacal calendar by ID. */
-  dynacalEventGets = 0;
-
-  async getDynacalCalendarEvent(calendarId: string, eventId: string): Promise<DynacalCalendarEventInGoogle | null> {
-    this.checkCredentials();
-    this.dynacalEventGets++;
-    // A deleted event is "cancelled" in Google, which dynacal treats like a missing one.
-    const event = this.events.find((e) => e.id === eventId && e.calendarId === calendarId);
-    return event ? this.asDynacalCalendarEvent(event) : null;
-  }
-
   private asDynacalCalendarEvent({ calendarId: _calendarId, free: _free, ...e }: CalendarEvent): DynacalCalendarEventInGoogle {
     return {
       ...structuredClone(e),
@@ -294,6 +271,3 @@ function timing(event: NewTiming | EventTiming): EventTiming {
     : { allDay: false, start: event.start, end: event.end };
 }
 
-function sortKey(e: EventTiming): string {
-  return e.allDay ? `${e.startDate}T00:00:00.000Z` : e.start.toISOString();
-}
