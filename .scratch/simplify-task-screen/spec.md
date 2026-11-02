@@ -1,6 +1,6 @@
 # Spec: Simplify the Task screen
 
-Status: ready-for-agent
+Status: resolved
 
 ## Problem Statement
 
