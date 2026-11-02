@@ -83,6 +83,69 @@ test("gives Tomorrow and its Undo a 44px tap area, with no sideways scroll", asy
   });
 });
 
+test("gives the sheet's title and options a 44px tap area, clear of the tab bar, with no sideways scroll", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await asPhone(page);
+    await page.goto("/");
+    await page.getByRole("tab", { name: "Tasks" }).click();
+    await page.getByRole("textbox", { name: "Add a Task" }).fill("Write a report 1h");
+    await page.getByRole("textbox", { name: "Add a Task" }).press("Enter");
+    await page.getByRole("tab", { name: "Schedule" }).click();
+    await page.getByRole("button", { name: /Write a report, 09:00, 1h/ }).click();
+    const sheet = page.getByRole("complementary", { name: "Write a report" });
+    const noSidewaysScroll = async () =>
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+
+    await expectTappable(sheet.getByRole("button", { name: "Write a report" }));
+    for (const name of ["Done", "Tomorrow", "Move"]) await expectTappable(sheet.getByRole("button", { name, exact: true }));
+    await noSidewaysScroll();
+
+    await sheet.getByRole("button", { name: "Move" }).click();
+    for (const name of ["−15m", "+15m", "Pick a time"]) await expectTappable(sheet.getByRole("button", { name }));
+    await sheet.getByRole("button", { name: "Pick a time" }).click();
+    for (const name of ["Day", "Start"]) await expectTappable(sheet.getByLabel(name));
+    await expectTappable(sheet.getByRole("button", { name: "Move" }));
+    await noSidewaysScroll();
+
+    await sheet.getByRole("button", { name: "+15m" }).click();
+    await expectTappable(sheet.getByRole("button", { name: "Unpin" }));
+    await expectTappable(page.getByRole("button", { name: "Undo" }));
+    await noSidewaysScroll();
+
+    await expect(async () => {
+      const sheetBox = await sheet.boundingBox();
+      const tabs = await page.getByRole("tablist", { name: "Home" }).boundingBox();
+      expect(sheetBox!.y + sheetBox!.height).toBeLessThanOrEqual(tabs!.y);
+      expect(sheetBox!.x >= 0 && sheetBox!.x + sheetBox!.width <= 390).toBe(true);
+    }).toPass({ timeout: 3000 });
+  });
+});
+
+test("closes the sheet when it's swiped down with a finger", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await asPhone(page);
+    await page.goto("/");
+    await page.getByRole("tab", { name: "Tasks" }).click();
+    await page.getByRole("textbox", { name: "Add a Task" }).fill("Write a report 1h");
+    await page.getByRole("textbox", { name: "Add a Task" }).press("Enter");
+    await page.getByRole("tab", { name: "Schedule" }).click();
+    await page.getByRole("button", { name: /Write a report, 09:00, 1h/ }).click();
+    const sheet = page.getByRole("complementary", { name: "Write a report" });
+    await expect(sheet).toBeVisible();
+    const box = await sheet.boundingBox();
+    const x = box!.x + box!.width / 2;
+    const y = box!.y + 20;
+
+    const cdp = await page.context().newCDPSession(page);
+    const touch = (type: string, points: { x: number; y: number }[]) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: points });
+    await touch("touchStart", [{ x, y }]);
+    for (const down of [20, 40, 60, 80, 100]) await touch("touchMove", [{ x, y: y + down }]);
+    await touch("touchEnd", []);
+
+    await expect(sheet).toHaveCount(0);
+  });
+});
+
 test("gives every line and choice on the Task screen a 44px tap area, with no sideways scroll", async ({ browser }) => {
   await withApp(browser, async (page) => {
     await asPhone(page);

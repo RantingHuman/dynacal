@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WithTaskList } from "../testing/with-task-list";
@@ -45,21 +45,43 @@ beforeEach(() => {
 afterEach(() => Object.defineProperty(navigator, "onLine", { configurable: true, value: true }));
 
 describe("desktop Block label", () => {
-  it("saves a selected date and times, then closes", async () => {
+  it("offers the same options as the phone", async () => {
+    renderBlock();
+    expect(within(screen.getByRole("complementary")).getAllByRole("button").map((b) => b.textContent)).toEqual(["Write Q4 planning doc›", "Done", "Tomorrow", "Move"]);
+    await userEvent.click(screen.getByRole("button", { name: "Move" }));
+    expect(within(screen.getByRole("complementary")).getAllByRole("button").map((b) => b.textContent)).toEqual(["Write Q4 planning doc›", "−15m", "+15m", "Pick a time"]);
+  });
+
+  it("sets an exact day, start and end under Pick a time, then closes", async () => {
     vi.mocked(moveBlock).mockResolvedValue({ ok: true });
     const close = renderBlock();
-    fireEvent.change(screen.getByLabelText("Date"), { target: { value: "2026-10-29" } });
+    await userEvent.click(screen.getByRole("button", { name: "Move" }));
+    await userEvent.click(screen.getByRole("button", { name: "Pick a time" }));
+    expect(screen.getByLabelText("End")).toHaveProperty("value", "12:00");
+    fireEvent.change(screen.getByLabelText("Day"), { target: { value: "2026-10-29" } });
     fireEvent.change(screen.getByLabelText("Start"), { target: { value: "14:30" } });
     fireEvent.change(screen.getByLabelText("End"), { target: { value: "16:00" } });
-    await userEvent.click(screen.getByRole("button", { name: "Save and pin" }));
+    await userEvent.click(screen.getByRole("button", { name: "Move" }));
     await waitFor(() => expect(moveBlock).toHaveBeenCalledWith("block-1", { start: "2026-10-29T14:30:00.000Z", end: "2026-10-29T16:00:00.000Z" }));
     await waitFor(() => expect(close).toHaveBeenCalledOnce());
+  });
+
+  it("takes an end before the start to mean the next day", async () => {
+    vi.mocked(moveBlock).mockResolvedValue({ ok: true });
+    renderBlock();
+    await userEvent.click(screen.getByRole("button", { name: "Move" }));
+    await userEvent.click(screen.getByRole("button", { name: "Pick a time" }));
+    fireEvent.change(screen.getByLabelText("Start"), { target: { value: "23:00" } });
+    fireEvent.change(screen.getByLabelText("End"), { target: { value: "00:30" } });
+    await userEvent.click(screen.getByRole("button", { name: "Move" }));
+    await waitFor(() => expect(moveBlock).toHaveBeenCalledWith("block-1", { start: "2026-10-27T23:00:00.000Z", end: "2026-10-28T00:30:00.000Z" }));
   });
 
   it("shows a refused move and stays open", async () => {
     vi.mocked(moveBlock).mockResolvedValue({ ok: false, errors: { block: "That would overlap Lunch with Sam." } });
     const close = renderBlock();
-    await userEvent.click(screen.getByRole("button", { name: "Save and pin" }));
+    await userEvent.click(screen.getByRole("button", { name: "Move" }));
+    await userEvent.click(screen.getByRole("button", { name: "+15m" }));
     expect((await screen.findByRole("alert")).textContent).toBe("That would overlap Lunch with Sam.");
     expect(close).not.toHaveBeenCalled();
   });
@@ -99,19 +121,25 @@ describe("desktop Block label", () => {
     expect(close).not.toHaveBeenCalled();
   });
 
-  it("marks the whole Task done and closes", async () => {
+  it("completes the whole Task with Done and closes", async () => {
     vi.mocked(completeTask).mockResolvedValue({ ok: true });
     const close = renderBlock();
-    await userEvent.click(screen.getByRole("button", { name: "✓ Mark the Task done" }));
+    await userEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(completeTask).toHaveBeenCalledWith("t1");
     expect(close).toHaveBeenCalledOnce();
   });
 
-  it("disables changes offline but can still close", () => {
+  it("closes when clicked outside, and has no Close button", async () => {
+    const close = renderBlock();
+    expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
+    await userEvent.click(document.body);
+    expect(close).toHaveBeenCalledOnce();
+  });
+
+  it("disables changes offline", () => {
     Object.defineProperty(navigator, "onLine", { configurable: true, value: false });
     renderBlock({ pinned: true });
-    for (const name of ["Save", "Unpin", "✓ Mark the Task done"]) expect(screen.getByRole("button", { name })).toHaveProperty("disabled", true);
-    expect(screen.getByRole("button", { name: "Close" })).toHaveProperty("disabled", false);
+    for (const name of ["Done", "Tomorrow", "Move", "Unpin"]) expect(screen.getByRole("button", { name })).toHaveProperty("disabled", true);
   });
 });
 

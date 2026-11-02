@@ -12,7 +12,7 @@ import { useCompleteTask } from "../tasks/complete-task-button";
 import { useCompletion } from "../tasks/completion";
 import { useTaskList } from "../tasks/task-list";
 import { moveBlock } from "./actions";
-import { moveError } from "./block-actions";
+import { moveError, useSayPinned } from "./block-actions";
 import { BlockEditor } from "./block-editor";
 import calendarStyles from "./calendar.module.css";
 import { ConflictStrip } from "./conflict-strip";
@@ -216,7 +216,7 @@ export function Calendar({
   const [editingId, setEditingId] = useState<string | null>(openBlockId ?? null);
   const [openEventId, setOpenEventId] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ id: string; start: number; end: number; mode: DragMode } | null>(null);
-  /** The message toast, e.g. why a move was refused, or "Pinned at 14:00". */
+  /** The message toast, e.g. why a move was refused, or how many Blocks a Recalculation moved. */
   const [toast, setToast] = useState<Note | null>(null);
   const clearToast = useCallback(() => setToast(null), []);
   const showError = useCallback((text: string) => setToast({ text, tone: "error" }), []);
@@ -225,6 +225,7 @@ export function Calendar({
   const [shift, setShift] = useState<{ n: number; way: "back" | "forward" | "view" } | null>(null);
   // Tasks complete in the Task list, at once when ticked: all of a completed Task's Blocks dim together.
   const { tasks } = useTaskList();
+  const sayPinned = useSayPinned();
   const completedTasks = new Set(tasks.filter((t) => t.completedAt !== null).map((t) => t.id));
   // A Block that has ended and waits for a Check-in asks "Finished?"; its label answers.
   const checkIns = useScheduleCheckIns();
@@ -345,6 +346,7 @@ export function Calendar({
       return;
     }
     const to = { start: new Date(d.to.start).toISOString(), end: new Date(d.to.end).toISOString() };
+    const before = blocks.find((b) => b.id === d.blockId);
     setToast(null);
     startMoving(async () => {
       // A refused move springs back (the preview goes) with a small shake, and says why in the toast. One that
@@ -356,10 +358,11 @@ export function Calendar({
         setToast({ text: message, tone: "error" });
         return;
       }
-      const start = formatMinutes(toZoned(new Date(d.to.start), timeZone).minutes);
-      const end = formatMinutes(toZoned(new Date(d.to.end), timeZone).minutes);
+      const landed = { start: new Date(d.to.start), end: new Date(d.to.end) };
+      const start = formatMinutes(toZoned(landed.start, timeZone).minutes);
+      const end = formatMinutes(toZoned(landed.end, timeZone).minutes);
       setLanding({ id: d.blockId, kind: d.mode === "move" ? "dropped" : "resized" });
-      setToast({ text: d.mode === "move" ? `Pinned at ${start}` : `Pinned, ${start}–${end}`, tone: "info" });
+      if (before) sayPinned(before, landed, d.mode === "move" ? undefined : `Pinned, ${start}–${end}.`);
     });
   }
 
@@ -539,7 +542,7 @@ export function Calendar({
 
       {editing && (
         <BlockEditor
-          key={`${editing.id}-${editing.start}-${editing.end}-${editing.pinned}`}
+          key={editing.id}
           block={editing}
           timeZone={timeZone}
           conflicts={conflicts

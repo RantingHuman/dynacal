@@ -40,7 +40,7 @@ export function Toast({
   }, [message, tone, action, onDone]);
 
   return (
-    <div className={styles.toast} data-show={message !== null} data-tone={last.tone} role="status">
+    <div className={styles.toast} data-toast data-show={message !== null} data-tone={last.tone} role="status">
       {last.message}
       {action && message !== null && (
         <button type="button" className={styles.action} onClick={action.run}>

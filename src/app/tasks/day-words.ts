@@ -53,6 +53,13 @@ export function movedToDayWords(start: Date | null, later: boolean, today: strin
   return `Moved to ${dayWord(toZoned(start, timeZone).date, today)}. dynacal picks the time.`;
 }
 
+/** Where a Task was pinned: e.g. "Pinned at 10:15." today, else "Pinned at 10:00 tomorrow." */
+export function pinnedWords(start: Date, today: string, timeZone: string): string {
+  const at = toZoned(start, timeZone);
+  const day = at.date === today ? "" : ` ${dayWord(at.date, today)}`;
+  return `Pinned at ${formatMinutes(at.minutes)}${day}.`;
+}
+
 /** e.g. "due Fri" or, once it's passed, "was due Mon". */
 export function deadlineWords(deadline: DateOrDateTime, today: string): string {
   return `${deadline.date < today ? "was due" : "due"} ${whenWords(deadline, today)}`;

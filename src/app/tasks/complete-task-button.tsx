@@ -23,7 +23,7 @@ function reopenThrough(act: ActOnTasks, id: string, title: string) {
 }
 
 /**
- * Completing a Task from outside the Task list (a Block's check, "Mark the Task done"), the same way as ticking it
+ * Completing a Task from outside the Task list (a Block's check, the sheet's Done), the same way as ticking it
  * there: the tick's motion, then the change through the list, so the row sweeps and slides, the Task's Blocks dim,
  * and a refusal rolls back with the list's message.
  */

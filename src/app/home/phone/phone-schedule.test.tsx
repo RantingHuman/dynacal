@@ -71,6 +71,31 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 
+describe("tapping from one Task's sheet to another's", () => {
+  it("closes the first and opens the second", async () => {
+    const first = { id: "b1", displayKey: "t1#1", taskId: "t1", taskTitle: "Write a report", start: "2026-10-27T10:00:00.000Z", end: "2026-10-27T11:00:00.000Z", pinned: false };
+    const second = { id: "b2", displayKey: "t2#1", taskId: "t2", taskTitle: "Call the bank", start: "2026-10-27T12:00:00.000Z", end: "2026-10-27T13:00:00.000Z", pinned: false };
+    renderGuarded(
+      <WithTaskList>
+        <PhoneSchedule
+          timeZone="Europe/London"
+          horizon={{ start: "2026-10-27T09:00:00.000Z", end: "2026-11-10T09:00:00.000Z" }}
+          blocks={[first, second]}
+          events={[]}
+          conflicts={[]}
+        />
+      </WithTaskList>,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /^Write a report, / }));
+    expect(screen.getByRole("complementary", { name: "Write a report" })).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: /^Call the bank, / }));
+
+    expect(screen.getByRole("complementary", { name: "Call the bank" })).toBeTruthy();
+    expect(screen.queryByRole("complementary", { name: "Write a report" })).toBeNull();
+  });
+});
+
 describe("the week list", () => {
   it("offers no way to add an Event", () => {
     renderPhone();

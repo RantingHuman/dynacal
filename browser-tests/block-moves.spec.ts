@@ -38,7 +38,31 @@ test("drags a Block on desktop and keeps the new time after reload", async ({ br
   });
 });
 
-test("moves a Block from the phone sheet and keeps the new time after reload", async ({ browser }) => {
+test("undoes a drag from its message", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto("/");
+    await addTask(page);
+    const block = page.getByRole("button", { name: /Write a report, 09:00–10:00/ });
+    await expect(block).toBeVisible();
+    await untilViewTransitionsEnd(page);
+    await block.scrollIntoViewIfNeeded();
+    const box = await block.boundingBox();
+    if (!box) throw new Error("Block has no position");
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 24, { steps: 6 });
+    await page.mouse.up();
+    await expect(page.getByText("Pinned at 09:30.")).toBeVisible();
+
+    await page.getByRole("button", { name: "Undo" }).click();
+    await expect(page.getByText("Moved back")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Write a report, 09:00–10:00/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Write a report, 09:00–10:00, Pinned/ })).toHaveCount(0);
+  });
+});
+
+test("nudges a Task from the phone sheet again and again, then keeps the new time after reload", async ({ browser }) => {
   await withApp(browser, async (page) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/");
@@ -46,10 +70,59 @@ test("moves a Block from the phone sheet and keeps the new time after reload", a
     await addTask(page);
     await page.getByRole("tab", { name: "Schedule" }).click();
     await page.getByRole("button", { name: /Write a report, 09:00, 1h/ }).click();
+    await page.getByRole("button", { name: "Move" }).click();
     await page.getByRole("button", { name: "+15m" }).click();
     await expect(page.getByRole("button", { name: /Write a report, 09:15, 1h, Pinned/ })).toBeVisible();
+    await expect(page.getByText("Pinned at 09:15.")).toBeVisible();
+
+    // The sheet stays open, and the message doesn't cover it.
+    const sheet = page.getByRole("complementary", { name: "Write a report" });
+    await expect(sheet.getByText("Pinned · Unpin")).toBeVisible();
+    await expect(async () => {
+      const sheetBox = await sheet.boundingBox();
+      const message = await page.getByRole("status").filter({ hasText: "Pinned at" }).boundingBox();
+      expect(sheetBox!.y + sheetBox!.height).toBeLessThanOrEqual(message!.y);
+    }).toPass({ timeout: 3000 });
+
+    await page.getByRole("button", { name: "+15m" }).click();
+    await expect(page.getByRole("button", { name: /Write a report, 09:30, 1h, Pinned/ })).toBeVisible();
     await page.reload();
-    await expect(page.getByRole("button", { name: /Write a report, 09:15, 1h, Pinned/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Write a report, 09:30, 1h, Pinned/ })).toBeVisible();
+  });
+});
+
+test("closes the phone sheet by tapping outside, and tapping another Task opens that one", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+    await page.getByRole("tab", { name: "Tasks" }).click();
+    await addTask(page);
+    await page.getByRole("textbox", { name: "Add a Task" }).fill("Call the bank");
+    await page.getByRole("textbox", { name: "Add a Task" }).press("Enter");
+    await page.getByRole("tab", { name: "Schedule" }).click();
+    const sheet = (title: string) => page.getByRole("complementary", { name: title });
+
+    await page.getByRole("button", { name: /Write a report, 09:00, 1h/ }).click();
+    await expect(sheet("Write a report")).toBeVisible();
+    await page.getByRole("button", { name: /^Call the bank, / }).click();
+    await expect(sheet("Call the bank")).toBeVisible();
+    await expect(sheet("Write a report")).toHaveCount(0);
+
+    await page.mouse.click(195, 20);
+    await expect(sheet("Call the bank")).toHaveCount(0);
+  });
+});
+
+test("opens the Task from the sheet's title", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+    await page.getByRole("tab", { name: "Tasks" }).click();
+    await addTask(page);
+    await page.getByRole("tab", { name: "Schedule" }).click();
+    await page.getByRole("button", { name: /Write a report, 09:00, 1h/ }).click();
+    await page.getByRole("complementary", { name: "Write a report" }).getByRole("button", { name: "Write a report" }).click();
+    await expect(page.getByRole("form", { name: "Edit Task" })).toBeVisible();
   });
 });
 
@@ -61,9 +134,14 @@ test("sends a Task to tomorrow from the phone sheet, then Undo puts its pinned t
     await addTask(page);
     await page.getByRole("tab", { name: "Schedule" }).click();
     await page.getByRole("button", { name: /Write a report, 09:00, 1h/ }).click();
+    await page.getByRole("button", { name: "Move" }).click();
     await page.getByRole("button", { name: "+15m" }).click();
     await expect(page.getByRole("button", { name: /Write a report, 09:15, 1h, Pinned/ })).toBeVisible();
 
+    // Back to the three actions: close it and open it again.
+    await page.mouse.click(195, 20);
+    await expect(page.getByRole("complementary", { name: "Write a report" })).toHaveCount(0);
+    await page.getByRole("button", { name: /Write a report, 09:15, 1h, Pinned/ }).click();
     await page.getByRole("button", { name: "Tomorrow" }).click();
     await expect(page.getByText("Moved to tomorrow. dynacal picks the time.")).toBeVisible();
     await expect(page.getByRole("button", { name: /Write a report, 09:00, 1h/ })).toBeVisible();
@@ -88,6 +166,9 @@ test("sends a Task to tomorrow from the desktop label and keeps it there after r
     await expect(page.getByText("Moved to tomorrow. dynacal picks the time.")).toBeVisible();
     await page.reload();
     await page.getByRole("button", { name: /Write a report, 09:00–10:00/ }).click();
-    await expect(page.getByLabel("Date")).toHaveValue("2026-01-06");
+    await page.getByRole("button", { name: "Move" }).click();
+    await page.getByRole("button", { name: "Pick a time" }).click();
+    await expect(page.getByLabel("Day")).toHaveValue("2026-01-06");
+    await expect(page.getByLabel("End", { exact: true })).toHaveValue("10:00");
   });
 });
