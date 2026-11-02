@@ -21,7 +21,7 @@ const block: CalendarBlock = {
 const event: CalendarEvent = {
   id: "event-1", ref: { calendarId: "work", eventId: "event-1" }, title: "Lunch with Sam",
   calendarName: "Work", allDay: false, start: "2026-10-27T13:00:00.000Z", end: "2026-10-27T14:00:00.000Z",
-  free: false, countsAsBusy: true, busyOverride: null, dynacalEvent: null,
+  free: false, countsAsBusy: true, busyOverride: null,
 };
 
 function renderBlock(overrides: Partial<CalendarBlock> = {}) {

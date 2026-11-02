@@ -71,6 +71,14 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 
+describe("the week list", () => {
+  it("offers no way to add an Event", () => {
+    renderPhone();
+
+    expect(screen.queryByRole("button", { name: /Event/ })).toBeNull();
+  });
+});
+
 describe("a past time in the week list", () => {
   it("keeps its checkbox and length while it waits for a Check-in, highlighted and unfaded", () => {
     renderPhone();

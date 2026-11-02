@@ -100,17 +100,6 @@
   opacity: 0.45;
 }
 
-/* Where a New Event from clicked time will go. */
-.draft {
-  position: absolute;
-  left: 3px;
-  right: 3px;
-  border: var(--hairline) dashed var(--accent);
-  background: color-mix(in srgb, var(--accent) 6%, transparent);
-  pointer-events: none;
-  animation: appear var(--base) var(--expo);
-}
-
 @keyframes appear {
   from {
     opacity: 0;

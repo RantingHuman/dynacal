@@ -378,7 +378,8 @@ describe("migrations", () => {
         VALUES ('dynacal', 'de', 'd', 'Lunch', '', 0, 0, 3600000, NULL, NULL, 10);
     `);
     // sqlite_sequence's one row only counted the Declined Times' IDs, so it empties with them.
-    const notCompared = ["declined_times", "sqlite_sequence"];
+    const retired = ["declined_times", "dynacal_events", "dynacal_event_writes"];
+    const notCompared = [...retired, "sqlite_sequence"];
     const seededTables = (
       sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE '\\_\\_%' ESCAPE '\\'").all() as {
         name: string;
@@ -392,7 +393,9 @@ describe("migrations", () => {
     migrateDatabase(drizzle(sqlite, { schema }));
 
     expect(rowCounts()).toEqual(seeded);
-    expect(sqlite.prepare("SELECT name FROM sqlite_master WHERE name = 'declined_times'").all()).toEqual([]);
+    for (const table of retired) {
+      expect(sqlite.prepare("SELECT name FROM sqlite_master WHERE name = ?").all(table)).toEqual([]);
+    }
     expect(sqlite.pragma("integrity_check")).toEqual([{ integrity_check: "ok" }]);
   });
 });

@@ -118,7 +118,7 @@ describe("the Google Calendar adapter, on the dynacal calendar", () => {
     });
   });
 
-  it("writes a dynacal Event's notes as the description", async () => {
+  it("writes a description", async () => {
     const { gateway, requests } = gatewayReplying({ id: "new-event" });
 
     await gateway.createDynacalCalendarEvent("dynacal", {
@@ -128,7 +128,7 @@ describe("the Google Calendar adapter, on the dynacal calendar", () => {
       allDay: false,
       start: new Date("2026-01-05T13:00:00Z"),
       end: new Date("2026-01-05T14:00:00Z"),
-      marker: { kind: "event", dynacalId: "dynacal-event-1" },
+      marker: { kind: "block", dynacalId: "task-1" },
     });
 
     expect(requests[0].body).toMatchObject({ summary: "Dentist", description: "Bring forms" });
@@ -186,39 +186,6 @@ describe("the Google Calendar adapter, on the dynacal calendar", () => {
         marker: null,
       },
     ]);
-  });
-});
-
-describe("the Google Calendar adapter, fetching one dynacal calendar event", () => {
-  it("reads it wherever it now is", async () => {
-    const { gateway, requests } = gatewayReplying({
-      id: "a",
-      summary: "Flight",
-      start: { dateTime: "2026-04-01T08:00:00Z" },
-      end: { dateTime: "2026-04-01T11:00:00Z" },
-      extendedProperties: { private: { dynacalKind: "event", dynacalId: "dynacal-event-1" } },
-    });
-
-    expect(await gateway.getDynacalCalendarEvent("dynacal", "a")).toEqual({
-      id: "a",
-      title: "Flight",
-      description: "",
-      allDay: false,
-      start: new Date("2026-04-01T08:00:00Z"),
-      end: new Date("2026-04-01T11:00:00Z"),
-      marker: { kind: "event", dynacalId: "dynacal-event-1" },
-    });
-    expect(requests[0].method).toBe("GET");
-  });
-
-  it("counts a cancelled event as gone", async () => {
-    const { gateway } = gatewayReplying({ id: "a", status: "cancelled" });
-
-    expect(await gateway.getDynacalCalendarEvent("dynacal", "a")).toBeNull();
-  });
-
-  it.each([404, 410])("counts a %i as gone", async (status) => {
-    expect(await gatewayAnswering(status, "notFound").getDynacalCalendarEvent("dynacal", "a")).toBeNull();
   });
 });
 

@@ -8,13 +8,6 @@ export type EventTiming =
   | { allDay: false; start: Date; end: Date }
   | { allDay: true; startDate: string; endDate: string };
 
-/** Just the timing of anything that has one, without its other fields. */
-export function timingOf(timed: EventTiming): EventTiming {
-  return timed.allDay
-    ? { allDay: true, startDate: timed.startDate, endDate: timed.endDate }
-    : { allDay: false, start: timed.start, end: timed.end };
-}
-
 /** A timing as database columns store it: the fields of the other kind are null. */
 export interface TimingColumns {
   allDay: boolean;
@@ -36,21 +29,6 @@ export function fromTimingColumns(row: TimingColumns): EventTiming {
     : { allDay: false, start: row.start!, end: row.end! };
 }
 
-/** A timing as sent to and from the browser (and so the dynacal Event form): instants as ISO strings. */
-export type WireTiming =
-  | { allDay: false; start: string; end: string }
-  | { allDay: true; startDate: string; endDate: string };
-
-export function toWireTiming(timing: EventTiming): WireTiming {
-  return timing.allDay ? timing : { allDay: false, start: timing.start.toISOString(), end: timing.end.toISOString() };
-}
-
-export function fromWireTiming(wire: WireTiming): EventTiming {
-  return wire.allDay
-    ? { allDay: true, startDate: wire.startDate, endDate: wire.endDate }
-    : { allDay: false, start: new Date(wire.start), end: new Date(wire.end) };
-}
-
 /** An event's start or end as the Google Calendar API writes it: a `date` for all-day, a `dateTime` otherwise. */
 export interface GoogleEventTime {
   date?: string;
@@ -68,15 +46,6 @@ export function fromGoogleTiming(start: GoogleEventTime | undefined, end: Google
   if (start?.date && end?.date) return { allDay: true, startDate: start.date, endDate: end.date };
   if (start?.dateTime && end?.dateTime) return { allDay: false, start: new Date(start.dateTime), end: new Date(end.dateTime) };
   return null;
-}
-
-export function sameTiming(a: EventTiming, b: EventTiming): boolean {
-  if (a.allDay || b.allDay) return a.allDay && b.allDay && a.startDate === b.startDate && a.endDate === b.endDate;
-  return a.start.getTime() === b.start.getTime() && a.end.getTime() === b.end.getTime();
-}
-
-export function endsAfterStart(timing: EventTiming): boolean {
-  return timing.allDay ? timing.endDate > timing.startDate : timing.end.getTime() > timing.start.getTime();
 }
 
 /** A sortable, comparable key for a timing. */

@@ -66,8 +66,9 @@ test("waits while a label is open, then shows the change once it closes", async 
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto("/");
     const other = await otherWindow(page);
-    await other.getByRole("button", { name: "+ Event" }).click();
-    const label = other.getByRole("complementary", { name: "New Event" });
+    await addTask(other, "Book the dentist");
+    await other.getByRole("button", { name: /^Book the dentist, / }).click();
+    const label = other.getByRole("complementary", { name: "Book the dentist" });
     await expect(label).toBeVisible();
 
     await addTask(page, "Call the bank");

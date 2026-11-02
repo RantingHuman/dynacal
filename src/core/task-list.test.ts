@@ -81,16 +81,22 @@ describe("an optimistic change to the Task list", () => {
     expect(shown[0].checkIns).toEqual([]);
   });
 
-  it("answers More time on a piece, offering what's then planned at the next piece, as the server will", () => {
+  it("answers More time on a piece, offering what's then planned at the next piece, as the server will", async () => {
     const app = createTestApp();
     app.commands.updateSettings({ timeZone: "Europe/London", taskBuffers: { after: 0 } });
-    app.commands.createDynacalEvent({
+    app.calendar.addCalendar({ id: "work", name: "Work", primary: true });
+    app.calendar.addEvent("work", {
       title: "Standup",
-      notes: "",
-      allDay: false,
       start: new Date("2026-01-05T10:00:00Z"),
       end: new Date("2026-01-05T11:00:00Z"),
     });
+    await app.commands.connectGoogle({
+      email: "owner@example.com",
+      refreshToken: "refresh-token",
+      accessToken: "access-token",
+      accessTokenExpiresAt: new Date("2026-01-05T10:00:00Z"),
+    });
+    await app.commands.setBusyCalendars(["work"]);
     // Pieces at 09:00–10:00 and 11:00–13:00, both past.
     app.commands.createTask({ ...oneHour, title: "Pack for vegas", estimatedMinutes: 180 });
     app.clock.set(new Date("2026-01-05T13:05:00Z"));

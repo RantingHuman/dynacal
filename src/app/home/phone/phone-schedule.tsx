@@ -1,22 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { weekListDays, type WeekListEntry } from "@/core/week-list";
 import { dateParts, dayLabel, spanLabel, weekdayName } from "@/core/day-labels";
 import { formatMinutes } from "@/core/settings";
 import { formatDuration } from "@/core/tasks";
 import { addDays, toZoned } from "@/core/time-zone";
-import { OFFLINE_REASON, useOnline } from "../../states/use-online";
+import { useOnline } from "../../states/use-online";
 import { useScheduleCheckIns } from "../../tasks/check-in-answers";
 import { CheckInSheet } from "../../tasks/check-in-sheet";
 import { CompleteTaskButton } from "../../tasks/complete-task-button";
 import { useTaskList } from "../../tasks/task-list";
 import type { CalendarBlock, CalendarConflict, CalendarEvent } from "../../schedule/calendar";
 import { ConflictStrip } from "../../schedule/conflict-strip";
-import { DynacalEventForm } from "../../schedule/dynacal-event-form";
 import { EventDetails } from "../../schedule/event-details";
 import { FloatingLabel, LabelNote, LabelTime, LabelTitle } from "../../schedule/floating-label";
-import { useNewEvent } from "../../schedule/new-event";
 import { PinMark } from "../../schedule/pin-mark";
 import { WeekHeading } from "../../schedule/week-heading";
 import { Squiggle } from "../../states/squiggle";
@@ -70,7 +68,7 @@ export function EmptyWeekList({ today }: { today: string }) {
 }
 
 /**
- * The Schedule tab's week: "The week ahead" with "+ Event", the Conflict strip, then each day as a heading and
+ * The Schedule tab's week: "The week ahead", the Conflict strip, then each day as a heading and
  * its Blocks and Events as lines with a time and length. Tapping a Block that hasn't ended opens the Block sheet.
  * A Block that has ended and waits for a Check-in stands out and keeps its checkbox, which answers Finished; tapping
  * it opens the Check-in sheet. Once answered, it fades like any other time that has passed. Tapping an Event, or
@@ -82,22 +80,11 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
   const lastDay = toZoned(new Date(horizon.end), timeZone).date;
   const [open, setOpen] = useState<Open>(openBlockId ? { kind: "block", id: openBlockId } : null);
   const close = useCallback(() => setOpen(null), []);
-  const newEvent = useNewEvent();
   const online = useOnline();
   const checkIns = useScheduleCheckIns();
   // Tasks complete in the Task List, at once when ticked: all of a completed Task's lines dim together.
   const { tasks } = useTaskList();
   const completedTasks = new Set(tasks.filter((t) => t.completedAt !== null).map((t) => t.id));
-
-  // The New Event form takes the place of whatever was open.
-  useEffect(() => {
-    if (newEvent.draft !== null) setOpen(null);
-  }, [newEvent.draft]);
-
-  function show(next: Open) {
-    newEvent.close();
-    setOpen(next);
-  }
 
   const conflictingBlocks = new Set(conflicts.map((c) => c.blockId));
   const conflictingEvents = new Set(conflicts.map((c) => c.eventId));
@@ -126,17 +113,7 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
 
   return (
     <>
-      <WeekHeading>
-        <button
-          type="button"
-          className="link"
-          onClick={() => newEvent.open()}
-          disabled={!online}
-          title={online ? undefined : OFFLINE_REASON}
-        >
-          + Event
-        </button>
-      </WeekHeading>
+      <WeekHeading />
 
       <ConflictStrip
         conflicts={conflicts}
@@ -144,7 +121,7 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
         events={events}
         timeZone={timeZone}
         showEventTimes={false}
-        onResolve={(block) => show({ kind: "block", id: block.id })}
+        onResolve={(block) => setOpen({ kind: "block", id: block.id })}
       />
 
       <div className={styles.weekList}>
@@ -185,7 +162,7 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
                     data-conflict={conflict}
                     data-free={free}
                     aria-label={`${title}, ${allDay ? "all day" : `${formatMinutes(minutes)}, ${formatDuration(length)}`}${notes.map((n) => `, ${n}`).join("")}`}
-                    onClick={() => show({ kind: item.kind, id })}
+                    onClick={() => setOpen({ kind: item.kind, id })}
                   >
                     <span className={styles.lineTime}>{allDay ? "all day" : formatMinutes(minutes)}</span>
                     <span className={styles.lineTitle}>
@@ -235,19 +212,6 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
         )}
 
         {openEvent && <EventDetails key={openEvent.id} event={openEvent} timeZone={timeZone} onClose={close} />}
-
-        {newEvent.draft && (
-          <FloatingLabel kind="New Event" labelledBy="new-event-heading" onClose={newEvent.close}>
-            <LabelTitle id="new-event-heading">New Event</LabelTitle>
-            <DynacalEventForm
-              key={`${newEvent.draft.start}-${newEvent.draft.end}`}
-              event={null}
-              draft={newEvent.draft}
-              timeZone={timeZone}
-              onDone={newEvent.close}
-            />
-          </FloatingLabel>
-        )}
       </div>
     </>
   );

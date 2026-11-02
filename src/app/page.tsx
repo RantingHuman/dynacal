@@ -4,8 +4,6 @@ import { currentSession } from "@/server/session";
 import { ForgetReminderLink } from "./reminders/forget-reminder-link";
 import { RemindersToggle } from "./reminders/reminders-toggle";
 import { coveredWindows } from "@/core/contexts";
-import type { DynacalEvent } from "@/core/dynacal-events";
-import { toWireTiming } from "@/core/event-timing";
 import { writeHeadline } from "@/core/headline";
 import { blockForReminderLink } from "@/core/reminders";
 import { BackgroundRefresh } from "./home/background-refresh";
@@ -17,17 +15,10 @@ import { WidthSwitch } from "./home/phone/width-switch";
 import styles from "./home/home.module.css";
 import { Calendar } from "./schedule/calendar";
 import { EmptyWeek } from "./schedule/empty-week";
-import type { DynacalEventDetails } from "./schedule/dynacal-event-form";
-import { NewEventProvider } from "./schedule/new-event";
 import { TaskEditorProvider, TaskEditorSlot } from "./tasks/task-editor-slot";
 import { TaskListProvider } from "./tasks/task-list";
 import { OfflineNotice } from "./states/offline-notice";
 import { TaskPanel } from "./tasks/task-panel";
-
-/** A dynacal Event as sent to the browser, with instants as ISO strings. */
-function dynacalEventDetails(event: DynacalEvent): DynacalEventDetails {
-  return { id: event.id, title: event.title, notes: event.notes, ...toWireTiming(event) };
-}
 
 /**
  * The home screen: the masthead, the lead (the headline and standfirst, which also carry the missing time zone
@@ -76,7 +67,6 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             free: e.free,
             countsAsBusy: e.countsAsBusy,
             busyOverride: e.busyOverride,
-            dynacalEvent: e.dynacalEvent && dynacalEventDetails(e.dynacalEvent),
           })),
           conflicts: scheduleView.conflicts,
           openBlockId: remindedBlock?.id,
@@ -101,62 +91,62 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   const taskPanel = <TaskPanel />;
 
   return (
-    <NewEventProvider enabled={schedule !== null}>
-      {reminded !== undefined && <ForgetReminderLink />}
-      <BackgroundRefresh />
-      <TaskListProvider
-        contexts={commands.listContexts()}
-        tasks={commands.listTasks()}
-        flags={scheduleView.status === "ready" ? scheduleView.flags : {}}
-        timeZone={scheduleView.status === "ready" ? scheduleView.timeZone : null}
-        today={week.today}
-        defaultBuffers={settings.taskBuffers}
-      >
-        <TaskEditorProvider>
-          <WidthSwitch
-            phone={
-              <PhoneHome
-                masthead={
-                  <>
-                    <PhoneMasthead blocks={schedule?.blocks ?? null} connectionBroken={connectionBroken}>
-                      {accountControls}
-                    </PhoneMasthead>
-                    {offlineNotice}
-                  </>
-                }
-                lead={lead}
-                tasks={taskPanel}
-                schedule={schedule}
-                today={week.today}
-              />
-            }
-          >
-            <div className={styles.page}>
-              <Masthead weekOf={week.weekOf} controls={accountControls} />
-              {offlineNotice}
-              {lead}
-              <div className={styles.spread}>
-                {/* The Tasks column: the Task list, where the headline's "Check in" opens its sheet. */}
-                <div className={`${styles.column} ${styles.tasksColumn}`}>{taskPanel}</div>
-                {/* The calendar. Without a time zone there's no Schedule (the headline says why), just an empty week. */}
-                <section className={styles.column} aria-label="Schedule">
-                  <TaskEditorSlot>
-                    {schedule ? (
-                      <Calendar
-                        {...schedule}
-                        contextWindows={coveredWindows(commands.listContexts())}
-                        connectionBroken={connectionBroken}
-                      />
-                    ) : (
-                      <EmptyWeek today={week.today} />
-                    )}
-                  </TaskEditorSlot>
-                </section>
-              </div>
+    <>
+    {reminded !== undefined && <ForgetReminderLink />}
+    <BackgroundRefresh />
+    <TaskListProvider
+      contexts={commands.listContexts()}
+      tasks={commands.listTasks()}
+      flags={scheduleView.status === "ready" ? scheduleView.flags : {}}
+      timeZone={scheduleView.status === "ready" ? scheduleView.timeZone : null}
+      today={week.today}
+      defaultBuffers={settings.taskBuffers}
+    >
+      <TaskEditorProvider>
+        <WidthSwitch
+          phone={
+            <PhoneHome
+              masthead={
+                <>
+                  <PhoneMasthead blocks={schedule?.blocks ?? null} connectionBroken={connectionBroken}>
+                    {accountControls}
+                  </PhoneMasthead>
+                  {offlineNotice}
+                </>
+              }
+              lead={lead}
+              tasks={taskPanel}
+              schedule={schedule}
+              today={week.today}
+            />
+          }
+        >
+          <div className={styles.page}>
+            <Masthead weekOf={week.weekOf} controls={accountControls} />
+            {offlineNotice}
+            {lead}
+            <div className={styles.spread}>
+              {/* The Tasks column: the Task list, where the headline's "Check in" opens its sheet. */}
+              <div className={`${styles.column} ${styles.tasksColumn}`}>{taskPanel}</div>
+              {/* The calendar. Without a time zone there's no Schedule (the headline says why), just an empty week. */}
+              <section className={styles.column} aria-label="Schedule">
+                <TaskEditorSlot>
+                  {schedule ? (
+                    <Calendar
+                      {...schedule}
+                      contextWindows={coveredWindows(commands.listContexts())}
+                      connectionBroken={connectionBroken}
+                    />
+                  ) : (
+                    <EmptyWeek today={week.today} />
+                  )}
+                </TaskEditorSlot>
+              </section>
             </div>
-          </WidthSwitch>
-        </TaskEditorProvider>
-      </TaskListProvider>
-    </NewEventProvider>
+          </div>
+        </WidthSwitch>
+      </TaskEditorProvider>
+    </TaskListProvider>
+    </>
   );
 }
