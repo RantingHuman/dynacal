@@ -97,8 +97,11 @@ test("closes the phone sheet by tapping outside, and tapping another Task opens 
     await page.goto("/");
     await page.getByRole("tab", { name: "Tasks" }).click();
     await addTask(page);
+    // A Task's row can't be opened until the server has it, and the add line is only free for the next one then.
+    await expect(page.getByRole("button", { name: /^Write a report/ }).last()).toBeEnabled();
     await page.getByRole("textbox", { name: "Add a Task" }).fill("Call the bank");
     await page.getByRole("textbox", { name: "Add a Task" }).press("Enter");
+    await expect(page.getByRole("button", { name: /^Call the bank/ }).last()).toBeEnabled();
     await page.getByRole("tab", { name: "Schedule" }).click();
     const sheet = (title: string) => page.getByRole("complementary", { name: title });
 

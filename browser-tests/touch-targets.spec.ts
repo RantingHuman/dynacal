@@ -172,7 +172,8 @@ test("closes the sheet when it's swiped down with a finger", async ({ browser })
     const y = box!.y + 20;
 
     const cdp = await page.context().newCDPSession(page);
-    const touch = (type: string, points: { x: number; y: number }[]) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: points });
+    const touch = (type: "touchStart" | "touchMove" | "touchEnd", points: { x: number; y: number }[]) =>
+      cdp.send("Input.dispatchTouchEvent", { type, touchPoints: points });
     await touch("touchStart", [{ x, y }]);
     for (const down of [20, 40, 60, 80, 100]) await touch("touchMove", [{ x, y: y + down }]);
     await touch("touchEnd", []);
