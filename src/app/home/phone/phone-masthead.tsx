@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useId, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import type { CalendarBlock } from "../../schedule/calendar";
 import { RecalculateButton, useRecalculate } from "../../schedule/recalculate";
 import { Toast } from "../../schedule/toast";
@@ -10,7 +10,7 @@ import styles from "./phone.module.css";
 /**
  * The masthead on a phone: the title and, as an icon at the far right, a Menu holding Recalculate, then the controls passed in (reminders,
  * Settings and Sign out). Recalculate is the calendar's: it ripples while it runs and says how many Blocks moved.
- * Escape closes the Menu.
+ * Escape, or a tap anywhere outside the masthead, closes the Menu.
  */
 export function PhoneMasthead({
   blocks,
@@ -34,8 +34,18 @@ export function PhoneMasthead({
     open,
   );
 
+  const header = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    function closeIfOutside(event: PointerEvent) {
+      if (!header.current?.contains(event.target as Node)) setOpen(false);
+    }
+    document.addEventListener("pointerdown", closeIfOutside);
+    return () => document.removeEventListener("pointerdown", closeIfOutside);
+  }, [open]);
+
   return (
-    <header className={styles.masthead}>
+    <header ref={header} className={styles.masthead}>
       <span className={styles.title}>dynacal</span>
       <button
         type="button"
