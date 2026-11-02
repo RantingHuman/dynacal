@@ -130,7 +130,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
               <div className={`${styles.column} ${styles.tasksColumn}`}>{taskPanel}</div>
               {/* The calendar. Without a time zone there's no Schedule (the headline says why), just an empty week. */}
               <section className={styles.column} aria-label="Schedule">
-                <TaskEditorSlot>
+                <TaskEditorSlot schedule={schedule}>
                   {schedule ? (
                     <Calendar
                       {...schedule}
