@@ -45,6 +45,9 @@ export function spanWords(span: { start: Date; end: Date }, today: string, timeZ
   return start.date === today ? times : `${dayWord(start.date, today)} ${times}`;
 }
 
+/** What a move says while Recalculation is paused, so the Task wasn't placed anywhere. */
+export const NOT_PLACED_WORDS = "Not placed yet: planning is paused until you reconnect Google";
+
 /**
  * Where a Task went after Didn't start: e.g. "Moved to Thu 09:00"; with no start, "Moved to Later" if it isn't needed
  * in the Planning Horizon, else "Nothing fits: Unscheduled".

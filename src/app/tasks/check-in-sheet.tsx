@@ -17,7 +17,7 @@ const MORE_TIME = [15, 30, 60, 120];
  * A Task's Check-in about one of its past times, opened from "Finished? ›": the Task and that time, with large
  * buttons to answer through `answers`. Finished completes the Task; More time opens chips for how much more it needs,
  * which becomes its Remaining Duration, with a Splittable Task's planned time already chosen; Didn't start moves it
- * to its next free time. Each closes the sheet. Offline it can be read but not answered. It opens and closes like the
+ * to its next free time; Tomorrow means Didn't start and an Earliest Start of tomorrow. Each closes the sheet. Offline it can be read but not answered. It opens and closes like the
  * floating label, and Escape closes it.
  */
 export function CheckInSheet({
@@ -69,6 +69,16 @@ export function CheckInSheet({
           }}
         >
           Didn&apos;t start
+        </button>
+        <button
+          type="button"
+          {...answer}
+          onClick={() => {
+            answers.tomorrow(task);
+            close();
+          }}
+        >
+          Tomorrow
         </button>
       </div>
       {moreTime && online && (

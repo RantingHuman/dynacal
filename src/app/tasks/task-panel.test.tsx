@@ -11,7 +11,7 @@ import type { TaskResult } from "@/core/tasks";
 import { deepWorkContext, deferred, taskItem, workContext } from "../testing/fixtures";
 import { renderGuarded } from "../testing/render";
 import { OFFLINE_REASON } from "../states/use-online";
-import { allowSplitting, checkIn, completeTask, createTask, reopenTask } from "./actions";
+import { allowSplitting, checkIn, completeTask, createTask, moveTasksToDay, reopenTask, undoDayMove } from "./actions";
 import { TaskEditorSlot } from "./task-editor-slot";
 import { WithTaskList } from "../testing/with-task-list";
 import { TaskPanel } from "./task-panel";
@@ -24,6 +24,8 @@ vi.mock("./actions", () => ({
   reopenTask: vi.fn(),
   allowSplitting: vi.fn(),
   checkIn: vi.fn(),
+  moveTasksToDay: vi.fn(),
+  undoDayMove: vi.fn(),
 }));
 
 function renderPanel(
@@ -622,6 +624,87 @@ describe("a Task waiting for a Check-in", () => {
     expect(screen.queryByText("Nothing fits: Unscheduled")).toBeNull();
   });
 
+  describe("answered Tomorrow", () => {
+    const undo = { tasks: [{ id: "t1", earliestStart: null, deadline: null, pinned: [] }] };
+    const moved = {
+      ok: true as const,
+      undo,
+      moved: [{ id: "t1", nextStart: new Date("2026-10-28T09:00:00Z") }],
+    };
+    const dueToday = () => ({ ...packing(), id: "t1", deadline: { date: "2026-10-27", time: null } });
+    const refused = {
+      ok: false as const,
+      errors: { deadline: "“Pack for vegas” is due Tue 27 Oct, so it can't move to Wed 28 Oct." },
+      dueBefore: [{ id: "t1", title: "Pack for vegas", deadline: { date: "2026-10-27", time: null } }],
+    };
+
+    async function answerTomorrow(task: TaskListItem) {
+      renderPanel([task]);
+      await userEvent.click(screen.getByRole("button", { name: "Finished? ›" }));
+      await userEvent.click(within(sheet()).getByRole("button", { name: "Tomorrow" }));
+    }
+
+    beforeEach(() => {
+      vi.mocked(moveTasksToDay).mockReset();
+      vi.mocked(undoDayMove).mockReset();
+    });
+
+    it("closes the Check-in at once, moves the Task to tomorrow and says dynacal picks the time", async () => {
+      const moving = deferred<typeof moved>();
+      vi.mocked(moveTasksToDay).mockReturnValue(moving.promise);
+      await answerTomorrow({ ...packing(), id: "t1" });
+
+      expect(moveTasksToDay).toHaveBeenCalledWith(["t1"], "2026-10-28");
+      expect(checkIn).not.toHaveBeenCalled();
+      await waitFor(() => expect(screen.queryByRole("complementary", { name: "Pack for vegas" })).toBeNull());
+      expect(screen.queryByRole("button", { name: "Finished? ›" })).toBeNull();
+      moving.resolve(moved);
+      expect(await screen.findByText("Moved to tomorrow. dynacal picks the time.")).toBeTruthy();
+    });
+
+    it("offers Undo", async () => {
+      vi.mocked(moveTasksToDay).mockResolvedValue(moved);
+      vi.mocked(undoDayMove).mockResolvedValue({ ok: true });
+      await answerTomorrow({ ...packing(), id: "t1" });
+
+      await userEvent.click(await screen.findByRole("button", { name: "Undo" }));
+
+      expect(undoDayMove).toHaveBeenCalledWith(undo);
+      expect(await screen.findByText("Moved back")).toBeTruthy();
+    });
+
+    it("asks about a Task due before tomorrow, and Move both moves its due date too", async () => {
+      vi.mocked(moveTasksToDay).mockResolvedValueOnce(refused).mockResolvedValueOnce(moved);
+      await answerTomorrow(dueToday());
+
+      const question = await screen.findByRole("alertdialog", { name: "Due today. Move the due date too?" });
+      expect(screen.queryByText(refused.errors.deadline)).toBeNull();
+      await userEvent.click(within(question).getByRole("button", { name: "Move both" }));
+
+      expect(moveTasksToDay).toHaveBeenLastCalledWith(["t1"], "2026-10-28", { moveDeadlines: true });
+      expect(await screen.findByText("Moved to tomorrow. dynacal picks the time.")).toBeTruthy();
+    });
+
+    it("cancelled at the question, moves nothing and still asks “Finished?”", async () => {
+      vi.mocked(moveTasksToDay).mockResolvedValueOnce(refused);
+      await answerTomorrow(dueToday());
+
+      const question = await screen.findByRole("alertdialog");
+      await userEvent.click(within(question).getByRole("button", { name: "Cancel" }));
+
+      await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+      expect(moveTasksToDay).toHaveBeenCalledOnce();
+      expect(await screen.findByRole("button", { name: "Finished? ›" })).toBeTruthy();
+    });
+
+    it("while Google needs reconnecting, says the Task isn't placed yet", async () => {
+      vi.mocked(moveTasksToDay).mockResolvedValue({ ok: true, undo, recalculationPaused: true });
+      await answerTomorrow({ ...packing(), id: "t1" });
+
+      expect(await screen.findByText("Not placed yet: planning is paused until you reconnect Google")).toBeTruthy();
+    });
+  });
+
   it("says so, and asks again, when the Task has gone or changed elsewhere", async () => {
     vi.mocked(checkIn).mockResolvedValue({ ok: false, notFound: true });
     renderPanel([packing()]);
@@ -647,6 +730,7 @@ describe("a Task waiting for a Check-in", () => {
     expect(moreTime).toHaveProperty("disabled", true);
     expect(moreTime.title).toBe("Offline: this needs a connection.");
     expect(within(sheet()).getByRole("button", { name: "Didn't start" })).toHaveProperty("disabled", true);
+    expect(within(sheet()).getByRole("button", { name: "Tomorrow" })).toHaveProperty("disabled", true);
   });
 
   describe("answered More time", () => {
