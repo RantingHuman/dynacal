@@ -5,6 +5,8 @@ import type { MoveBlockResult } from "@/core/pinning";
 import { OFFLINE_REASON, useOnline } from "../states/use-online";
 import { useCompleteTask } from "../tasks/complete-task-button";
 import { useMoveToTomorrow } from "../tasks/day-moves";
+import { pinnedWords, todayIn } from "../tasks/day-words";
+import { useTaskList } from "../tasks/task-list";
 import { moveBlock, unpinBlock } from "./actions";
 import type { CalendarBlock, CalendarEvent } from "./calendar";
 import { LabelNote } from "./floating-label";
@@ -23,6 +25,28 @@ export function moveError(result: MoveBlockResult, title: string): string | null
 }
 
 /**
+ * Says where a moved Block was pinned, with an Undo that puts back its old time and, if it wasn't pinned before, hands
+ * it back to dynacal. `block` is the Block as it was before the move; `words` replaces the usual message.
+ */
+export function useSayPinned(): (block: CalendarBlock, to: { start: Date; end: Date }, words?: string) => void {
+  const { act, notify, timeZone } = useTaskList();
+  const zone = timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+  return (block, to, words) =>
+    notify(words ?? pinnedWords(to.start, todayIn(timeZone), zone), {
+      label: "Undo",
+      run: () =>
+        act(null, async () => {
+          const refused = moveError(await moveBlock(block.id, { start: block.start, end: block.end }), block.taskTitle);
+          if (refused) return refused;
+          if (!block.pinned) await unpinBlock(block.id);
+          notify("Moved back");
+          return null;
+        }),
+    });
+}
+
+/**
  * What the Block label (desktop) and the Block sheet (phone) can do to an open Block: move it (which pins it),
  * unpin it, mark its whole Task done, or send its Task to tomorrow. Offline none of them can be attempted: `disabled` is set and `title`
  * says why. A refusal shows in `error`.
@@ -33,8 +57,10 @@ export function useBlockActions(block: CalendarBlock, onClose: () => void) {
   const [pending, startTransition] = useTransition();
   const complete = useCompleteTask();
   const moveToTomorrow = useMoveToTomorrow();
+  const sayPinned = useSayPinned();
+  const { notify } = useTaskList();
 
-  /** Moves the Block to the given span; `onMoved` runs once the move is saved. */
+  /** Moves the Block to the given span; `onMoved` runs once the move is saved, and a message says where it is. */
   function move(to: { start: Date; end: Date }, onMoved: () => void) {
     setError(null);
     startTransition(async () => {
@@ -43,7 +69,9 @@ export function useBlockActions(block: CalendarBlock, onClose: () => void) {
         block.taskTitle,
       );
       setError(message);
-      if (!message) onMoved();
+      if (message) return;
+      sayPinned(block, to);
+      onMoved();
     });
   }
 
@@ -51,8 +79,10 @@ export function useBlockActions(block: CalendarBlock, onClose: () => void) {
     setError(null);
     startTransition(async () => {
       const result = await unpinBlock(block.id);
-      if (result.ok) onClose();
-      else setError(`Couldn't unpin “${block.taskTitle}”: its time changed elsewhere.`);
+      if (result.ok) {
+        notify("Unpinned. dynacal picks the time.");
+        onClose();
+      } else setError(`Couldn't unpin “${block.taskTitle}”: its time changed elsewhere.`);
     });
   }
 
@@ -84,13 +114,12 @@ export function useBlockActions(block: CalendarBlock, onClose: () => void) {
   };
 }
 
-/** Names the Events a Pinned Block is in a Conflict with; `advice` adds what to do about it. */
-export function BlockConflictNote({ conflicts, advice = false }: { conflicts: CalendarEvent[]; advice?: boolean }) {
+/** Names the Events a Pinned Block is in a Conflict with. */
+export function BlockConflictNote({ conflicts }: { conflicts: CalendarEvent[] }) {
   if (conflicts.length === 0) return null;
   return (
     <LabelNote alert>
       Conflict: this pinned time overlaps {conflicts.map((c) => c.title).join(", ")}.
-      {advice && " dynacal won’t move it; move it, shorten it or unpin it, or change the Event in your calendar."}
     </LabelNote>
   );
 }

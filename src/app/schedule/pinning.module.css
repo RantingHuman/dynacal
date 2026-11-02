@@ -256,37 +256,3 @@
 .hasCheck :global(.block-title) {
   padding-right: 16px;
 }
-
-.markDone {
-  justify-self: start;
-  font-size: var(--text-body);
-}
-
-.editorForm {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  align-items: end;
-}
-
-.editorForm label {
-  display: grid;
-  gap: var(--space-1);
-  font-size: var(--text-meta);
-}
-
-.editorForm input {
-  font: inherit;
-  font-size: var(--text-body);
-  padding: 0.35rem 0.5rem;
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-square);
-  background: var(--card);
-  color: var(--ink);
-}
-
-.editorActions {
-  display: flex;
-  gap: var(--space-3);
-  align-items: center;
-}

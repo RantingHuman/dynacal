@@ -17,28 +17,10 @@ import { CompleteTaskButton } from "./complete-task-button";
 import { useCompletion } from "./completion";
 import { daysAgoWords, deadlineWords, spanWords } from "./day-words";
 import { contextShortWords, FlagText } from "./flags";
-import { useTaskEditor } from "./task-editor-slot";
+import { inputOf, useTaskEditor } from "./task-editor-slot";
 import { useTaskList, type ActOnTasks } from "./task-list";
 import { TASK_LINE_ID, TaskLineAdd } from "./task-line-add";
 import styles from "./task-panel.module.css";
-
-/** The editable fields of a Task. */
-function inputOf(task: TaskInput): TaskInput {
-  const { title, notes, estimatedMinutes, deadline, earliestStart, priority, splittable, contextId } = task;
-  const { bufferBeforeMinutes = null, bufferAfterMinutes = null } = task;
-  return {
-    title,
-    notes,
-    estimatedMinutes,
-    deadline,
-    earliestStart,
-    priority,
-    splittable,
-    contextId,
-    bufferBeforeMinutes,
-    bufferAfterMinutes,
-  };
-}
 
 /** A Task shown before the server has added it: it can't be opened or completed yet. */
 const isPending = (task: TaskListItem) => task.id.startsWith("pending-");
