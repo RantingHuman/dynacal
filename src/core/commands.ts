@@ -3,7 +3,7 @@
 // can't run now. Server actions parse their input with zod's `parse`, so malformed input (never sent by the UI)
 // throws, then call a command and `revalidatePath` if it changes anything.
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
-import { and, eq, gt, gte, isNull, lt, lte, or, sql } from "drizzle-orm";
+import { and, eq, gt, gte, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import {
   type CalendarEvent,
   type CalendarGateway,
@@ -90,7 +90,7 @@ import { eventRefWhere } from "./db/event-ref";
 import { fromTimingColumns, toTimingColumns } from "./event-timing";
 import { validatePushSubscription, type PushSender, type PushSubscriptionInput, type SubscribeToPushResult } from "./push";
 import { isHttps } from "./urls";
-import { validateBlockTime, type MoveBlockResult, type UnpinBlockResult } from "./pinning";
+import { validateBlockTime, validateRestoredTime, type MoveBlockResult, type UnpinBlockResult } from "./pinning";
 import { REMINDER_GRACE_MS, dueReminders, reminderKey, reminderMessage } from "./reminders";
 import { blockEventsInGoogle, editWindow, readGoogleEdit } from "./google-edits";
 import { channelExpiry, planChannels } from "./push-channels";
@@ -525,7 +525,8 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
   /**
    * Makes the dynacal calendar match the Schedule: each future Block of an incomplete Task becomes an event
    * with the Task title and a popup reminder at the Reminder Lead Time. Blocks that have started are left as
-   * they were written, except a Pinned Block in progress, whose end the owner can still change, and a Block
+   * they were written, except a Pinned Block in progress, whose end the owner can still change, a Block moved off
+   * its started time or back to it, whose event goes with it, and a Block
    * cut short when its Task is completed part-way through. Does nothing
    * until Google is connected, or while the connection is broken: Google would refuse the writes, and the next
    * poll after reconnecting catches up.
@@ -537,6 +538,9 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     const now = clock.now();
     const { reminderLeadMinutes } = getSettings();
     await settleEndedBlockEvents(calendarId, now);
+    const recorded = db.select().from(blockEvents).where(eq(blockEvents.calendarId, calendarId)).all();
+    // A Block in progress whose event is still ahead of it has just been moved back: its event comes back with it.
+    const eventsAhead = recorded.filter((e) => e.start >= now).flatMap((e) => (e.blockId === null ? [] : [e.blockId]));
     const wantedBlocks = db
       .select({
         taskId: blocks.taskId,
@@ -550,19 +554,21 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       .where(
         and(
           isNull(tasks.completedAt),
-          or(gte(blocks.start, now), and(eq(blocks.pinned, true), gt(blocks.end, now))),
+          or(
+            gte(blocks.start, now),
+            and(or(eq(blocks.pinned, true), inArray(blocks.id, eventsAhead)), gt(blocks.end, now)),
+          ),
         ),
       )
       .all();
     const wanted = wantedBlocks.map((b) => ({ ...b, reminderMinutes: reminderLeadMinutes }));
     // A Task with a Pinned Block in progress has its in-progress event in play too, so a resize updates it.
     const resizable = new Set(wantedBlocks.filter((b) => b.start < now).map((b) => b.taskId));
-    const written = db
-      .select()
-      .from(blockEvents)
-      .where(eq(blockEvents.calendarId, calendarId))
-      .all()
-      .filter((e) => e.start >= now || (e.end > now && resizable.has(e.taskId)));
+    // A Block moved on from a time that has started takes its event along, even if that time has since ended.
+    const movedOn = new Set(wantedBlocks.filter((b) => b.start >= now).map((b) => b.blockId));
+    const written = recorded.filter(
+      (e) => e.start >= now || (e.end > now && resizable.has(e.taskId)) || (e.blockId !== null && movedOn.has(e.blockId)),
+    );
     const writes = planBlockEventWrites(wanted, written);
 
     const record = (eventId: string, event: WantedBlockEvent) =>
@@ -1531,6 +1537,20 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       });
       if (errors) return { ok: false, errors };
       db.update(blocks).set({ start: to.start, end: to.end, pinned: true }).where(eq(blocks.id, id)).run();
+      recalculateAutomatically();
+      return { ok: true };
+    },
+
+    /**
+     * Undoes a move: puts a Block back at the time it left, pinned or not as it was, then recalculates. Unlike a move
+     * it can go back to a start that has passed, but not to a time that has ended.
+     */
+    restoreBlockTime(id: string, back: { start: Date; end: Date; pinned: boolean }): MoveBlockResult {
+      const block = db.select().from(blocks).where(eq(blocks.id, id)).get();
+      if (!block) return { ok: false, notFound: true };
+      const errors = validateRestoredTime(back, { now: clock.now(), current: block });
+      if (errors) return { ok: false, errors };
+      db.update(blocks).set(back).where(eq(blocks.id, id)).run();
       recalculateAutomatically();
       return { ok: true };
     },

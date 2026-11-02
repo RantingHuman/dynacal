@@ -3,7 +3,7 @@
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { moveBlock, unpinBlock } from "../../schedule/actions";
+import { moveBlock, restoreBlockTime, unpinBlock } from "../../schedule/actions";
 import type { CalendarBlock, CalendarEvent } from "../../schedule/calendar";
 import { completeTask, moveTasksToDay, undoDayMove } from "../../tasks/actions";
 import { taskItem } from "../../testing/fixtures";
@@ -12,7 +12,7 @@ import { renderGuarded } from "../../testing/render";
 import { TaskEditorSlot } from "../../tasks/task-editor-slot";
 import { BlockSheet } from "./block-sheet";
 
-vi.mock("../../schedule/actions", () => ({ moveBlock: vi.fn(), unpinBlock: vi.fn() }));
+vi.mock("../../schedule/actions", () => ({ moveBlock: vi.fn(), restoreBlockTime: vi.fn(), unpinBlock: vi.fn() }));
 vi.mock("../../tasks/actions", () => ({
   createTask: vi.fn(),
   updateTask: vi.fn(),
@@ -270,12 +270,100 @@ describe("the Block sheet on a phone", () => {
     });
   });
 
+  describe("a Task whose time has started", () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      // 40 minutes into its 10:00–12:00.
+      vi.setSystemTime(new Date("2026-10-27T10:40:00.000Z"));
+      vi.mocked(moveBlock).mockResolvedValue({ ok: true });
+      vi.mocked(restoreBlockTime).mockReset();
+      vi.mocked(restoreBlockTime).mockResolvedValue({ ok: true });
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    const buttons = () => within(screen.getByRole("complementary")).getAllByRole("button").map((b) => b.textContent);
+
+    it("still opens with the three actions, and its Move offers only Pick a time", async () => {
+      renderSheet();
+      expect(buttons()).toEqual(["Write Q4 planning doc›", "Done", "Tomorrow", "Move"]);
+
+      await openMove();
+
+      expect(buttons()).toEqual(["Write Q4 planning doc›", "Pick a time"]);
+    });
+
+    it("stops offering the nudges when its time starts with the sheet open", async () => {
+      vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+      vi.setSystemTime(new Date("2026-10-27T09:59:00.000Z"));
+      renderSheet();
+      fireEvent.click(screen.getByRole("button", { name: "Move" }));
+      expect(buttons()).toContain("+15m");
+
+      act(() => {
+        vi.advanceTimersByTime(2 * 60_000);
+      });
+
+      expect(buttons()).toEqual(["Write Q4 planning doc›", "Pick a time"]);
+    });
+
+    it("picks from the next step ahead, so the time on offer can be taken as it is", async () => {
+      const onClose = renderSheet();
+      await openMove();
+      await userEvent.click(screen.getByRole("button", { name: "Pick a time" }));
+
+      expect(screen.getByLabelText("Day")).toHaveProperty("value", "2026-10-27");
+      expect(screen.getByLabelText("Start")).toHaveProperty("value", "10:45");
+
+      await userEvent.click(screen.getByRole("button", { name: "Move" }));
+
+      await waitFor(() =>
+        expect(moveBlock).toHaveBeenCalledWith("block-1", { start: "2026-10-27T10:45:00.000Z", end: "2026-10-27T12:45:00.000Z" }),
+      );
+      await waitFor(() => expect(onClose).toHaveBeenCalled());
+    });
+
+    it("moves to the picked time at its full length, says so, and Undo puts it back", async () => {
+      renderSheet();
+      await openMove();
+      await userEvent.click(screen.getByRole("button", { name: "Pick a time" }));
+      fireEvent.change(screen.getByLabelText("Day"), { target: { value: "2026-10-28" } });
+      fireEvent.change(screen.getByLabelText("Start"), { target: { value: "15:00" } });
+      await userEvent.click(screen.getByRole("button", { name: "Move" }));
+
+      await waitFor(() =>
+        expect(moveBlock).toHaveBeenCalledWith("block-1", { start: "2026-10-28T15:00:00.000Z", end: "2026-10-28T17:00:00.000Z" }),
+      );
+      await waitFor(() => expect(screen.getByRole("status").textContent).toContain("Pinned at 15:00 tomorrow."));
+
+      await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+
+      await waitFor(() => expect(screen.getByRole("status").textContent).toContain("Moved back"));
+      expect(restoreBlockTime).toHaveBeenCalledWith("block-1", { start: block.start, end: block.end, pinned: false });
+    });
+
+    it("says why when the picked time has passed, and stays open", async () => {
+      vi.mocked(moveBlock).mockResolvedValue({ ok: false, errors: { start: "Choose a start that hasn't passed yet." } });
+      const onClose = renderSheet();
+      await openMove();
+      await userEvent.click(screen.getByRole("button", { name: "Pick a time" }));
+      fireEvent.change(screen.getByLabelText("Start"), { target: { value: "10:15" } });
+      await userEvent.click(screen.getByRole("button", { name: "Move" }));
+
+      expect((await screen.findByRole("alert")).textContent).toBe("Choose a start that hasn't passed yet.");
+      expect(onClose).not.toHaveBeenCalled();
+    });
+  });
+
   describe("the message after a move", () => {
     beforeEach(() => {
       vi.useFakeTimers({ toFake: ["Date"] });
       vi.setSystemTime(new Date("2026-10-27T09:00:00.000Z"));
       vi.mocked(moveBlock).mockResolvedValue({ ok: true });
       vi.mocked(unpinBlock).mockResolvedValue({ ok: true });
+      vi.mocked(restoreBlockTime).mockReset();
+      vi.mocked(restoreBlockTime).mockResolvedValue({ ok: true });
     });
     afterEach(() => {
       vi.useRealTimers();
@@ -306,36 +394,36 @@ describe("the Block sheet on a phone", () => {
     it("hands an unpinned Task back to dynacal with Undo", async () => {
       renderSheet();
       await nudge();
-      vi.mocked(moveBlock).mockClear();
 
       await userEvent.click(screen.getByRole("button", { name: "Undo" }));
 
       await waitFor(() => expect(screen.getByRole("status").textContent).toContain("Moved back"));
-      expect(moveBlock).toHaveBeenCalledWith("block-1", { start: block.start, end: block.end });
-      expect(unpinBlock).toHaveBeenCalledWith("block-1");
+      expect(restoreBlockTime).toHaveBeenCalledWith("block-1", { start: block.start, end: block.end, pinned: false });
     });
 
     it("puts a pinned Task back at its old time with Undo, still pinned", async () => {
       renderSheet(vi.fn(), { pinned: true });
       await nudge();
-      vi.mocked(moveBlock).mockClear();
 
       await userEvent.click(screen.getByRole("button", { name: "Undo" }));
 
       await waitFor(() => expect(screen.getByRole("status").textContent).toContain("Moved back"));
-      expect(moveBlock).toHaveBeenCalledWith("block-1", { start: block.start, end: block.end });
-      expect(unpinBlock).not.toHaveBeenCalled();
+      expect(restoreBlockTime).toHaveBeenCalledWith("block-1", { start: block.start, end: block.end, pinned: true });
     });
 
     it("says why when Undo is refused", async () => {
       renderSheet();
       await nudge();
-      vi.mocked(moveBlock).mockResolvedValue({ ok: false, errors: { start: "Choose a start that hasn't passed yet." } });
+      vi.mocked(restoreBlockTime).mockResolvedValue({
+        ok: false,
+        errors: { block: "That time has already ended, so the Task stays where it is." },
+      });
 
       await userEvent.click(screen.getByRole("button", { name: "Undo" }));
 
-      await waitFor(() => expect(screen.getByRole("status").textContent).toContain("Choose a start that hasn't passed yet."));
-      expect(unpinBlock).not.toHaveBeenCalled();
+      await waitFor(() =>
+        expect(screen.getByRole("status").textContent).toContain("That time has already ended, so the Task stays where it is."),
+      );
     });
 
     it("stays open when its Undo is tapped", async () => {

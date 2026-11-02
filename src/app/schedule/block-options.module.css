@@ -47,6 +47,11 @@
   padding: var(--space-1);
 }
 
+/* Pick a time, alone once the time has started. */
+.whole {
+  grid-column: 1 / -1;
+}
+
 .exact {
   display: flex;
   flex-wrap: wrap;

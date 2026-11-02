@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { movedBlockTime } from "@/core/block-moves";
 import { spanLabel } from "@/core/day-labels";
 import { formatMinutes } from "@/core/settings";
+import { GRID_MS } from "@/core/time";
 import { addDays, fromZoned, toZoned } from "@/core/time-zone";
 import { useSlow } from "../states/use-slow";
 import { inputOf, useTaskEditor } from "../tasks/task-editor-slot";
@@ -19,9 +20,22 @@ const NUDGES = [
   { label: "+15m", by: 15 },
 ];
 
+/** Whether the time is under way now, which changes while the sheet is open if its start comes round. */
+function useInProgress({ start, end }: { start: string; end: string }): boolean {
+  const startsAt = new Date(start).getTime();
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (now >= startsAt) return;
+    const timer = setTimeout(() => setNow(Date.now()), startsAt - now + 1);
+    return () => clearTimeout(timer);
+  }, [now, startsAt]);
+  return startsAt < now && now < new Date(end).getTime();
+}
+
 /**
  * What the phone's sheet and the computer's label show for a time that hasn't ended, each in its own frame: the
- * title, which opens the Task, the time, and Done, Tomorrow and Move. Move swaps those for the nudges and Pick a time.
+ * title, which opens the Task, the time, and Done, Tomorrow and Move. Move swaps those for the nudges and Pick a time;
+ * once the time has started a nudge could only be refused, so Pick a time alone, starting from the next step ahead.
  * A nudge leaves it open, so the Task can be nudged again; everything else that changes the Task closes it. A refused
  * move leaves the Task where it was and says why.
  */
@@ -50,6 +64,7 @@ export function BlockOptions({
   const slow = useSlow(actions.pending);
   const { tasks } = useTaskList();
   const { openTask } = useTaskEditor();
+  const inProgress = useInProgress(block);
   const current = { start: new Date(block.start), end: new Date(block.end) };
   const control = { disabled: actions.disabled, title: actions.title };
 
@@ -60,11 +75,13 @@ export function BlockOptions({
   }
 
   function pickTime() {
-    const start = toZoned(current.start, timeZone);
+    const from = inProgress ? new Date(Math.ceil(Date.now() / GRID_MS) * GRID_MS) : current.start;
+    const to = new Date(from.getTime() + current.end.getTime() - current.start.getTime());
+    const start = toZoned(from, timeZone);
     setExact({
       date: start.date,
       start: formatMinutes(start.minutes),
-      end: formatMinutes(toZoned(current.end, timeZone).minutes),
+      end: formatMinutes(toZoned(to, timeZone).minutes),
     });
   }
 
@@ -107,7 +124,7 @@ export function BlockOptions({
 
       {moving ? (
         <div className={styles.actions}>
-          {NUDGES.map(({ label, by }) => (
+          {!inProgress && NUDGES.map(({ label, by }) => (
             <button
               key={label}
               type="button"
@@ -118,7 +135,13 @@ export function BlockOptions({
               {label}
             </button>
           ))}
-          <button type="button" className="button secondary" {...control} aria-expanded={exact !== null} onClick={pickTime}>
+          <button
+            type="button"
+            className={`button secondary${inProgress ? ` ${styles.whole}` : ""}`}
+            {...control}
+            aria-expanded={exact !== null}
+            onClick={pickTime}
+          >
             Pick a time
           </button>
         </div>

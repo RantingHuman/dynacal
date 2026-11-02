@@ -7,7 +7,7 @@ import { useCompleteTask } from "../tasks/complete-task-button";
 import { useMoveToTomorrow } from "../tasks/day-moves";
 import { pinnedWords, todayIn } from "../tasks/day-words";
 import { useTaskList } from "../tasks/task-list";
-import { moveBlock, unpinBlock } from "./actions";
+import { moveBlock, restoreBlockTime, unpinBlock } from "./actions";
 import type { CalendarBlock, CalendarEvent } from "./calendar";
 import { LabelNote } from "./floating-label";
 
@@ -37,9 +37,9 @@ export function useSayPinned(): (block: CalendarBlock, to: { start: Date; end: D
       label: "Undo",
       run: () =>
         act(null, async () => {
-          const refused = moveError(await moveBlock(block.id, { start: block.start, end: block.end }), block.taskTitle);
+          const back = { start: block.start, end: block.end, pinned: block.pinned };
+          const refused = moveError(await restoreBlockTime(block.id, back), block.taskTitle);
           if (refused) return refused;
-          if (!block.pinned) await unpinBlock(block.id);
           notify("Moved back");
           return null;
         }),
