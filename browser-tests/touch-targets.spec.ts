@@ -190,6 +190,22 @@ test("gives a past time's line a 44px tap area for its Check-in", async ({ brows
   }, { seed: "past-times" });
 });
 
+test("fits a Check-in's four answers on a phone, with 44px targets", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await asPhone(page);
+    await page.goto("/");
+    await page.getByRole("button", { name: "Pack for vegas, 06:00, 1h, Finished?" }).click();
+    const sheet = page.getByRole("complementary", { name: "Pack for vegas" });
+    for (const name of ["Finished", "More time", "Didn't start", "Tomorrow"]) {
+      const answer = sheet.getByRole("button", { name, exact: true });
+      await expectTappable(answer);
+      const box = await answer.boundingBox();
+      expect(box !== null && box.x >= 0 && box.x + box.width <= 390).toBe(true);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  }, { seed: "past-times" });
+});
+
 test("fits More time's Other… picker on a phone, with 44px targets and a 16px field", async ({ browser }) => {
   await withApp(browser, async (page) => {
     await asPhone(page);

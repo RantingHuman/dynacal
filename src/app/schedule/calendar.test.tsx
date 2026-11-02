@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TaskListItem } from "@/core/commands";
 import { DEFAULT_WINDOWS } from "@/core/settings";
-import { checkIn, completeTask } from "../tasks/actions";
+import { checkIn, completeTask, moveTasksToDay } from "../tasks/actions";
 import { WithTaskList } from "../testing/with-task-list";
 import { TaskPanel } from "../tasks/task-panel";
 import { deferred, taskItem, workContext } from "../testing/fixtures";
@@ -26,6 +26,8 @@ vi.mock("../tasks/actions", () => ({
   reopenTask: vi.fn(),
   allowSplitting: vi.fn(),
   checkIn: vi.fn(),
+  moveTasksToDay: vi.fn(),
+  undoDayMove: vi.fn(),
 }));
 
 // Now is Tuesday 27 October 2026, 14:00 London time (GMT, after the clocks went back). "Pack for vegas" was at
@@ -66,6 +68,7 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date(NOW));
   vi.mocked(checkIn).mockReset();
+  vi.mocked(moveTasksToDay).mockReset();
 });
 afterEach(() => vi.useRealTimers());
 
@@ -91,13 +94,13 @@ describe("a past time on the desktop calendar", () => {
     await waitFor(() => expect(completeTask).toHaveReturned());
   });
 
-  it("is named as asking “Finished?” while it waits, and its label offers the three answers", async () => {
+  it("is named as asking “Finished?” while it waits, and its label offers the four answers", async () => {
     renderDesktop();
 
     expect(time().getAttribute("aria-label")).toMatch(/Finished\?/);
     await userEvent.click(time());
 
-    for (const answer of ["Finished", "More time", "Didn't start"]) {
+    for (const answer of ["Finished", "More time", "Didn't start", "Tomorrow"]) {
       expect(within(label()).getByRole("button", { name: answer })).toBeTruthy();
     }
   });
@@ -129,6 +132,21 @@ describe("a past time on the desktop calendar", () => {
     expect(answered.getAttribute("role")).toBeNull();
     answering.resolve({ ok: true });
     await waitFor(() => expect(checkIn).toHaveReturned());
+  });
+
+  it("answered Tomorrow, moves the Task and says dynacal picks the time", async () => {
+    vi.mocked(moveTasksToDay).mockResolvedValue({
+      ok: true,
+      undo: { tasks: [] },
+      moved: [{ id: "t1", nextStart: new Date("2026-10-28T09:00:00Z") }],
+    });
+    renderDesktop();
+
+    await userEvent.click(time());
+    await userEvent.click(within(label()).getByRole("button", { name: "Tomorrow" }));
+
+    expect(moveTasksToDay).toHaveBeenCalledWith(["t1"], "2026-10-28");
+    expect(await screen.findByText("Moved to tomorrow. dynacal picks the time.")).toBeTruthy();
   });
 
   it("answered Didn't start, says where the Task went", async () => {

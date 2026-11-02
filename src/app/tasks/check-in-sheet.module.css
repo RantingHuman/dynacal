@@ -41,15 +41,15 @@
   text-transform: uppercase;
 }
 
-/* The answers: large buttons side by side, for a thumb. */
+/* The answers: large buttons, two by two, for a thumb. */
 .answers {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: var(--space-2);
   padding-top: var(--space-2);
 }
 
 .answers :global(.button) {
-  flex: 1;
   min-height: 48px;
   white-space: nowrap;
 }
