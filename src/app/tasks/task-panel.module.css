@@ -27,7 +27,7 @@
 }
 
 .actions :global(.link) {
-  font-size: var(--text-meta);
+  font-size: var(--text-control);
   font-weight: 400;
 }
 

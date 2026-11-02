@@ -8,7 +8,7 @@ import { useEscape } from "../../states/use-escape";
 import styles from "./phone.module.css";
 
 /**
- * The masthead on a phone: the title and a Menu holding Recalculate, then the controls passed in (reminders,
+ * The masthead on a phone: the title and, as an icon at the far right, a Menu holding Recalculate, then the controls passed in (reminders,
  * Settings and Sign out). Recalculate is the calendar's: it ripples while it runs and says how many Blocks moved.
  * Escape closes the Menu.
  */
@@ -37,18 +37,24 @@ export function PhoneMasthead({
   return (
     <header className={styles.masthead}>
       <span className={styles.title}>dynacal</span>
-      <button type="button" className="link" aria-expanded={open} aria-controls={menuId} onClick={() => setOpen(!open)}>
-        Menu
+      <button
+        type="button"
+        className={`${styles.menuButton} pressable`}
+        aria-label="Menu"
+        aria-expanded={open}
+        aria-controls={menuId}
+        onClick={() => setOpen(!open)}
+      >
+        <svg viewBox="0 0 22 22" aria-hidden>
+          <path d="M1 5h20M1 11h20M1 17h20" />
+        </svg>
       </button>
       {/* While open, a background refresh waits (see BackgroundRefresh). */}
       <nav id={menuId} className={styles.menu} aria-label="Menu" hidden={!open} data-refresh-hold={open || undefined}>
         {blocks !== null && <RecalculateButton recalculation={recalculation} connectionBroken={connectionBroken} stacked />}
         {children}
       </nav>
-      {/* Above the tab bar, like the other phone toasts. */}
-      <div className={styles.overlays}>
-        <Toast message={toast} tone="info" onDone={clearToast} />
-      </div>
+      <Toast message={toast} tone="info" onDone={clearToast} />
     </header>
   );
 }

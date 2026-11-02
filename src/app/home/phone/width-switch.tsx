@@ -3,7 +3,7 @@
 import { useSyncExternalStore, type ReactNode } from "react";
 import styles from "./phone.module.css";
 
-/** Below 640px wide the home screen is the phone layout. Keep in step with phone.module.css. */
+/** Below 640px wide the home screen is the phone layout. Keep in step with phone.module.css and --text-control in globals.css. */
 const PHONE_QUERY = "(max-width: 639.98px)";
 
 function subscribe(onChange: () => void): () => void {

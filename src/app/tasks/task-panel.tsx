@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, ViewTransition } from "react";
+import { useCallback, useState, ViewTransition } from "react";
 import type { TaskListItem } from "@/core/commands";
 import { contextTag } from "@/core/contexts";
 import { heldOrder } from "@/core/motion";
@@ -63,6 +63,47 @@ function AllowSplittingButton({ id, title, online, act }: { id: string; title: s
     >
       Allow splitting
     </button>
+  );
+}
+
+/**
+ * Whether a one-off animation is over, and the ref that finds out. Taking its attribute away then stops it replaying
+ * each time its row is shown again, as a hidden element's animation would. Hiding it midway cancels it, which counts
+ * as over too; React has no prop for that event.
+ */
+function usePlayedOnce() {
+  const [played, setPlayed] = useState(false);
+  const ref = useCallback((element: HTMLElement) => {
+    const over = () => setPlayed(true);
+    element.addEventListener("animationend", over);
+    element.addEventListener("animationcancel", over);
+    return () => {
+      element.removeEventListener("animationend", over);
+      element.removeEventListener("animationcancel", over);
+    };
+  }, []);
+  return { played, ref };
+}
+
+/** A row's title, whose highlighter sweeps once when `sweep` is set. */
+function RowTitle({ title, sweep }: { title: string; sweep: boolean }) {
+  const { played, ref } = usePlayedOnce();
+  return (
+    <span ref={ref} className="task-title" data-sweep={(sweep && !played) || undefined}>
+      {title}
+    </span>
+  );
+}
+
+/** "Saved" by a row, gone for good once it has faded. */
+function SavedNote() {
+  const { played, ref } = usePlayedOnce();
+  if (played) return null;
+  return (
+    <span ref={ref} className={styles.saved} role="status">
+      {" "}
+      · Saved
+    </span>
   );
 }
 
@@ -185,24 +226,12 @@ export function TaskPanel() {
                   </>
                 )}
                 {declined > 0 && ` · ${declined} Declined ${declined === 1 ? "Time" : "Times"}`}
-                {justSaved && (
-                  <span key={saved.n} className={styles.saved} role="status">
-                    {" "}
-                    · Saved
-                  </span>
-                )}
+                {justSaved && <SavedNote key={saved.n} />}
               </>
             );
-            const title = (
-              <span
-                // A new key replays the sweep: once on arrival, and again on each save.
-                key={timesSaved}
-                className="task-title"
-                data-sweep={timesSaved > 0 || (!adding && !loaded.has(task.id)) || undefined}
-              >
-                {task.title}
-              </span>
-            );
+            // A new key replays the sweep: once on arrival, and again on each save.
+            const sweep = timesSaved > 0 || (!adding && !loaded.has(task.id));
+            const title = <RowTitle key={timesSaved} title={task.title} sweep={sweep} />;
             const openButton = (children: React.ReactNode) => (
               <button
                 type="button"
