@@ -14,6 +14,10 @@ Default vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-
 
 Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
 
+### Running tests
+
+Before running tests while building or fixing, or starting subagents to build tickets, read `docs/agents/testing.md`.
+
 ### Shipping
 
 Before merging, deploying or calling a branch done, read `docs/agents/shipping.md`. Reviews check against `CODING_STANDARDS.md`.

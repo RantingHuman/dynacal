@@ -1,15 +1,38 @@
-import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { realpathSync } from "node:fs";
+import { cp, mkdtemp, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { existsSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
+import { buildKey } from "./build-key.mjs";
 import { copyDependencies } from "./copy-dependencies.mjs";
 import { findTestOnlyMarkers, TEST_ONLY_MARKERS } from "./test-only-markers.mjs";
 
-/** Build in a disposable source copy: never modify the normal app's build or runtime. */
+const KEPT_PREFIX = "dynacal-browser-kept-build-";
+/** Builds kept between runs: one for each of the two agents that may be testing at once, at over a gigabyte each. */
+const KEPT_BUILDS = 2;
+
+/** Forgets all but the most recently made kept builds. */
+async function forgetOldBuilds(parent: string) {
+  const kept = (await readdir(parent)).filter((name) => name.startsWith(KEPT_PREFIX));
+  const ages = await Promise.all(kept.map(async (name) => ({ name, made: (await stat(join(parent, name))).mtimeMs })));
+  const old = ages.sort((a, b) => b.made - a.made).slice(KEPT_BUILDS);
+  await Promise.all(old.map(({ name }) => rm(join(parent, name), { recursive: true, force: true })));
+}
+
+/**
+ * Build in a disposable source copy: never modify the normal app's build or runtime. Off CI the build is kept, and
+ * used again while the files it's made from are unchanged, as a build takes far longer than most tests. CI always
+ * builds afresh.
+ */
 export default async function setup() {
   const root = resolve(process.cwd());
-  const temp = await mkdtemp(join(realpathSync(tmpdir()), "dynacal-browser-build-"));
+  const parent = realpathSync(tmpdir());
+  const kept = process.env.CI ? null : join(parent, `${KEPT_PREFIX}${await buildKey(root)}`);
+  if (kept && existsSync(kept)) {
+    process.env.DYNACAL_TEST_BUILD = kept;
+    return async () => {};
+  }
+  const temp = await mkdtemp(join(parent, "dynacal-browser-build-"));
   try {
     for (const entry of ["src", "public", "drizzle", "package.json", "tsconfig.json", "next.config.ts"]) {
       await cp(join(root, entry), join(temp, entry), { recursive: true });
@@ -61,6 +84,13 @@ export default async function setup() {
     if (reused.error || reused.status === 0 || !reused.stderr.toString().includes("Unsafe browser test") ||
         await readFile(join(unsafe, "test.sqlite"), "utf8") !== "sentinel") {
       throw new Error("Test server accepted or changed a pre-existing database");
+    }
+    if (kept) {
+      // Another run may have finished the same build first, in which case its copy will do.
+      await rename(temp, kept).catch(() => rm(temp, { recursive: true, force: true }));
+      await forgetOldBuilds(parent);
+      process.env.DYNACAL_TEST_BUILD = kept;
+      return async () => {};
     }
     process.env.DYNACAL_TEST_BUILD = temp;
   } catch (error) {
