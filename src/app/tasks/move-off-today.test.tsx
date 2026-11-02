@@ -249,7 +249,7 @@ describe("moving", () => {
 
     expect(await screen.findByText("Moved 2 to tomorrow. dynacal picks the times.")).toBeTruthy();
     expect(moveTasksToDay).toHaveBeenCalledOnce();
-    expect(moveTasksToDay).toHaveBeenCalledWith(["t1", "t2"], "2026-10-28");
+    expect(moveTasksToDay).toHaveBeenCalledWith(["t1", "t2"], "2026-10-28", { moveDeadlines: false });
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 
     await userEvent.click(screen.getByRole("button", { name: "Undo" }));
@@ -286,6 +286,10 @@ describe("moving", () => {
     ["different days", { ok: true, undo, moved: [on("t1", "2026-10-28"), on("t2", "2026-10-29")] }, "Moved 2 off today. dynacal picks the times."],
     ["all beyond the Planning Horizon", { ok: true, undo, moved: [{ id: "t1", nextStart: null, later: true }, { id: "t2", nextStart: null, later: true }] }, "Moved 2 to Later"],
     ["one that doesn't fit", { ok: true, undo, moved: [on("t1", "2026-10-28"), { id: "t2", nextStart: null }] }, "Moved 2. Nothing fits 1: Unscheduled"],
+    ["some Later, some placed", { ok: true, undo, moved: [on("t1", "2026-10-28"), on("t2", "2026-10-28"), { id: "t3", nextStart: null, later: true }] }, "Moved 2 to tomorrow, 1 to Later. dynacal picks the times."],
+    ["one Later, one placed", { ok: true, undo, moved: [on("t1", "2026-10-28"), { id: "t2", nextStart: null, later: true }] }, "Moved 1 to tomorrow, 1 to Later. dynacal picks the time."],
+    ["some Later, the rest on different days", { ok: true, undo, moved: [on("t1", "2026-10-28"), on("t2", "2026-10-29"), { id: "t3", nextStart: null, later: true }] }, "Moved 2 off today, 1 to Later. dynacal picks the times."],
+    ["one that doesn't fit and one Later", { ok: true, undo, moved: [on("t1", "2026-10-28"), { id: "t2", nextStart: null, later: true }, { id: "t3", nextStart: null }] }, "Moved 3. 1 to Later. Nothing fits 1: Unscheduled"],
     ["planning paused", { ok: true, undo, recalculationPaused: true }, NOT_PLACED_WORDS],
   ])("says where they went: %s", async (_, result, words) => {
     vi.mocked(moveTasksToDay).mockResolvedValue(result);
@@ -302,8 +306,7 @@ describe("moving", () => {
     vi.mocked(moveTasksToDay)
       .mockResolvedValueOnce({
         ok: false,
-        errors: { deadline: "refused" },
-        dueBefore: [
+        deadlineBefore: [
           { id: "t3", title: "File invoices", deadline: { date: "2026-10-27", time: null } },
           { id: "t1", title: "Board memo", deadline: { date: "2026-10-27", time: "16:00" } },
         ],
@@ -327,8 +330,7 @@ describe("moving", () => {
   it("moves nothing on Cancel, leaving the list and its ticks to change", async () => {
     vi.mocked(moveTasksToDay).mockResolvedValue({
       ok: false,
-      errors: { deadline: "refused" },
-      dueBefore: [{ id: "t3", title: "File invoices", deadline: { date: "2026-10-27", time: null } }],
+      deadlineBefore: [{ id: "t3", title: "File invoices", deadline: { date: "2026-10-27", time: null } }],
     });
     threeToday();
     await openList();
@@ -347,8 +349,7 @@ describe("moving", () => {
   it("answers Escape on the question without closing the list behind it", async () => {
     vi.mocked(moveTasksToDay).mockResolvedValue({
       ok: false,
-      errors: { deadline: "refused" },
-      dueBefore: [{ id: "t3", title: "File invoices", deadline: { date: "2026-10-27", time: null } }],
+      deadlineBefore: [{ id: "t3", title: "File invoices", deadline: { date: "2026-10-27", time: null } }],
     });
     threeToday();
     await openList();
@@ -400,7 +401,7 @@ describe("moving", () => {
 
     await userEvent.click(button("Move 2 to Fri"));
 
-    expect(moveTasksToDay).toHaveBeenCalledWith(["t1", "t2"], "2026-10-30");
+    expect(moveTasksToDay).toHaveBeenCalledWith(["t1", "t2"], "2026-10-30", { moveDeadlines: false });
     expect(await screen.findByText("Moved 2 to Fri. dynacal picks the times.")).toBeTruthy();
   });
 
@@ -446,7 +447,7 @@ describe("on the computer", () => {
 
     await userEvent.click(button("Move 1 to tomorrow"));
 
-    expect(moveTasksToDay).toHaveBeenCalledWith(["t1"], "2026-10-28");
+    expect(moveTasksToDay).toHaveBeenCalledWith(["t1"], "2026-10-28", { moveDeadlines: false });
     expect(await screen.findByText("Moved to tomorrow. dynacal picks the time.")).toBeTruthy();
   });
 

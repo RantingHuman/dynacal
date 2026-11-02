@@ -36,8 +36,9 @@ import {
   type CheckInAnswer,
   type CheckInResult,
   type CheckInView,
+  type WhereItWent,
 } from "./completion";
-import { dueBeforeDayWords, type DayMoveUndo, type MoveToDayResult, type UndoDayMoveResult } from "./day-moves";
+import type { DayMoveUndo, MoveToDayResult, UndoDayMoveResult } from "./day-moves";
 import type { Db } from "./db";
 import {
   markBroken,
@@ -844,11 +845,11 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
   }
 
   /** Where a Task went after Didn't start: its next start, or none, and then whether it's Later rather than Unscheduled. */
-  function whereItWent(taskId: string): { ok: true; nextStart: Date | null; later?: true } {
+  function whereItWent(taskId: string): WhereItWent {
     const start = nextStart(taskId);
-    if (start) return { ok: true, nextStart: start };
+    if (start) return { nextStart: start };
     const row = db.select({ flag: tasks.scheduleFlag }).from(tasks).where(eq(tasks.id, taskId)).get();
-    return row?.flag === "later" ? { ok: true, nextStart: null, later: true } : { ok: true, nextStart: null };
+    return row?.flag === "later" ? { nextStart: null, later: true } : { nextStart: null };
   }
 
   /**
@@ -1420,7 +1421,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         case "didnt-start":
           db.delete(blocks).where(eq(blocks.id, blockId)).run();
           if (!recalculateAutomatically().ok) return { ok: true, recalculationPaused: true };
-          return whereItWent(found.block.taskId);
+          return { ok: true, ...whereItWent(found.block.taskId) };
       }
       recalculateAutomatically();
       return { ok: true };
@@ -1436,12 +1437,12 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       const open = ids.flatMap((id) => db.select().from(tasks).where(and(eq(tasks.id, id), isNull(tasks.completedAt))).all());
       if (open.length !== ids.length) return { ok: false, notFound: true };
       const earliestStart = { date: day, time: null };
-      const dueBefore = open.flatMap((row) => {
+      const deadlineBefore = open.flatMap((row) => {
         const { id, title, deadline } = toTask(row);
         return deadline && startsAfterDeadline(earliestStart, deadline) ? [{ id, title, deadline }] : [];
       });
-      if (dueBefore.length > 0 && !moveDeadlines) {
-        return { ok: false, errors: { deadline: dueBeforeDayWords(dueBefore, day) }, dueBefore };
+      if (deadlineBefore.length > 0 && !moveDeadlines) {
+        return { ok: false, deadlineBefore };
       }
       const now = clock.now();
       const undo: DayMoveUndo = db.transaction((tx) => ({
@@ -1459,7 +1460,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
           tx.delete(blocks)
             .where(or(unended, waiting))
             .run();
-          const movesDeadline = dueBefore.some((due) => due.id === row.id);
+          const movesDeadline = deadlineBefore.some((due) => due.id === row.id);
           tx.update(tasks)
             .set({
               earliestStartDate: day,
@@ -1475,10 +1476,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       return {
         ok: true,
         undo,
-        moved: ids.map((id) => {
-          const { ok: _ok, ...where } = whereItWent(id);
-          return { id, ...where };
-        }),
+        moved: ids.map((id) => ({ id, ...whereItWent(id) })),
       };
     },
 

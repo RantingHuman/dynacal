@@ -1050,7 +1050,7 @@ describe("the When line", () => {
   it("keeps an Earliest Start being edited when the move is refused", async () => {
     vi.mocked(moveTasksToDay).mockResolvedValue({
       ok: false,
-      dueBefore: [{ id: "task-1", title: task.title, deadline: { date: TODAY, time: null } }],
+      deadlineBefore: [{ id: "task-1", title: task.title, deadline: { date: TODAY, time: null } }],
     } as never);
     render(screenWith([time()], { ...task, deadline: { date: TODAY, time: null } }));
     const editor = await openScreen();

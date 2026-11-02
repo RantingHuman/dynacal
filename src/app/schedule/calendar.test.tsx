@@ -145,7 +145,7 @@ describe("a past time on the desktop calendar", () => {
     await userEvent.click(time());
     await userEvent.click(within(label()).getByRole("button", { name: "Tomorrow" }));
 
-    expect(moveTasksToDay).toHaveBeenCalledWith(["t1"], "2026-10-28");
+    expect(moveTasksToDay).toHaveBeenCalledWith(["t1"], "2026-10-28", { moveDeadlines: false });
     expect(await screen.findByText("Moved to tomorrow. dynacal picks the time.")).toBeTruthy();
   });
 

@@ -187,8 +187,7 @@ describe("moving a Task to a day", () => {
 
     expect(result).toEqual({
       ok: false,
-      errors: { deadline: "“Write report” is due 5 Jan 2026, so it can't move to 6 Jan 2026." },
-      dueBefore: [{ id: due.id, title: "Write report", deadline: { date: "2026-01-05", time: null } }],
+      deadlineBefore: [{ id: due.id, title: "Write report", deadline: { date: "2026-01-05", time: null } }],
     });
     expect(timesOf(app, due.id)).toEqual(before);
     expect(listed(app, due.id).earliestStart).toBeNull();

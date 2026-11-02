@@ -19,11 +19,11 @@ import { addDays } from "@/core/time-zone";
 import { BufferChips } from "../buffer-chips";
 import { OFFLINE_REASON, useOnline } from "../states/use-online";
 import { createTask, deleteTask, updateTask } from "./actions";
-import { dateWords, spanWords } from "./day-words";
+import { dateWords, spanWords, zoneOrBrowser } from "./day-words";
 import { FieldLine, MoreLine, OpensLine } from "./field-line";
 import { FLAG_LABELS, isAlarm } from "./flags";
 import lineStyles from "./field-line.module.css";
-import type { TaskDraft } from "./task-editor-slot";
+import type { TaskDraft } from "./task-editor-context";
 import type { ActOnTasks } from "./task-list";
 import styles from "./task-editor.module.css";
 
@@ -220,7 +220,7 @@ export function TaskEditor({
   const status = task?.completedAt
     ? "Complete"
     : waiting
-      ? `${spanWords(waiting, today, timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone)} · Finished?`
+      ? `${spanWords(waiting, today, zoneOrBrowser(timeZone))} · Finished?`
       : null;
   const shownFlag = task && !task.completedAt ? flag : null;
   const context = contexts.find((c) => c.id === input.contextId) ?? contexts[0];
@@ -288,7 +288,7 @@ export function TaskEditor({
             />
           </FieldLine>
 
-          <WhenLine
+          <DateLine
             name="Due"
             label="Deadline"
             none="No deadline"
@@ -300,7 +300,7 @@ export function TaskEditor({
             onEnter={(deadline) => update({ deadline })}
           />
 
-          <WhenLine
+          <DateLine
             name="Earliest Start"
             label="Earliest Start"
             none="Any time"
@@ -456,7 +456,7 @@ function DurationField({
 }
 
 /** A line for a date and optional time, which `none` stands in for when there's no date. */
-function WhenLine({
+function DateLine({
   name,
   label,
   none,
@@ -483,7 +483,7 @@ function WhenLine({
 }) {
   return (
     <FieldLine name={name} value={value ? dateWords(value) : none} error={error} open={open} onToggle={onToggle}>
-      <WhenField label={label} none={none} value={value} today={today} onChoose={onChoose} onEnter={onEnter} />
+      <DateField label={label} none={none} value={value} today={today} onChoose={onChoose} onEnter={onEnter} />
     </FieldLine>
   );
 }
@@ -492,7 +492,7 @@ function WhenLine({
  * "None", Today, Tomorrow, and Pick a date for any other day, where a stored date beyond those opens, unchanged. Once
  * a day is set, an optional time.
  */
-function WhenField({
+function DateField({
   label,
   none,
   value,

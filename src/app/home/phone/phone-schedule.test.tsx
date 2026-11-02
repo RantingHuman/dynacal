@@ -195,7 +195,7 @@ describe("a past time in the week list", () => {
     await userEvent.click(line(/^Pack for vegas, 10:30/));
     await userEvent.click(within(sheet()).getByRole("button", { name: "Tomorrow" }));
 
-    expect(moveTasksToDay).toHaveBeenCalledWith(["t1"], "2026-10-28");
+    expect(moveTasksToDay).toHaveBeenCalledWith(["t1"], "2026-10-28", { moveDeadlines: false });
     expect(line(/^Pack for vegas, 10:30/).dataset.waiting).toBe("false");
     moving.resolve({ ok: true, undo: { tasks: [] }, moved: [{ id: "t1", nextStart: new Date("2026-10-28T09:00:00Z") }] });
     expect(await screen.findByText("Moved to tomorrow. dynacal picks the time.")).toBeTruthy();

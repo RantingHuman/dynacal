@@ -142,7 +142,7 @@ describe("desktop Block label", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Tomorrow" }));
 
-    expect(moveTasksToDay).toHaveBeenCalledWith(["t1"], "2026-10-28");
+    expect(moveTasksToDay).toHaveBeenCalledWith(["t1"], "2026-10-28", { moveDeadlines: false });
     await waitFor(() => expect(close).toHaveBeenCalledOnce());
     expect((await screen.findByRole("status")).textContent).toContain("Moved to tomorrow. dynacal picks the time.");
     expect(screen.getByRole("button", { name: "Undo" })).toBeTruthy();

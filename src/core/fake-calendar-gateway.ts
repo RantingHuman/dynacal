@@ -194,7 +194,6 @@ export class FakeCalendarGateway implements CalendarGateway {
     if (!this.calendars.some((c) => c.id === calendarId)) throw new Error(`No calendar ${calendarId}`);
     const eventId = this.addEvent(calendarId, { title: event.title, marker: event.marker, ...timing(event) });
     this.reminders.set(eventId, event.reminderMinutes);
-    if (event.description) this.descriptions.set(eventId, event.description);
     this.writes.push({ kind: "create-event", calendarId, eventId });
     return eventId;
   }
@@ -219,7 +218,7 @@ export class FakeCalendarGateway implements CalendarGateway {
     this.reminders.set(eventId, event.reminderMinutes);
     // A patch, as the real adapter does it: only the fields dynacal owns are written, so anything else the
     // owner added in Google (a location, say) stays.
-    this.descriptions.set(eventId, event.description);
+    this.descriptions.set(eventId, "");
     this.markers.set(eventId, structuredClone(event.marker));
     return "updated";
   }

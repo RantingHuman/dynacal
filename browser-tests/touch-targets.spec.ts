@@ -60,7 +60,7 @@ test("gives the phone's small controls a 44px tap area without overlapping", asy
   });
 });
 
-test("gives the due date question's answers a 44px tap area, with no sideways scroll", async ({ browser }) => {
+test("gives the deadline question's answers a 44px tap area, with no sideways scroll", async ({ browser }) => {
   await withApp(browser, async (page) => {
     await asPhone(page);
     await page.goto("/");

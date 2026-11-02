@@ -1,0 +1,38 @@
+/*
+ * A card over a dimmed screen, in the middle on desktop and low down, where a thumb reaches and above the tab bar, on a
+ * phone (the breakpoint matches PHONE_QUERY in width-switch.tsx).
+ */
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--ink) 30%, transparent);
+}
+
+/* Over everything, even the message and the tab bar. */
+.scrim[data-over-message] {
+  z-index: 50;
+}
+
+@media (max-width: 639.98px) {
+  .scrim {
+    align-items: flex-end;
+    padding: var(--space-5) var(--space-2) calc(var(--tab-bar) + var(--space-2));
+  }
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
+  min-height: 0;
+  padding: var(--space-4);
+  border: var(--hairline) solid var(--ink);
+  outline: var(--hairline) solid var(--ink);
+  outline-offset: 3px;
+  background: var(--card);
+}

@@ -634,8 +634,7 @@ describe("a Task waiting for a Check-in", () => {
     const dueToday = () => ({ ...packing(), id: "t1", deadline: { date: "2026-10-27", time: null } });
     const refused = {
       ok: false as const,
-      errors: { deadline: "“Pack for vegas” is due Tue 27 Oct, so it can't move to Wed 28 Oct." },
-      dueBefore: [{ id: "t1", title: "Pack for vegas", deadline: { date: "2026-10-27", time: null } }],
+      deadlineBefore: [{ id: "t1", title: "Pack for vegas", deadline: { date: "2026-10-27", time: null } }],
     };
 
     async function answerTomorrow(task: TaskListItem) {
@@ -654,7 +653,7 @@ describe("a Task waiting for a Check-in", () => {
       vi.mocked(moveTasksToDay).mockReturnValue(moving.promise);
       await answerTomorrow({ ...packing(), id: "t1" });
 
-      expect(moveTasksToDay).toHaveBeenCalledWith(["t1"], "2026-10-28");
+      expect(moveTasksToDay).toHaveBeenCalledWith(["t1"], "2026-10-28", { moveDeadlines: false });
       expect(checkIn).not.toHaveBeenCalled();
       await waitFor(() => expect(screen.queryByRole("complementary", { name: "Pack for vegas" })).toBeNull());
       expect(screen.queryByRole("button", { name: "Finished? ›" })).toBeNull();
@@ -688,7 +687,6 @@ describe("a Task waiting for a Check-in", () => {
       await answerTomorrow(dueToday());
 
       const question = await screen.findByRole("alertdialog", { name: "Due today. Move the due date too?" });
-      expect(screen.queryByText(refused.errors.deadline)).toBeNull();
       await userEvent.click(within(question).getByRole("button", { name: "Move both" }));
 
       expect(moveTasksToDay).toHaveBeenLastCalledWith(["t1"], "2026-10-28", { moveDeadlines: true });

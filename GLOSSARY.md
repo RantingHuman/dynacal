@@ -50,6 +50,10 @@ _Avoid_: Chunked task, split task
 The question "Finished?" asked about a Task once its scheduled time has passed, answered Finished, More time, Didn't start, or Tomorrow, where ticking the Task answers Finished and Tomorrow means Didn't start with an Earliest Start of tomorrow; until it's answered, the Task keeps its time and nothing is rescheduled for it.
 _Avoid_: Review, Unreviewed Block, done/partly/not done
 
+**Completed line**:
+The closed "Completed · N" line at the foot of the Task List, which opens to show the Tasks still in the list that are complete, grouped by the day they were finished. It starts closed each time.
+_Avoid_: Done section, archive, history
+
 ### Time
 
 **Block**:
@@ -107,6 +111,18 @@ _Avoid_: Plan, timetable, agenda
 **Recalculation**:
 Regenerating the Schedule for all not-yet-started, unpinned Blocks within the Planning Horizon.
 _Avoid_: Reschedule, replan, refresh
+
+**Day move**:
+Sending Tasks to a day and letting dynacal choose the time: the day becomes their Earliest Start, any pin goes, and their past times waiting for a Check-in count as Didn't start. If that day is after a deadline, the deadline moves too only when the user says so. One Undo reverses it. Tomorrow on a Task's sheet and Move off today are both day moves.
+_Avoid_: Push, defer, bump, reschedule
+
+**Move off today**:
+A list of today's Tasks with ticks, for making one day move of most of a day. Tasks the user may want to keep, because they're pinned, due by today or asking "Finished?", start unticked and say why.
+_Avoid_: Clear today, bulk move
+
+**When line**:
+A line on a Task's screen showing one of its times that hasn't ended, which opens the same sheet as tapping the Task on the Schedule. A Task has one for each such time, and none if it has no time yet.
+_Avoid_: Time row, schedule line
 
 **Planning Horizon**:
 The rolling window ahead of now over which the Schedule is computed.

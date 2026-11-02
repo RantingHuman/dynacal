@@ -5,7 +5,7 @@ import type { MoveBlockResult } from "@/core/pinning";
 import { OFFLINE_REASON, useOnline } from "../states/use-online";
 import { useCompleteTask } from "../tasks/complete-task-button";
 import { useMoveToTomorrow } from "../tasks/day-moves";
-import { pinnedWords, todayIn } from "../tasks/day-words";
+import { pinnedSpanWords, pinnedWords, todayIn, zoneOrBrowser } from "../tasks/day-words";
 import { useTaskList } from "../tasks/task-list";
 import { moveBlock, pinBlockAgain, restoreBlockTime, unpinBlock } from "./actions";
 import type { CalendarBlock, CalendarEvent } from "./calendar";
@@ -26,14 +26,14 @@ export function moveError(result: MoveBlockResult, title: string): string | null
 
 /**
  * Says where a moved Block was pinned, with an Undo that puts back its old time and, if it wasn't pinned before, hands
- * it back to dynacal. `block` is the Block as it was before the move; `words` replaces the usual message.
+ * it back to dynacal. `block` is the Block as it was before the move; `resized` says the end changed, so the message gives both.
  */
-export function useSayPinned(): (block: CalendarBlock, to: { start: Date; end: Date }, words?: string) => void {
+export function useSayPinned(): (block: CalendarBlock, to: { start: Date; end: Date }, resized?: boolean) => void {
   const { act, notify, timeZone } = useTaskList();
-  const zone = timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const zone = zoneOrBrowser(timeZone);
 
-  return (block, to, words) =>
-    notify(words ?? pinnedWords(to.start, todayIn(timeZone), zone), {
+  return (block, to, resized = false) =>
+    notify(resized ? pinnedSpanWords(to, todayIn(timeZone), zone) : pinnedWords(to.start, todayIn(timeZone), zone), {
       label: "Undo",
       run: () =>
         act(null, async () => {
@@ -87,7 +87,7 @@ export function useBlockActions(block: CalendarBlock, onClose: () => void) {
             act(null, async () => {
               const refused = moveError(await pinBlockAgain({ id, taskId, start, end }), taskTitle);
               if (refused) return refused;
-              notify(pinnedWords(new Date(start), todayIn(timeZone), timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone));
+              notify(pinnedWords(new Date(start), todayIn(timeZone), zoneOrBrowser(timeZone)));
               return null;
             }),
         });
