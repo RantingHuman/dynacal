@@ -10,10 +10,10 @@ import { useOnline } from "../../states/use-online";
 import { useScheduleCheckIns } from "../../tasks/check-in-answers";
 import { CheckInSheet } from "../../tasks/check-in-sheet";
 import { CompleteTaskButton } from "../../tasks/complete-task-button";
-import { MoveOffToday, useCanMoveOffToday } from "../../tasks/move-off-today";
+import { useMoveOffToday } from "../../tasks/move-off-today";
 import { useTaskList } from "../../tasks/task-list";
 import type { CalendarBlock, CalendarConflict, CalendarEvent } from "../../schedule/calendar";
-import { ConflictStrip } from "../../schedule/conflict-strip";
+import { ConflictStrip, eventsInConflict } from "../../schedule/conflict-strip";
 import { EventDetails } from "../../schedule/event-details";
 import { FloatingLabel, LabelNote, LabelTime, LabelTitle } from "../../schedule/floating-label";
 import { PinMark } from "../../schedule/pin-mark";
@@ -84,9 +84,7 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
   const lastDay = toZoned(new Date(horizon.end), timeZone).date;
   const [open, setOpen] = useState<Open>(openBlockId ? { kind: "block", id: openBlockId } : null);
   const close = useCallback(() => setOpen(null), []);
-  const todayOnSchedule = { blocks, timeZone, now: new Date(now), today };
-  const canMoveOffToday = useCanMoveOffToday(todayOnSchedule);
-  const [movingOffToday, setMovingOffToday] = useState(false);
+  const moveOffToday = useMoveOffToday({ blocks, timeZone, now: new Date(now), today }, styles.moveOffToday);
   const online = useOnline();
   const checkIns = useScheduleCheckIns();
   // Tasks complete in the Task List, at once when ticked: all of a completed Task's lines dim together.
@@ -137,13 +135,7 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
             <DayHeading
               date={date}
               today={date === today}
-              action={
-                date === today && canMoveOffToday ? (
-                  <button type="button" className={`link ${styles.moveOffToday}`} onClick={() => setMovingOffToday(true)}>
-                    Move off today
-                  </button>
-                ) : undefined
-              }
+              action={date === today ? moveOffToday.link : undefined}
             />
             {lines.length === 0 && <p className={styles.nothing}>Nothing planned</p>}
             {lines.map(({ item, allDay, minutes, length }) => {
@@ -195,7 +187,7 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
         ))}
       </div>
 
-      {movingOffToday && <MoveOffToday {...todayOnSchedule} onClose={() => setMovingOffToday(false)} />}
+      {moveOffToday.list}
 
       <div className={styles.overlays}>
         {openBlock && !ended(openBlock) && (
@@ -203,10 +195,7 @@ export function PhoneSchedule({ timeZone, horizon, blocks, events, conflicts, op
             key={openBlock.id}
             block={openBlock}
             timeZone={timeZone}
-            conflicts={conflicts
-              .filter((c) => c.blockId === openBlock.id)
-              .map((c) => eventsById.get(c.eventId))
-              .filter((e) => e !== undefined)}
+            conflicts={eventsInConflict(openBlock.id, conflicts, events)}
             onClose={close}
           />
         )}

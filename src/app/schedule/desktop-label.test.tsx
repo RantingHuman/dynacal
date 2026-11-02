@@ -6,12 +6,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WithTaskList } from "../testing/with-task-list";
 import { completeTask, moveTasksToDay } from "../tasks/actions";
 import { renderGuarded } from "../testing/render";
-import { moveBlock, setBusyOverride, unpinBlock } from "./actions";
+import { moveBlock, pinBlockAgain, setBusyOverride, unpinBlock } from "./actions";
 import { BlockEditor } from "./block-editor";
 import type { CalendarBlock, CalendarEvent } from "./calendar";
 import { EventDetails } from "./event-details";
 
-vi.mock("./actions", () => ({ moveBlock: vi.fn(), unpinBlock: vi.fn(), setBusyOverride: vi.fn() }));
+vi.mock("./actions", () => ({ moveBlock: vi.fn(), unpinBlock: vi.fn(), pinBlockAgain: vi.fn(), setBusyOverride: vi.fn() }));
 vi.mock("../tasks/actions", () => ({ completeTask: vi.fn(), moveTasksToDay: vi.fn() }));
 
 const block: CalendarBlock = {
@@ -94,6 +94,33 @@ describe("desktop Block label", () => {
     await waitFor(() => expect(moveBlock).toHaveBeenCalledWith("block-1", { start: "2026-10-27T23:00:00.000Z", end: "2026-10-28T00:30:00.000Z" }));
   });
 
+  it("offers Undo after Unpin, which pins the Task at its old time again", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-27T09:00:00.000Z"));
+    vi.mocked(unpinBlock).mockResolvedValue({ ok: true });
+    vi.mocked(pinBlockAgain).mockResolvedValue({ ok: true });
+    renderBlock({ pinned: true });
+    await userEvent.click(screen.getByRole("button", { name: "Unpin" }));
+    expect((await screen.findByRole("status")).textContent).toContain("Unpinned. dynacal picks the time.");
+
+    await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+
+    await waitFor(() => expect(pinBlockAgain).toHaveBeenCalledWith(expect.objectContaining({ id: "block-1", taskId: "t1" })));
+    expect((await screen.findByRole("status")).textContent).toContain("Pinned at");
+    vi.useRealTimers();
+  });
+
+  it("says why Undo after Unpin can't pin the Task again", async () => {
+    vi.mocked(unpinBlock).mockResolvedValue({ ok: true });
+    vi.mocked(pinBlockAgain).mockResolvedValue({ ok: false, errors: { block: "That time has already ended, so the Task stays where it is." } });
+    renderBlock({ pinned: true });
+    await userEvent.click(screen.getByRole("button", { name: "Unpin" }));
+
+    await userEvent.click(await screen.findByRole("button", { name: "Undo" }));
+
+    await waitFor(() => expect(screen.getByRole("status").textContent).toContain("That time has already ended"));
+  });
+
   it("shows a refused move and stays open", async () => {
     vi.mocked(moveBlock).mockResolvedValue({ ok: false, errors: { block: "That would overlap Lunch with Sam." } });
     const close = renderBlock();
@@ -115,7 +142,7 @@ describe("desktop Block label", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Tomorrow" }));
 
-    expect(moveTasksToDay).toHaveBeenCalledWith(["t1"], "2026-10-28");
+    expect(moveTasksToDay).toHaveBeenCalledWith(["t1"], "2026-10-28", { moveDeadlines: false });
     await waitFor(() => expect(close).toHaveBeenCalledOnce());
     expect((await screen.findByRole("status")).textContent).toContain("Moved to tomorrow. dynacal picks the time.");
     expect(screen.getByRole("button", { name: "Undo" })).toBeTruthy();

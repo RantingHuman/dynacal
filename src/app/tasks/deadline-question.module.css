@@ -1,0 +1,26 @@
+.card {
+  gap: var(--space-3);
+  width: min(380px, 100%);
+}
+
+/* Several Tasks: the list scrolls, so the answers stay in view. */
+.tasks {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+/* The answers: large buttons side by side, for a thumb. */
+.answers {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.answers :global(.button) {
+  flex: 1;
+  min-height: 48px;
+  white-space: nowrap;
+}

@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { wallClockTime } from "@/core/wall-clock";
 import styles from "./states.module.css";
 import { useOnline } from "./use-online";
+import { zoneOrBrowser } from "../tasks/day-words";
 
 /**
  * Offline, the installed app shows the copy of the page the service worker saved, under "Offline. Showing your
@@ -24,7 +25,7 @@ export function OfflineNotice({ renderedAt, timeZone }: { renderedAt: string; ti
   }, [online]);
 
   if (online) return null;
-  const zone = timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const zone = zoneOrBrowser(timeZone);
   return (
     <p className={styles.offline} role="status">
       <em>Offline.</em> Showing your week as it was at {wallClockTime(new Date(renderedAt), zone)}.

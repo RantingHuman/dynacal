@@ -72,11 +72,13 @@ export async function moveTasksToDay(ids: unknown, day: unknown, options?: unkno
   const result = getRuntime().commands.moveTasksToDay(
     z.array(z.string()).parse(ids),
     z.iso.date().parse(day),
-    z.strictObject({ moveDeadlines: z.boolean() }).optional().parse(options),
+    z.strictObject({ moveDeadlines: z.boolean() }).parse(options),
   );
   revalidatePath("/");
   return result;
 }
+
+const movedOffTimeSchema = z.strictObject({ id: z.string(), start: z.date(), end: z.date(), pinned: z.boolean() });
 
 const dayMoveUndoSchema = z.strictObject({
   tasks: z.array(
@@ -84,7 +86,8 @@ const dayMoveUndoSchema = z.strictObject({
       id: z.string(),
       earliestStart: dateOrDateTimeSchema,
       deadline: dateOrDateTimeSchema,
-      pinned: z.array(z.strictObject({ id: z.string(), start: z.date(), end: z.date() })),
+      times: z.array(movedOffTimeSchema),
+      waiting: z.array(movedOffTimeSchema),
     }),
   ),
 });

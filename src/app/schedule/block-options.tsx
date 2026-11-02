@@ -7,7 +7,7 @@ import { formatMinutes } from "@/core/settings";
 import { GRID_MS } from "@/core/time";
 import { addDays, fromZoned, toZoned } from "@/core/time-zone";
 import { useSlow } from "../states/use-slow";
-import { inputOf, useTaskEditor } from "../tasks/task-editor-slot";
+import { inputOf, useTaskEditor } from "../tasks/task-editor-context";
 import { useTaskList } from "../tasks/task-list";
 import { BlockConflictNote, minutesOf, useBlockActions } from "./block-actions";
 import styles from "./block-options.module.css";

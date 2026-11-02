@@ -221,15 +221,14 @@ const MARKER_KIND = "dynacalKind";
 const MARKER_ID = "dynacalId";
 
 /**
- * The fields dynacal owns on a Google `Event` in the dynacal calendar: its title, its description (a dynacal
- * Event's notes; empty for a Block), its time (local dates for an all-day one), only a popup reminder at
- * the Reminder Lead Time, and dynacal's marker as private extended properties. Sent whole on a create, and as a
- * patch on a rewrite.
+ * The fields dynacal owns on a Google `Event` in the dynacal calendar: its title, its description (always empty,
+ * which clears any the owner added), its time (local dates for an all-day one), only a popup reminder at the Reminder
+ * Lead Time, and dynacal's marker as private extended properties. Sent whole on a create, and as a patch on a rewrite.
  */
 function googleEvent(event: DynacalCalendarEvent) {
   return {
     summary: event.title,
-    description: event.description,
+    description: "",
     ...toGoogleTiming(event),
     // A rewrite also revives an event the owner deleted, which Google keeps as "cancelled".
     status: "confirmed",

@@ -625,7 +625,7 @@ describe("a Task waiting for a Check-in", () => {
   });
 
   describe("answered Tomorrow", () => {
-    const undo = { tasks: [{ id: "t1", earliestStart: null, deadline: null, pinned: [] }] };
+    const undo = { tasks: [{ id: "t1", earliestStart: null, deadline: null, times: [], waiting: [] }] };
     const moved = {
       ok: true as const,
       undo,
@@ -634,8 +634,7 @@ describe("a Task waiting for a Check-in", () => {
     const dueToday = () => ({ ...packing(), id: "t1", deadline: { date: "2026-10-27", time: null } });
     const refused = {
       ok: false as const,
-      errors: { deadline: "“Pack for vegas” is due Tue 27 Oct, so it can't move to Wed 28 Oct." },
-      dueBefore: [{ id: "t1", title: "Pack for vegas", deadline: { date: "2026-10-27", time: null } }],
+      deadlineBefore: [{ id: "t1", title: "Pack for vegas", deadline: { date: "2026-10-27", time: null } }],
     };
 
     async function answerTomorrow(task: TaskListItem) {
@@ -654,7 +653,7 @@ describe("a Task waiting for a Check-in", () => {
       vi.mocked(moveTasksToDay).mockReturnValue(moving.promise);
       await answerTomorrow({ ...packing(), id: "t1" });
 
-      expect(moveTasksToDay).toHaveBeenCalledWith(["t1"], "2026-10-28");
+      expect(moveTasksToDay).toHaveBeenCalledWith(["t1"], "2026-10-28", { moveDeadlines: false });
       expect(checkIn).not.toHaveBeenCalled();
       await waitFor(() => expect(screen.queryByRole("complementary", { name: "Pack for vegas" })).toBeNull());
       expect(screen.queryByRole("button", { name: "Finished? ›" })).toBeNull();
@@ -664,7 +663,7 @@ describe("a Task waiting for a Check-in", () => {
 
     it("offers Undo", async () => {
       vi.mocked(moveTasksToDay).mockResolvedValue(moved);
-      vi.mocked(undoDayMove).mockResolvedValue({ ok: true });
+      vi.mocked(undoDayMove).mockResolvedValue({ ok: true, skipped: 0 });
       await answerTomorrow({ ...packing(), id: "t1" });
 
       await userEvent.click(await screen.findByRole("button", { name: "Undo" }));
@@ -673,12 +672,21 @@ describe("a Task waiting for a Check-in", () => {
       expect(await screen.findByText("Moved back")).toBeTruthy();
     });
 
+    it("doesn't claim a Task it skipped was moved back", async () => {
+      vi.mocked(moveTasksToDay).mockResolvedValue(moved);
+      vi.mocked(undoDayMove).mockResolvedValue({ ok: true, skipped: 1 });
+      await answerTomorrow({ ...packing(), id: "t1" });
+
+      await userEvent.click(await screen.findByRole("button", { name: "Undo" }));
+
+      expect(await screen.findByText("Not moved back: it's completed or deleted.")).toBeTruthy();
+    });
+
     it("asks about a Task due before tomorrow, and Move both moves its due date too", async () => {
       vi.mocked(moveTasksToDay).mockResolvedValueOnce(refused).mockResolvedValueOnce(moved);
       await answerTomorrow(dueToday());
 
       const question = await screen.findByRole("alertdialog", { name: "Due today. Move the due date too?" });
-      expect(screen.queryByText(refused.errors.deadline)).toBeNull();
       await userEvent.click(within(question).getByRole("button", { name: "Move both" }));
 
       expect(moveTasksToDay).toHaveBeenLastCalledWith(["t1"], "2026-10-28", { moveDeadlines: true });

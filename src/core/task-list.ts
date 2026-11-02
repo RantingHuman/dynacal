@@ -68,7 +68,9 @@ export function applyTaskChange(
     return change.undo.tasks.reduce((list, old) => {
       const task = list.find((t) => t.id === old.id);
       if (!task || task.completedAt) return list;
-      const restored = { ...task, earliestStart: old.earliestStart, deadline: old.deadline };
+      // Undoing it asks its Check-ins again.
+      const checkIns = checkInViews(task, old.waiting.map(({ id: blockId, start, end }) => ({ blockId, start, end })));
+      const restored = { ...task, earliestStart: old.earliestStart, deadline: old.deadline, checkIns };
       if (task.deadline?.date === old.deadline?.date && task.deadline?.time === old.deadline?.time) {
         return list.map((t) => (t === task ? restored : t));
       }

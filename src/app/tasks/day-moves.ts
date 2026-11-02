@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { MoveToDayResult } from "@/core/day-moves";
 import { addDays } from "@/core/time-zone";
 import { moveTasksToDay, undoDayMove } from "./actions";
-import { movedManyToDayWords, movedToDayWords, NOT_PLACED_WORDS, todayIn } from "./day-words";
+import { movedBackWords, movedManyToDayWords, movedToDayWords, NOT_PLACED_WORDS, todayIn, zoneOrBrowser } from "./day-words";
 import { useTaskList } from "./task-list";
 
 /** A Task to move. */
@@ -21,12 +21,12 @@ function movedMessage(result: MoveToDayResult & { ok: true }, today: string, tim
 
 /**
  * Moving Tasks to a day through the Task List, so their new Earliest Start shows at once and a refusal rolls back and
- * says why. If any is due before that day, one due date question decides for them all. Once they're moved, one message
+ * says why. If any is due before that day, one deadline question decides for them all. Once they're moved, one message
  * says where they went and offers one Undo, and `onMoved` runs. `moving` says a move is on its way.
  */
 export function useMoveToDay() {
-  const { act, notify, askDueDate, timeZone } = useTaskList();
-  const zone = timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const { act, notify, askMoveDeadlines, timeZone } = useTaskList();
+  const zone = zoneOrBrowser(timeZone);
   const [moving, setMoving] = useState(false);
 
   function moveToDay(tasks: TaskToMove[], day: string, onMoved?: () => void) {
@@ -37,14 +37,14 @@ export function useMoveToDay() {
       setMoving(true);
       act({ kind: "move-to-day", ids, day, moveDeadlines }, async () => {
         try {
-          const result = await (moveDeadlines ? moveTasksToDay(ids, day, { moveDeadlines }) : moveTasksToDay(ids, day));
+          const result = await moveTasksToDay(ids, day, { moveDeadlines });
           if (!result.ok) {
             if ("notFound" in result) {
               return tasks.length === 1
                 ? `“${tasks[0].title}” was deleted or changed elsewhere.`
                 : "A Task was deleted or changed elsewhere, so nothing moved.";
             }
-            askDueDate(result.dueBefore, () => move(true));
+            askMoveDeadlines(result.deadlineBefore, () => move(true));
             return null;
           }
           const { undo } = result;
@@ -53,8 +53,7 @@ export function useMoveToDay() {
             label: "Undo",
             run: () =>
               act({ kind: "undo-day-move", undo }, async () => {
-                await undoDayMove(undo);
-                notify("Moved back");
+                notify(movedBackWords(await undoDayMove(undo), undo.tasks.length));
                 return null;
               }),
           });

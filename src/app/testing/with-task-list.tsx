@@ -1,6 +1,6 @@
 import type { ComponentProps, ReactNode } from "react";
 import { todayIn } from "../tasks/day-words";
-import { TaskEditorProvider } from "../tasks/task-editor-slot";
+import { TaskEditorProvider } from "../tasks/task-editor-context";
 import { TaskListProvider } from "../tasks/task-list";
 import { workContext } from "./fixtures";
 

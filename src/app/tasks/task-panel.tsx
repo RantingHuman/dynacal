@@ -15,9 +15,9 @@ import { useCheckInLink } from "./check-in-link";
 import { CheckInSheet } from "./check-in-sheet";
 import { CompleteTaskButton } from "./complete-task-button";
 import { useCompletion } from "./completion";
-import { daysAgoWords, deadlineWords, spanWords } from "./day-words";
+import { daysAgoWords, deadlineWords, spanWords, zoneOrBrowser } from "./day-words";
 import { contextShortWords, FlagText } from "./flags";
-import { inputOf, useTaskEditor } from "./task-editor-slot";
+import { inputOf, useTaskEditor } from "./task-editor-context";
 import { useTaskList, type ActOnTasks } from "./task-list";
 import { TASK_LINE_ID, TaskLineAdd } from "./task-line-add";
 import styles from "./task-panel.module.css";
@@ -122,7 +122,7 @@ export function TaskPanel() {
 
   // The Task whose Check-in sheet is open; it asks about the Task's oldest waiting time.
   const [checkingIn, setCheckingIn] = useState<string | null>(null);
-  const zone = timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const zone = zoneOrBrowser(timeZone);
   const checkingInTask = shown.find((t) => t.id === checkingIn && t.checkIns.length > 0) ?? null;
   // The headline's "Check in" opens the oldest waiting Check-in here.
   useCheckInLink(setCheckingIn);

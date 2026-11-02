@@ -187,8 +187,7 @@ describe("moving a Task to a day", () => {
 
     expect(result).toEqual({
       ok: false,
-      errors: { deadline: "“Write report” is due 5 Jan 2026, so it can't move to 6 Jan 2026." },
-      dueBefore: [{ id: due.id, title: "Write report", deadline: { date: "2026-01-05", time: null } }],
+      deadlineBefore: [{ id: due.id, title: "Write report", deadline: { date: "2026-01-05", time: null } }],
     });
     expect(timesOf(app, due.id)).toEqual(before);
     expect(listed(app, due.id).earliestStart).toBeNull();
@@ -240,6 +239,83 @@ describe("moving a Task to a day", () => {
 });
 
 describe("undoing a move to a day", () => {
+  it("brings a started Task that wasn't pinned back to its exact old time, unpinned, and Google matches", async () => {
+    const app = appInLondon();
+    const dynacal = await connect(app);
+    const task = createTask(app);
+    await app.commands.writeBlocksToGoogle();
+    app.clock.set(new Date("2026-01-05T09:30:00Z"));
+    app.commands.recalculate();
+    await app.commands.writeBlocksToGoogle();
+
+    const { undo } = moved(app, [task.id], TUESDAY);
+    await app.commands.writeBlocksToGoogle();
+    app.commands.undoDayMove(undo);
+    await app.commands.writeBlocksToGoogle();
+
+    expect(timesOf(app, task.id)).toEqual([["2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z", false]]);
+    expect(inGoogle(app, dynacal)).toEqual([["2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z"]]);
+  });
+
+  it("brings back a past time so its Check-in asks again, without placing the Task again at full length", async () => {
+    const app = appInLondon();
+    await connect(app);
+    const task = createTask(app);
+    await app.commands.writeBlocksToGoogle();
+    app.clock.set(new Date("2026-01-05T10:30:00Z"));
+    app.commands.recalculate();
+    await app.commands.writeBlocksToGoogle();
+    const waiting = listed(app, task.id).checkIns;
+    expect(waiting).toHaveLength(1);
+
+    const { undo } = moved(app, [task.id], TUESDAY);
+    await app.commands.writeBlocksToGoogle();
+    app.commands.undoDayMove(undo);
+    await app.commands.writeBlocksToGoogle();
+
+    expect(listed(app, task.id).checkIns).toEqual(waiting);
+    expect(timesOf(app, task.id)).toEqual([["2026-01-05T09:00:00.000Z", "2026-01-05T10:00:00.000Z", false]]);
+  });
+
+  it("restores every waiting time of a Splittable Task, so only what's left is placed", async () => {
+    const app = appInLondon();
+    const { split } = await splitAroundACall(app, 240);
+    const before = timesOf(app, split.id);
+    app.clock.set(new Date("2026-01-05T17:30:00Z"));
+    app.commands.recalculate();
+    const waiting = listed(app, split.id).checkIns;
+    expect(waiting.length).toBeGreaterThan(1);
+
+    const { undo } = moved(app, [split.id], TUESDAY);
+    await app.commands.writeBlocksToGoogle();
+    app.commands.undoDayMove(undo);
+
+    expect(listed(app, split.id).checkIns).toEqual(waiting);
+    expect(timesOf(app, split.id)).toEqual(before);
+  });
+
+  it("says how many it skipped because they were completed or deleted meanwhile", () => {
+    const app = appInLondon();
+    const kept = createTask(app, { title: "Kept" });
+    const completed = createTask(app, { title: "Completed" });
+
+    const { undo } = moved(app, [kept.id, completed.id], TUESDAY);
+    app.commands.completeTask(completed.id);
+
+    expect(app.commands.undoDayMove(undo)).toEqual({ ok: true, skipped: 1 });
+  });
+
+  it("says when planning is paused, so the Task isn't placed yet", async () => {
+    const app = appInLondon();
+    await connect(app);
+    const task = createTask(app);
+    const { undo } = moved(app, [task.id], TUESDAY);
+    app.calendar.breakConnection();
+    await app.commands.syncEvents();
+
+    expect(app.commands.undoDayMove(undo)).toEqual({ ok: true, skipped: 0, recalculationPaused: true });
+  });
+
   it("restores the Earliest Start and pinned times, and Google matches", async () => {
     const app = appInLondon();
     const dynacal = await connect(app);
@@ -250,7 +326,7 @@ describe("undoing a move to a day", () => {
 
     const { undo } = moved(app, [task.id], TUESDAY);
     await app.commands.writeBlocksToGoogle();
-    expect(app.commands.undoDayMove(undo)).toEqual({ ok: true });
+    expect(app.commands.undoDayMove(undo)).toEqual({ ok: true, skipped: 0 });
     await app.commands.writeBlocksToGoogle();
 
     expect(listed(app, task.id).earliestStart).toEqual(earliestStart);
@@ -313,7 +389,7 @@ describe("undoing a move to a day", () => {
     const { undo } = moved(app, [kept.id, deleted.id, completed.id], TUESDAY);
     app.commands.deleteTask(deleted.id);
     app.commands.completeTask(completed.id);
-    expect(app.commands.undoDayMove(undo)).toEqual({ ok: true });
+    expect(app.commands.undoDayMove(undo)).toEqual({ ok: true, skipped: 2 });
 
     expect(listed(app, kept.id).earliestStart).toBeNull();
     expect(listed(app, completed.id).earliestStart).toEqual({ date: TUESDAY, time: null });

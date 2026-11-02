@@ -10,20 +10,19 @@ import { useScheduleCheckIns } from "../tasks/check-in-answers";
 import { CheckInSheet } from "../tasks/check-in-sheet";
 import { useCompleteTask } from "../tasks/complete-task-button";
 import { useCompletion } from "../tasks/completion";
-import { MoveOffToday, useCanMoveOffToday } from "../tasks/move-off-today";
+import { useMoveOffToday } from "../tasks/move-off-today";
 import { useTaskList } from "../tasks/task-list";
 import { moveBlock } from "./actions";
 import { moveError, useSayPinned } from "./block-actions";
 import { BlockEditor } from "./block-editor";
 import calendarStyles from "./calendar.module.css";
-import { ConflictStrip } from "./conflict-strip";
+import { ConflictStrip, eventsInConflict } from "./conflict-strip";
 import { EventDetails } from "./event-details";
 import detailStyles from "./event-details.module.css";
 import freeStyles from "./free-events.module.css";
 import styles from "./pinning.module.css";
 import { RecalculateButton, useRecalculate } from "./recalculate";
 import { PinMark } from "./pin-mark";
-import { Toast } from "./toast";
 import { WeekHeading } from "./week-heading";
 import { OFFLINE_REASON, useOnline } from "../states/use-online";
 
@@ -72,12 +71,6 @@ const TWO_LINE_PX = 36;
 
 /** Long enough for a landing's longest part, the drop's flash (--rise). */
 const LANDING_MS = 900;
-
-/** A toast: information goes by itself, an error stays until dismissed. */
-interface Note {
-  text: string;
-  tone: "info" | "error";
-}
 
 /** How a Block just landed, for its one-off animation: a drop boings and flashes, a resize settles, a refusal shakes. */
 interface Landing {
@@ -217,18 +210,12 @@ export function Calendar({
   const [editingId, setEditingId] = useState<string | null>(openBlockId ?? null);
   const [openEventId, setOpenEventId] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ id: string; start: number; end: number; mode: DragMode } | null>(null);
-  /** The message toast, e.g. why a move was refused, or how many Blocks a Recalculation moved. */
-  const [toast, setToast] = useState<Note | null>(null);
-  const clearToast = useCallback(() => setToast(null), []);
-  const showError = useCallback((text: string) => setToast({ text, tone: "error" }), []);
   const [landing, setLanding] = useState<Landing | null>(null);
   /** Which way the grid last changed, so it slides (or fades) in; null until it first does. */
   const [shift, setShift] = useState<{ n: number; way: "back" | "forward" | "view" } | null>(null);
   // Tasks complete in the Task list, at once when ticked: all of a completed Task's Blocks dim together.
-  const { tasks } = useTaskList();
-  const todayOnSchedule = { blocks, timeZone, now: new Date(horizon.start), today };
-  const canMoveOffToday = useCanMoveOffToday(todayOnSchedule);
-  const [movingOffToday, setMovingOffToday] = useState(false);
+  const { tasks, notify, warn, clearMessage } = useTaskList();
+  const moveOffToday = useMoveOffToday({ blocks, timeZone, now: new Date(horizon.start), today }, calendarStyles.moveOffToday);
   const sayPinned = useSayPinned();
   const completedTasks = new Set(tasks.filter((t) => t.completedAt !== null).map((t) => t.id));
   // A Block that has ended and waits for a Check-in asks "Finished?"; its label answers.
@@ -237,7 +224,7 @@ export function Calendar({
   const drag = useRef<Drag | null>(null);
   /**
    * Set when a drag ends, and cleared only once the click that follows it has been handled, so the end of a
-   * drag (even one released over empty time, or over another day) never opens a Block editor or New Event.
+   * drag (even one released over empty time, or over another day) never opens a Block editor.
    */
   const justDragged = useRef(false);
   /** The latest drag handlers, for the window listeners a drag adds: the Block's own element may be redrawn mid-drag. */
@@ -260,7 +247,7 @@ export function Calendar({
    */
   const recalculation = useRecalculate(
     blocks,
-    useCallback((text: string | null) => setToast(text === null ? null : { text, tone: "info" }), []),
+    useCallback((text: string | null) => (text === null ? clearMessage() : notify(text)), [clearMessage, notify]),
   );
 
   const conflictingBlocks = new Set(conflicts.map((c) => c.blockId));
@@ -351,7 +338,7 @@ export function Calendar({
     }
     const to = { start: new Date(d.to.start).toISOString(), end: new Date(d.to.end).toISOString() };
     const before = blocks.find((b) => b.id === d.blockId);
-    setToast(null);
+    clearMessage();
     startMoving(async () => {
       // A refused move springs back (the preview goes) with a small shake, and says why in the toast. One that
       // lands boings (a drop) or settles (a resize) and says where it's pinned.
@@ -359,14 +346,12 @@ export function Calendar({
       setPreview(null);
       if (message) {
         setLanding({ id: d.blockId, kind: "refused" });
-        setToast({ text: message, tone: "error" });
+        warn(message);
         return;
       }
       const landed = { start: new Date(d.to.start), end: new Date(d.to.end) };
-      const start = formatMinutes(toZoned(landed.start, timeZone).minutes);
-      const end = formatMinutes(toZoned(landed.end, timeZone).minutes);
       setLanding({ id: d.blockId, kind: d.mode === "move" ? "dropped" : "resized" });
-      if (before) sayPinned(before, landed, d.mode === "move" ? undefined : `Pinned, ${start}–${end}.`);
+      if (before) sayPinned(before, landed, d.mode !== "move");
     });
   }
 
@@ -378,18 +363,18 @@ export function Calendar({
   dragHandlers.current = { continueDrag, endDrag, cancelDrag };
 
   function openEditor(block: CalendarBlock) {
-    if (!online) return showError(OFFLINE_REASON);
+    if (!online) return warn(OFFLINE_REASON);
     if (justDragged.current) return;
     const ended = new Date(block.end).getTime() <= now;
     if (ended && !checkIns.waiting.has(block.id)) return;
-    setToast(null);
+    clearMessage();
     setOpenEventId(null);
     setEditingId(ended ? null : block.id);
     setCheckingInId(ended ? block.id : null);
   }
 
   function openEventDetails(event: CalendarEvent) {
-    if (!online) return showError(OFFLINE_REASON);
+    if (!online) return warn(OFFLINE_REASON);
     setEditingId(null);
     setCheckingInId(null);
     setOpenEventId(event.id);
@@ -549,10 +534,7 @@ export function Calendar({
           key={editing.id}
           block={editing}
           timeZone={timeZone}
-          conflicts={conflicts
-            .filter((c) => c.blockId === editing.id)
-            .map((c) => eventsById.get(c.eventId))
-            .filter((e) => e !== undefined)}
+          conflicts={eventsInConflict(editing.id, conflicts, events)}
           onClose={() => setEditingId(null)}
         />
       )}
@@ -577,9 +559,7 @@ export function Calendar({
         />
       )}
 
-      {movingOffToday && <MoveOffToday {...todayOnSchedule} onClose={() => setMovingOffToday(false)} />}
-
-      <Toast message={toast?.text ?? null} tone={toast?.tone} onDone={clearToast} />
+      {moveOffToday.list}
 
       <div
         key={shift?.n ?? 0}
@@ -591,11 +571,7 @@ export function Calendar({
         {days.map((day) => (
           <div key={day} className={`calendar-day-label${day === today ? " today" : ""}`}>
             {dayLabel(day)}
-            {day === today && canMoveOffToday && (
-              <button type="button" className={`link ${calendarStyles.moveOffToday}`} onClick={() => setMovingOffToday(true)}>
-                Move off today
-              </button>
-            )}
+            {day === today && moveOffToday.link}
           </div>
         ))}
 

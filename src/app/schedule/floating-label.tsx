@@ -5,8 +5,7 @@ import { useEscape } from "../states/use-escape";
 import styles from "./floating-label.module.css";
 
 /**
- * The floating label in the corner of the screen, where Block and Event details, the New Event form and Conflict
- * resolution open, so the calendar stays in view. Escape closes it.
+ * The floating label in the corner of the screen, where Block and Event details and Conflict resolution open, so the calendar stays in view. Escape closes it.
  *
  * It rises 24px and fades in as it opens (CSS), and fades out quickly as it closes: closing runs in a Transition,
  * so its `<ViewTransition>` can show the exit. Render it as the top element of whatever opens it.

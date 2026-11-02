@@ -37,6 +37,17 @@ export async function restoreBlockTime(id: string, back: unknown): Promise<MoveB
   return result;
 }
 
+const pinnedAgainSchema = z.strictObject({ id: z.string(), taskId: z.string(), start: z.iso.datetime(), end: z.iso.datetime() });
+
+/** Undoes an Unpin: pins the Task at the time it left, if that time hasn't ended. */
+export async function pinBlockAgain(back: unknown): Promise<MoveBlockResult> {
+  await requireOwner();
+  const { start, end, ...block } = pinnedAgainSchema.parse(back);
+  const result = getRuntime().commands.pinBlockAgain({ ...block, start: new Date(start), end: new Date(end) });
+  revalidatePath("/");
+  return result;
+}
+
 export async function unpinBlock(id: string): Promise<UnpinBlockResult> {
   await requireOwner();
   const result = getRuntime().commands.unpinBlock(z.string().parse(id));

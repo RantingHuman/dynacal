@@ -51,6 +51,22 @@ describe("an optimistic change to the Task list", () => {
     expect(shown).toEqual(before);
   });
 
+  it("shows an undone move asking its Check-in again, as the server will have it", () => {
+    const app = appWithTasks({ title: "Write report" });
+    app.commands.updateSettings({ timeZone: "Europe/London" });
+    const [{ id }] = app.commands.listTasks();
+    app.clock.set(new Date("2026-01-05T10:30:00Z"));
+    app.commands.recalculate();
+    const before = app.commands.listTasks();
+    expect(before[0].checkIns).toHaveLength(1);
+    const moved = app.commands.moveTasksToDay([id], "2026-01-08");
+    if (!moved.ok) throw new Error("move refused");
+
+    const shown = applyTaskChange(app.commands.listTasks(), { kind: "undo-day-move", undo: moved.undo }, new Date(), "work");
+
+    expect(shown).toEqual(before);
+  });
+
   it("shows a move that brings a deadline along as the server will have it, in the server's order", () => {
     const app = appWithTasks(
       { title: "Due first", deadline: { date: "2026-01-05", time: "17:00" } },

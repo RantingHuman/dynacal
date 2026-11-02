@@ -10,6 +10,12 @@ export type MoveBlockResult = { ok: true } | { ok: false; notFound: true } | { o
 
 export type UnpinBlockResult = { ok: true } | { ok: false; notFound: true };
 
+/** Why a Task can't go back to a time: what Undo says once that time is over. */
+export const TIME_ENDED_STAYS_WORDS = "That time has already ended, so the Task stays where it is.";
+
+/** Why a Block can't be moved at all. */
+const BLOCK_ENDED_WORDS = "This time has already ended, so it can't be moved.";
+
 interface MoveContext {
   now: Date;
   /** The end of the Planning Horizon. */
@@ -25,7 +31,7 @@ interface MoveContext {
  */
 export function validateBlockTime(to: { start: Date; end: Date }, context: MoveContext): MoveBlockErrors | null {
   const { now, horizonEnd, horizonDays, current } = context;
-  if (current.end <= now) return { block: "This time has already ended, so it can't be moved." };
+  if (current.end <= now) return { block: BLOCK_ENDED_WORDS };
   const keepsItsStartedStart = current.start < now && to.start.getTime() === current.start.getTime();
   const errors: MoveBlockErrors = {};
   if (to.start.getTime() % GRID_MS !== 0) {
@@ -46,7 +52,7 @@ export function validateBlockTime(to: { start: Date; end: Date }, context: MoveC
  */
 export function validateRestoredTime(back: { end: Date }, context: { now: Date; current: { end: Date } }): MoveBlockErrors | null {
   const { now, current } = context;
-  if (current.end <= now) return { block: "This time has already ended, so it can't be moved." };
-  if (back.end <= now) return { block: "That time has already ended, so the Task stays where it is." };
+  if (current.end <= now) return { block: BLOCK_ENDED_WORDS };
+  if (back.end <= now) return { block: TIME_ENDED_STAYS_WORDS };
   return null;
 }

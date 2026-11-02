@@ -4,7 +4,7 @@ import type { CheckInAnswer, CheckInResult } from "@/core/completion";
 import { checkIn } from "./actions";
 import { useCompletion } from "./completion";
 import { useMoveToTomorrow } from "./day-moves";
-import { movedWords, NOT_PLACED_WORDS, todayIn } from "./day-words";
+import { movedWords, NOT_PLACED_WORDS, todayIn, zoneOrBrowser } from "./day-words";
 import { useTaskList } from "./task-list";
 
 /** The Task a Check-in is about. */
@@ -20,14 +20,14 @@ export type CheckInAnswers = ReturnType<typeof useCheckInAnswers>;
  * Answering a Check-in about one past time (`blockId`) of a Task, through the Task List, so the answer
  * shows at once wherever the Task does: Finished completes it, as when it's ticked; More time makes the minutes its
  * time left; Didn't start waits for the server's list, then a message says where the Task went; Tomorrow moves the
- * Task as the Schedule sheet's Tomorrow does, which answers its Check-ins as Didn't start, and asks about a due date
+ * Task as the Schedule sheet's Tomorrow does, which answers its Check-ins as Didn't start, and asks about a deadline
  * before tomorrow.
  */
 export function useCheckInAnswers() {
   const { act, timeZone, notify } = useTaskList();
   const { tick } = useCompletion();
   const moveToTomorrow = useMoveToTomorrow();
-  const zone = timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const zone = zoneOrBrowser(timeZone);
 
   /** Sends the answer; null once it's taken, else why not (the Task went elsewhere, or the time is refused). */
   async function send(task: CheckInTask, blockId: string, answer: CheckInAnswer, taken?: (result: CheckInResult & { ok: true }) => void) {

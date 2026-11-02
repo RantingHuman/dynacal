@@ -3,7 +3,7 @@
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { TaskDueBefore } from "@/core/day-moves";
+import type { TaskDeadlineBefore } from "@/core/day-moves";
 import { OFFLINE_REASON } from "../states/use-online";
 import { renderGuarded } from "../testing/render";
 import { WithTaskList } from "../testing/with-task-list";
@@ -12,34 +12,34 @@ import { useTaskList } from "./task-list";
 // A Tuesday: 27 October 2026, London time.
 const NOW = new Date("2026-10-27T09:00:00.000Z");
 
-const dueOn = (date: string, time: string | null = null, title = "Write report"): TaskDueBefore => ({
+const dueOn = (date: string, time: string | null = null, title = "Write report"): TaskDeadlineBefore => ({
   id: title,
   title,
   deadline: { date, time },
 });
 
 /** Stands for whatever move brings the question up: pressing it asks. */
-function Asker({ dueBefore, onMoveBoth }: { dueBefore: TaskDueBefore[]; onMoveBoth: () => void }) {
-  const { askDueDate } = useTaskList();
+function Asker({ deadlineBefore, onMoveBoth }: { deadlineBefore: TaskDeadlineBefore[]; onMoveBoth: () => void }) {
+  const { askMoveDeadlines } = useTaskList();
   return (
-    <button type="button" onClick={() => askDueDate(dueBefore, onMoveBoth)}>
+    <button type="button" onClick={() => askMoveDeadlines(deadlineBefore, onMoveBoth)}>
       Ask
     </button>
   );
 }
 
-async function ask(...dueBefore: TaskDueBefore[]) {
+async function ask(...deadlineBefore: TaskDeadlineBefore[]) {
   const onMoveBoth = vi.fn();
   renderGuarded(
     <WithTaskList>
-      <Asker dueBefore={dueBefore} onMoveBoth={onMoveBoth} />
+      <Asker deadlineBefore={deadlineBefore} onMoveBoth={onMoveBoth} />
     </WithTaskList>,
   );
   await userEvent.click(screen.getByRole("button", { name: "Ask" }));
   return onMoveBoth;
 }
 
-describe("the due date question", () => {
+describe("the deadline question", () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(NOW);
