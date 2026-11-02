@@ -109,7 +109,7 @@ describe("a Block event written before dynacal marked its events", () => {
 });
 
 describe("a Block event the owner turned into an all-day event in Google", () => {
-  it("is no longer a Block event, so it counts as deleted: its time becomes a Declined Time", async () => {
+  it("is no longer a Block event, so it counts as deleted: its Task is placed again", async () => {
     const { app, dynacal } = await connectedApp();
     await createTask(app);
 
@@ -117,6 +117,60 @@ describe("a Block event the owner turned into an all-day event in Google", () =>
     await app.commands.syncEvents();
     await app.commands.writeBlocksToGoogle();
 
-    expect(blocks(app)).toEqual([["Write report", at("10:00"), at("11:00"), false]]);
+    expect(blocks(app)).toEqual([["Write report", at("09:00"), at("10:00"), false]]);
+  });
+
+  const allDay = { startDate: "2026-01-05", endDate: "2026-01-06" };
+
+  it("is deleted from Google, so its Task doesn't show there twice", async () => {
+    const { app, dynacal } = await connectedApp();
+    await createTask(app);
+    const event = await eventAt(app, dynacal, at("09:00"));
+
+    app.calendar.moveEvent(event, allDay);
+    await app.commands.syncEvents();
+    await app.commands.writeBlocksToGoogle();
+
+    expect(await app.calendar.getDynacalCalendarEvent(dynacal, event)).toBeNull();
+    expect(app.calendar.blockEventsOn(dynacal).map(([title, start, end]) => [title, start, end])).toEqual([
+      ["Write report", at("09:00"), at("10:00")],
+    ]);
+  });
+
+  it("is deleted from Google when its Task is complete", async () => {
+    const { app, dynacal } = await connectedApp();
+    const task = await createTask(app);
+    const event = await eventAt(app, dynacal, at("09:00"));
+
+    app.calendar.moveEvent(event, allDay);
+    app.commands.completeTask(task.id);
+    await app.commands.syncEvents();
+    await app.commands.writeBlocksToGoogle();
+
+    expect(await app.calendar.getDynacalCalendarEvent(dynacal, event)).toBeNull();
+  });
+
+  it("is deleted from Google when its Task is deleted", async () => {
+    const { app, dynacal } = await connectedApp();
+    const task = await createTask(app);
+    const event = await eventAt(app, dynacal, at("09:00"));
+
+    app.calendar.moveEvent(event, allDay);
+    app.commands.deleteTask(task.id);
+    await app.commands.syncEvents();
+    await app.commands.writeBlocksToGoogle();
+
+    expect(await app.calendar.getDynacalCalendarEvent(dynacal, event)).toBeNull();
+  });
+
+  it("leaves an all-day event the owner added to the dynacal calendar alone", async () => {
+    const { app, dynacal } = await connectedApp();
+    await createTask(app);
+    const id = app.calendar.addEvent(dynacal, { title: "Holiday", ...allDay });
+
+    await app.commands.syncEvents();
+    await app.commands.writeBlocksToGoogle();
+
+    expect(await app.calendar.getDynacalCalendarEvent(dynacal, id)).not.toBeNull();
   });
 });

@@ -20,7 +20,6 @@ import { BufferChips } from "../buffer-chips";
 import { OFFLINE_REASON, useOnline } from "../states/use-online";
 import { createTask, deleteTask, updateTask } from "./actions";
 import { dateWords, spanWords } from "./day-words";
-import { DeclinedTimes } from "./declined-times";
 import { FieldLine, MoreLine } from "./field-line";
 import { FLAG_LABELS, isAlarm } from "./flags";
 import lineStyles from "./field-line.module.css";
@@ -204,14 +203,12 @@ export function TaskEditor({
       ? `${spanWords(waiting, today, timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone)} · Finished?`
       : null;
   const shownFlag = task && !task.completedAt ? flag : null;
-  const declinedTimes = task && timeZone && !task.completedAt ? task.declinedTimes : [];
   const context = contexts.find((c) => c.id === input.contextId) ?? contexts[0];
   const ownBuffer = (input.bufferBeforeMinutes ?? null) !== null || (input.bufferAfterMinutes ?? null) !== null;
   const summary = [
     input.notes.trim() && "Notes",
     input.splittable && "Can be split",
     ownBuffer && "Buffer",
-    declinedTimes.length > 0 && "Declined Times",
   ].filter((word): word is string => Boolean(word));
 
   return (
@@ -355,15 +352,6 @@ export function TaskEditor({
                   onChange={(e) => update({ notes: e.target.value })}
                 />
               </div>
-
-              {task && timeZone && declinedTimes.length > 0 && (
-                <div className={styles.moreField}>
-                  <span className={lineStyles.name} title="You deleted these times in Google, so this Task stays out of them">
-                    Declined Times
-                  </span>
-                  <DeclinedTimes taskTitle={task.title} declinedTimes={declinedTimes} timeZone={timeZone} />
-                </div>
-              )}
 
               {task && <DeleteButton offline={!online} onDelete={remove} />}
             </div>

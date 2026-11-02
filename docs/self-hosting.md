@@ -72,7 +72,8 @@ You can change Busy Calendars, and whether Events marked "free" or all-day Event
 You can also adjust your Schedule from any Google Calendar app, by editing Blocks in the "dynacal" calendar:
 
 - **Move or resize a Block** and dynacal pins it at its new time, just as dragging it in dynacal does.
-- **Delete a Block** to decline that time for its Task: dynacal schedules the Task somewhere else and keeps it out of that time until it passes. The Task itself isn't deleted. The Task list shows these Declined Times, and you can clear one to let the Task go there again.
+- **Delete a Block** and dynacal places its Task again wherever it fits, which may be the same time. The Task itself isn't deleted; to remove it, delete it in dynacal.
+- **Turn a Block into an all-day event** and dynacal treats it as deleted, and removes the all-day event from Google.
 - **Title and description** edits are put back at the next sync; edit the Task in dynacal instead.
 
 ## 7. Instant sync (push notifications)

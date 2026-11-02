@@ -27,7 +27,6 @@ vi.mock("../tasks/actions", () => ({
   deleteTask: vi.fn(),
   completeTask: vi.fn(),
   reopenTask: vi.fn(),
-  clearDeclinedTime: vi.fn(),
   allowSplitting: vi.fn(),
   checkIn: vi.fn(),
 }));

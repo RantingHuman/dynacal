@@ -34,8 +34,6 @@ export interface SchedulerTask {
   priority: Priority;
   /** A Splittable Task may be placed in several Blocks; any other Task is placed whole, never split. */
   splittable: boolean;
-  /** Declined Times: this Task's Blocks must stay out of them, though other Tasks may use them. */
-  declinedTimes?: Interval[];
   /** None if absent. They count beside this Task's pinned and started Blocks too. */
   buffers?: Buffers;
 }
@@ -293,10 +291,7 @@ function place(state: PlanningState, order: SchedulerTask[]): Placement[] {
     const need = Math.max(0, remainingMs(task) - covered);
     const earliest = task.earliestStart ? roundUp(task.earliestStart.getTime()) : state.from;
     const buffers = task.buffers ?? NO_BUFFERS;
-    const available = subtract(startingFrom(state.windows.get(task.contextId) ?? [], earliest), [
-      ...keptApart(taken, buffers),
-      ...(task.declinedTimes ?? []),
-    ]);
+    const available = subtract(startingFrom(state.windows.get(task.contextId) ?? [], earliest), keptApart(taken, buffers));
     const gap = Math.max(buffers.before, buffers.after) * MINUTE_MS;
     const pieces = task.splittable ? placeSplit(available, need, state.minimum, gap) : placeWhole(available, need);
     for (const [start, end] of pieces) taken.push(neighbour({ start: new Date(start), end: new Date(end) }, buffers));

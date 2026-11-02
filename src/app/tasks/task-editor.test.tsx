@@ -5,13 +5,13 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { taskItem, deferred, workContext } from "../testing/fixtures";
 import { renderGuarded } from "../testing/render";
-import { clearDeclinedTime, deleteTask, updateTask } from "./actions";
+import { deleteTask, updateTask } from "./actions";
 import { TaskEditorSlot } from "./task-editor-slot";
 import { WithTaskList } from "../testing/with-task-list";
 import { TaskPanel } from "./task-panel";
 
 vi.mock("./actions", () => ({
-  createTask: vi.fn(), updateTask: vi.fn(), deleteTask: vi.fn(), completeTask: vi.fn(), clearDeclinedTime: vi.fn(),
+  createTask: vi.fn(), updateTask: vi.fn(), deleteTask: vi.fn(), completeTask: vi.fn(),
 }));
 
 const task = taskItem({ id: "task-1", title: "Write planning doc" });
@@ -34,7 +34,6 @@ describe("the full-page Task editor", () => {
   beforeEach(() => {
     vi.mocked(updateTask).mockReset();
     vi.mocked(deleteTask).mockReset();
-    vi.mocked(clearDeclinedTime).mockReset();
   });
   afterEach(() => Object.defineProperty(navigator, "onLine", { configurable: true, value: true }));
 
@@ -148,18 +147,8 @@ describe("the full-page Task editor", () => {
     expect(screen.getByText("Calendar")).toBeTruthy();
   });
 
-  it("clears a Declined Time", async () => {
-    vi.mocked(clearDeclinedTime).mockResolvedValue({ ok: true });
-    renderPage({ ...task, declinedTimes: [{ id: 7, start: new Date("2026-10-27T10:00:00Z"), end: new Date("2026-10-27T11:00:00Z") }] });
-    const editor = await openEditor();
-    await userEvent.click(editor.getByRole("button", { name: /^More/ }));
-    expect(editor.getByText("Declined Times")).toBeTruthy();
-    await userEvent.click(editor.getByRole("button", { name: /Clear the Declined Time.*for “Write planning doc”/ }));
-    expect(clearDeclinedTime).toHaveBeenCalledWith(7);
-  });
-
   it("disables changes if the connection drops while deletion is being confirmed", async () => {
-    renderPage({ ...task, declinedTimes: [{ id: 7, start: new Date("2026-10-27T10:00:00Z"), end: new Date("2026-10-27T11:00:00Z") }] });
+    renderPage();
     const editor = await openEditor();
     await userEvent.click(editor.getByRole("button", { name: /^More/ }));
     await userEvent.click(editor.getByRole("button", { name: "Delete" }));
@@ -168,14 +157,12 @@ describe("the full-page Task editor", () => {
 
     expect(editor.getByRole("button", { name: "Save" })).toHaveProperty("disabled", true);
     expect(within(editor.getByRole("group", { name: "Confirm delete" })).getByRole("button", { name: "Delete" })).toHaveProperty("disabled", true);
-    expect(editor.getByRole("button", { name: /Clear the Declined Time/ })).toHaveProperty("disabled", true);
     expect(editor.getByRole("button", { name: "Keep" })).toHaveProperty("disabled", false);
     await userEvent.click(editor.getByRole("button", { name: "Keep" }));
     expect(editor.getByRole("button", { name: "Delete" })).toHaveProperty("disabled", true);
     await userEvent.click(screen.getByRole("button", { name: "← Back to the week" }));
     expect(screen.getByText("Calendar")).toBeTruthy();
     expect(deleteTask).not.toHaveBeenCalled();
-    expect(clearDeclinedTime).not.toHaveBeenCalled();
   });
 
   it("says a Task waiting for a Check-in is waiting, as its row does, rather than the time it has left", async () => {

@@ -133,19 +133,6 @@ export const blockEvents = sqliteTable(
   (t) => [primaryKey({ columns: [t.calendarId, t.eventId] })],
 );
 
-/**
- * Declined Times: the times of Blocks the owner deleted in Google. Recalculation keeps each Task out of its own
- * Declined Times until they pass or the owner clears them; other Tasks may still use them.
- */
-export const declinedTimes = sqliteTable("declined_times", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  taskId: text("task_id")
-    .notNull()
-    .references(() => tasks.id, { onDelete: "cascade" }),
-  start: integer("start", { mode: "timestamp_ms" }).notNull(),
-  end: integer("end", { mode: "timestamp_ms" }).notNull(),
-});
-
 /** Open Google push notification channels, one per watched calendar (two briefly, while one is renewed). */
 export const calendarWatches = sqliteTable("calendar_watches", {
   channelId: text("channel_id").primaryKey(),

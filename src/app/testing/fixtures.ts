@@ -34,7 +34,6 @@ export function taskItem(overrides: Partial<TaskListItem> = {}): TaskListItem {
     bufferBeforeMinutes: null,
     bufferAfterMinutes: null,
     completedAt: null,
-    declinedTimes: [],
     checkIns: [],
     ...overrides,
   };
