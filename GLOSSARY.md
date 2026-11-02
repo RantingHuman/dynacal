@@ -47,7 +47,7 @@ A Task the user has allowed to be scheduled in several Blocks; every other Task 
 _Avoid_: Chunked task, split task
 
 **Check-in**:
-The question "Finished?" asked about a Task once its scheduled time has passed, answered Finished, More time, or Didn't start, where ticking the Task answers Finished; until it's answered, the Task keeps its time and nothing is rescheduled for it.
+The question "Finished?" asked about a Task once its scheduled time has passed, answered Finished, More time, Didn't start, or Tomorrow, where ticking the Task answers Finished and Tomorrow means Didn't start with an Earliest Start of tomorrow; until it's answered, the Task keeps its time and nothing is rescheduled for it.
 _Avoid_: Review, Unreviewed Block, done/partly/not done
 
 ### Time
@@ -73,12 +73,8 @@ Time before or after a Task or Event that dynacal keeps free when placing Tasks,
 _Avoid_: Break, gap, padding, margin
 
 **Event**:
-A commitment on the user's calendar that is not a Block, whether it came from a connected calendar or was created in dynacal; the scheduler plans around it and never moves it.
+A commitment on one of the user's connected calendars; the scheduler plans around it and never moves it. Commitments are added in the calendar, not in dynacal.
 _Avoid_: Meeting, appointment, busy slot
-
-**dynacal Event**:
-An Event the user created in dynacal rather than on another calendar; only these can be edited from dynacal.
-_Avoid_: Local event, own event, custom event
 
 **Free Event**:
 An Event its calendar marks as free; it is always shown, but only counts as busy time if the user says so.
