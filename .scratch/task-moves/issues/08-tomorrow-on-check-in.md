@@ -4,9 +4,9 @@
 
 **Blocked by:** 04
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Tomorrow closes the Check-in and places the Task no earlier than tomorrow
-- [ ] A Task due before tomorrow gets the due date question
-- [ ] Finished, More time and Didn't start are unchanged
-- [ ] It works wherever a Check-in is asked
+- [x] Tomorrow closes the Check-in and places the Task no earlier than tomorrow
+- [x] A Task due before tomorrow gets the due date question
+- [x] Finished, More time and Didn't start are unchanged
+- [x] It works wherever a Check-in is asked
