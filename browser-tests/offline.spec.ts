@@ -50,6 +50,19 @@ test("keeps the last week readable offline and falls back for an uncached page",
     await expect(page.getByRole("status").filter({ hasText: "Offline." })).toBeVisible();
     await expect(page.getByRole("textbox", { name: "Add a Task" })).toBeDisabled();
     await expect(page.getByRole("button", { name: "Mark “Prepare the report” complete" })).toBeDisabled();
+
+    // A page loaded offline can still open a Task to read it.
+    await page.getByRole("button", { name: "Prepare the report 1h left" }).click();
+    const editor = page.getByRole("form", { name: "Edit Task" });
+    await expect(editor.getByRole("button", { name: "Save" })).toBeDisabled();
+    await expect(editor.getByText("Offline: this needs a connection.")).toBeVisible();
+    await editor.getByRole("button", { name: /^How long, / }).click();
+    await expect(editor.getByRole("button", { name: "1h", exact: true })).toBeVisible();
+    await editor.getByRole("button", { name: /^More/ }).click();
+    await expect(editor.getByRole("button", { name: "Delete" })).toBeDisabled();
+    await page.getByRole("button", { name: "← Back to the week" }).click();
+    await expect(page.getByRole("form", { name: "Edit Task" })).toHaveCount(0);
+
     await page.goto("/settings");
     await expect(page.getByRole("heading", { name: "You're offline." })).toBeVisible();
   });

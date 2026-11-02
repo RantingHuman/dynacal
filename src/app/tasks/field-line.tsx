@@ -5,8 +5,7 @@ import styles from "./field-line.module.css";
 
 /**
  * One field of the Task screen on one line: its name and current value, which a tap opens to show its choices. The
- * parent decides which line is open. A line that closes while its choice held the focus takes the focus back, so
- * it isn't lost with the choice.
+ * parent decides which line is open.
  */
 export function FieldLine({
   name,
@@ -26,31 +25,21 @@ export function FieldLine({
   /** The choices, shown while open. */
   children: ReactNode;
 }) {
-  const choices = useId();
-  const head = useRef<HTMLButtonElement>(null);
-  useTakeFocusBack(open, head);
   return (
-    <div className={styles.line}>
-      <button
-        ref={head}
-        type="button"
-        className={styles.head}
-        aria-label={`${name}, ${value}`}
-        aria-expanded={open}
-        aria-controls={open ? choices : undefined}
-        onClick={onToggle}
-      >
-        <span className={styles.name}>{name}</span>
-        <span className={styles.value}>{value}</span>
-        <span className={styles.chevron} aria-hidden />
-      </button>
-      {open && (
-        <div id={choices} className={styles.choices}>
-          {children}
-        </div>
-      )}
-      {error && <p className="field-error">{error}</p>}
-    </div>
+    <Line
+      label={`${name}, ${value}`}
+      head={
+        <>
+          <span className={styles.name}>{name}</span>
+          <span className={styles.value}>{value}</span>
+        </>
+      }
+      open={open}
+      error={error}
+      onToggle={onToggle}
+    >
+      {children}
+    </Line>
   );
 }
 
@@ -70,37 +59,63 @@ export function MoreLine({
   onToggle: () => void;
   children: ReactNode;
 }) {
-  const section = useId();
-  const head = useRef<HTMLButtonElement>(null);
-  useTakeFocusBack(open, head);
+  const words = ["More", summary.join(", ")].filter(Boolean).join(" · ");
   return (
-    <div className={styles.line}>
-      <button
-        ref={head}
-        type="button"
-        className={styles.head}
-        aria-expanded={open}
-        aria-controls={open ? section : undefined}
-        onClick={onToggle}
-      >
-        <span className={styles.more}>{["More", summary.join(", ")].filter(Boolean).join(" · ")}</span>
-        <span className={styles.chevron} aria-hidden />
-      </button>
-      {open && (
-        <div id={section} className={styles.choices}>
-          {children}
-        </div>
-      )}
-    </div>
+    <Line head={<span className={styles.more}>{words}</span>} open={open} onToggle={onToggle}>
+      {children}
+    </Line>
   );
 }
 
-function useTakeFocusBack(open: boolean, head: React.RefObject<HTMLButtonElement | null>) {
+/**
+ * What every line shares: a head that opens and closes it and says which, and what it holds while open. A line that
+ * closes while its choice held the focus takes the focus back, so it isn't lost with the choice.
+ */
+function Line({
+  label,
+  head,
+  open,
+  error,
+  onToggle,
+  children,
+}: {
+  /** What a screen reader announces, where the head's own words wouldn't read well. */
+  label?: string;
+  head: ReactNode;
+  open: boolean;
+  error?: string;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  const held = useId();
+  const button = useRef<HTMLButtonElement>(null);
   const wasOpen = useRef(open);
   useEffect(() => {
     if (wasOpen.current && !open && document.activeElement === document.body) {
-      head.current?.focus({ preventScroll: true });
+      button.current?.focus({ preventScroll: true });
     }
     wasOpen.current = open;
-  }, [open, head]);
+  }, [open]);
+  return (
+    <div className={styles.line}>
+      <button
+        ref={button}
+        type="button"
+        className={styles.head}
+        aria-label={label}
+        aria-expanded={open}
+        aria-controls={open ? held : undefined}
+        onClick={onToggle}
+      >
+        {head}
+        <span className={styles.chevron} aria-hidden />
+      </button>
+      {open && (
+        <div id={held} className={styles.choices}>
+          {children}
+        </div>
+      )}
+      {error && <p className="field-error">{error}</p>}
+    </div>
+  );
 }

@@ -124,6 +124,25 @@ test("gives every line and choice on the Task screen a 44px tap area, with no si
   });
 });
 
+test("gives each Declined Time's Clear a 44px tap area without overlapping the next", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await asPhone(page);
+    await page.goto("/");
+    await page.getByRole("tab", { name: "Tasks" }).click();
+    await page.getByRole("button", { name: /^Board memo/ }).click();
+    const editor = page.getByRole("form", { name: "Edit Task" });
+    await editor.getByRole("button", { name: /^More/ }).click();
+
+    const clears = editor.getByRole("button", { name: /^Clear the Declined Time/ });
+    await expect(clears).toHaveCount(3);
+    for (const clear of await clears.all()) {
+      // Clear of the pinned Save, which the owner would scroll past too.
+      await clear.evaluate((el) => el.scrollIntoView({ block: "center" }));
+      await expectTappable(clear);
+    }
+  }, { seed: "declined-times" });
+});
+
 test("gives a past time's line a 44px tap area for its Check-in", async ({ browser }) => {
   await withApp(browser, async (page) => {
     await asPhone(page);

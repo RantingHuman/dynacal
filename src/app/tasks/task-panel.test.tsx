@@ -321,14 +321,14 @@ describe("offline", () => {
   beforeEach(() => Object.defineProperty(navigator, "onLine", { configurable: true, value: false }));
   afterEach(() => Object.defineProperty(navigator, "onLine", { configurable: true, value: true }));
 
-  it("can only be looked at: adding, ticking and opening Tasks are all disabled", () => {
+  it("can only be looked at: adding and ticking are disabled, but a Task still opens to be read", () => {
     renderPanel([taskItem({ title: "Write Q4 planning doc" })]);
 
     expect(screen.getByRole("button", { name: "+ Task" })).toHaveProperty("disabled", true);
     expect(screen.getByRole("textbox", { name: /add a task/i })).toHaveProperty("disabled", true);
     expect(screen.getByRole("button", { name: "Mark “Write Q4 planning doc” complete" })).toHaveProperty("disabled", true);
     const open = taskList().getAllByRole("button").find((b) => b.textContent?.startsWith("Write Q4 planning doc"));
-    expect(open).toHaveProperty("disabled", true);
+    expect(open).toHaveProperty("disabled", false);
   });
 
   it("can't allow a Task to split, and says why", () => {

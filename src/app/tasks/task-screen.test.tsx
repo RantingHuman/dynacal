@@ -551,6 +551,124 @@ describe("leaving the Task screen", () => {
   });
 });
 
+describe("the prompt to discard changes", () => {
+  const two = [task, taskItem({ id: "task-2", title: "Book the venue" })];
+  const row = (title: RegExp) => within(screen.getByRole("list")).getByRole("button", { name: title });
+
+  function renderTwo() {
+    return renderGuarded(
+      <WithTaskList contexts={[workContext]} tasks={two} today={TODAY}>
+        <TaskPanel />
+        <TaskEditorSlot><div>Calendar</div></TaskEditorSlot>
+      </WithTaskList>,
+    );
+  }
+
+  async function changePriority(editor: Screen) {
+    await userEvent.click(line(editor, "Priority"));
+    await userEvent.click(editor.getByRole("radio", { name: "Critical" }));
+  }
+
+  it("goes away when the change is undone by hand, leaving Back", async () => {
+    renderScreen();
+    const editor = await openScreen();
+    const title = editor.getByRole("textbox", { name: "Title" });
+    await userEvent.type(title, "!");
+    await userEvent.click(backButton());
+    expect(screen.getByRole("button", { name: "Discard changes" })).toBeTruthy();
+
+    await userEvent.type(title, "{Backspace}");
+
+    expect(screen.queryByRole("button", { name: "Discard changes" })).toBeNull();
+    await userEvent.click(backButton());
+    expect(screen.queryByRole("form", { name: "Edit Task" })).toBeNull();
+  });
+
+  it("opens another Task straight away when nothing has changed", async () => {
+    renderTwo();
+    await userEvent.click(row(/^Write planning doc/));
+
+    await userEvent.click(row(/^Book the venue/));
+
+    expect(within(screen.getByRole("form", { name: "Edit Task" })).getByRole("textbox", { name: "Title" }))
+      .toHaveProperty("value", "Book the venue");
+  });
+
+  it("asks before another Task's row replaces changes, and Keep editing keeps them", async () => {
+    renderTwo();
+    await userEvent.click(row(/^Write planning doc/));
+    const editor = within(screen.getByRole("form", { name: "Edit Task" }));
+    await changePriority(editor);
+
+    await userEvent.click(row(/^Book the venue/));
+
+    expect(editor.getByRole("textbox", { name: "Title" })).toHaveProperty("value", "Write planning doc");
+    await userEvent.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect(editor.getByRole("textbox", { name: "Title" })).toHaveProperty("value", "Write planning doc");
+    expect(line(editor, "Priority").textContent).toContain("Critical");
+    expect(backButton()).toBeTruthy();
+  });
+
+  it("opens the other Task only after Discard changes, with the first as it was", async () => {
+    renderTwo();
+    await userEvent.click(row(/^Write planning doc/));
+    await changePriority(within(screen.getByRole("form", { name: "Edit Task" })));
+
+    await userEvent.click(row(/^Book the venue/));
+    await userEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+
+    const next = within(screen.getByRole("form", { name: "Edit Task" }));
+    expect(next.getByRole("textbox", { name: "Title" })).toHaveProperty("value", "Book the venue");
+    expect(line(next, "Priority").textContent).toContain("Medium");
+    expect(screen.queryByRole("button", { name: "Discard changes" })).toBeNull();
+    expect(updateTask).not.toHaveBeenCalled();
+
+    await userEvent.click(row(/^Write planning doc/));
+    expect(line(within(screen.getByRole("form", { name: "Edit Task" })), "Priority").textContent).toContain("Medium");
+  });
+
+  it("doesn't ask when the open Task's own row is tapped, and keeps the changes", async () => {
+    renderTwo();
+    await userEvent.click(row(/^Write planning doc/));
+    const editor = within(screen.getByRole("form", { name: "Edit Task" }));
+    await changePriority(editor);
+
+    await userEvent.click(row(/^Write planning doc/));
+
+    expect(screen.queryByRole("button", { name: "Discard changes" })).toBeNull();
+    expect(line(editor, "Priority").textContent).toContain("Critical");
+  });
+
+  it("asks before Full form replaces changes, opening it only after Discard changes", async () => {
+    renderTwo();
+    await userEvent.click(row(/^Write planning doc/));
+    await changePriority(within(screen.getByRole("form", { name: "Edit Task" })));
+    await userEvent.type(screen.getByRole("textbox", { name: /add a task/i }), "Pack for Vegas 2h");
+
+    await userEvent.click(screen.getByRole("button", { name: "Full form" }));
+    expect(screen.getByRole("form", { name: "Edit Task" })).toBeTruthy();
+
+    await userEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+    expect(screen.queryByRole("form", { name: "Edit Task" })).toBeNull();
+    expect(within(screen.getByRole("form", { name: "New Task" })).getByRole("textbox", { name: "Title" }))
+      .toHaveProperty("value", "Pack for Vegas");
+  });
+
+  it("starts the full form afresh when Full form is asked for again over changes to it", async () => {
+    renderTwo();
+    await userEvent.type(screen.getByRole("textbox", { name: /add a task/i }), "Pack for Vegas 2h");
+    await userEvent.click(screen.getByRole("button", { name: "Full form" }));
+    const title = within(screen.getByRole("form", { name: "New Task" })).getByRole("textbox", { name: "Title" });
+    await userEvent.type(title, " again");
+
+    await userEvent.click(screen.getByRole("button", { name: "Full form" }));
+    await userEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+
+    expect(within(screen.getByRole("form", { name: "New Task" })).getByRole("textbox", { name: "Title" }))
+      .toHaveProperty("value", "Pack for Vegas");
+  });
+});
+
 describe("a problem with a value", () => {
   it("opens the line holding it", async () => {
     renderScreen();

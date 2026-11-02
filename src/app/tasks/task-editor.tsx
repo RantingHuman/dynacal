@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import type { TaskListItem } from "@/core/commands";
 import type { Context } from "@/core/contexts";
 import type { TaskFlag } from "@/core/scheduler";
-import type { Buffers } from "@/core/settings";
+import type { BufferMinutes, Buffers } from "@/core/settings";
 import {
   PRIORITIES,
   PRIORITY_LABELS,
@@ -23,6 +23,8 @@ import { dateWords, spanWords } from "./day-words";
 import { DeclinedTimes } from "./declined-times";
 import { FieldLine, MoreLine } from "./field-line";
 import { FLAG_LABELS, isAlarm } from "./flags";
+import lineStyles from "./field-line.module.css";
+import type { TaskDraft } from "./task-editor-slot";
 import type { ActOnTasks } from "./task-list";
 import styles from "./task-editor.module.css";
 
@@ -43,22 +45,26 @@ const LINE_OF_FIELD: [keyof TaskErrors, Line][] = [
   ["bufferAfterMinutes", "more"],
 ];
 
-/** The form's values as a string, to compare with what it opened with. A Buffer left out follows the default. */
+/**
+ * The form's values as a string, to compare with what it opened with. Every field is named, so a new one can't escape
+ * the comparison. On this form a Buffer that's missing and one that's null are the same: a new Task starts with
+ * neither of its own, and tapping Default doesn't give it one.
+ */
 function formKey(input: TaskInput): string {
-  const { title, notes, estimatedMinutes, deadline, earliestStart, priority, splittable, contextId } = input;
   const when = (value: DateOrDateTime | null) => value && [value.date, value.time];
-  return JSON.stringify([
-    title,
-    notes,
-    estimatedMinutes,
-    when(deadline),
-    when(earliestStart),
-    priority,
-    splittable,
-    contextId,
-    input.bufferBeforeMinutes ?? null,
-    input.bufferAfterMinutes ?? null,
-  ]);
+  const fields: Record<keyof TaskInput, unknown> = {
+    title: input.title,
+    notes: input.notes,
+    estimatedMinutes: input.estimatedMinutes,
+    deadline: when(input.deadline),
+    earliestStart: when(input.earliestStart),
+    priority: input.priority,
+    splittable: input.splittable,
+    contextId: input.contextId,
+    bufferBeforeMinutes: input.bufferBeforeMinutes ?? null,
+    bufferAfterMinutes: input.bufferAfterMinutes ?? null,
+  };
+  return JSON.stringify(fields);
 }
 
 /**
@@ -75,6 +81,11 @@ export function TaskEditor({
   today,
   defaultBuffers,
   act,
+  draft,
+  asking,
+  onBack,
+  onDiscard,
+  onKeepEditing,
   onClose,
   onSaved,
   onAdded,
@@ -90,6 +101,14 @@ export function TaskEditor({
   /** The Buffers in Settings, which a Task without its own follows. */
   defaultBuffers: Buffers;
   act: ActOnTasks;
+  /** The form as it stands, kept outside so that it survives crossing to the other layout, and read from there on opening. */
+  draft: RefObject<TaskDraft | null>;
+  /** Leaving was asked for over changes, so the screen asks whether to discard them. */
+  asking: boolean;
+  onBack: () => void;
+  onDiscard: () => void;
+  onKeepEditing: () => void;
+  /** Closes the page, whatever's changed. */
   onClose: () => void;
   /** An existing Task was saved: its row sweeps a highlighter and says so. */
   onSaved: (taskId: string) => void;
@@ -98,17 +117,23 @@ export function TaskEditor({
 }) {
   // A Task added without a Context goes to the Default Context, so its chip starts chosen.
   const [opened] = useState<TaskInput>({ ...initial, contextId: initial.contextId ?? contexts[0].id });
-  const [input, setInput] = useState<TaskInput>(opened);
+  const [input, setInput] = useState<TaskInput>(() => draft.current?.input ?? opened);
   const [errors, setErrors] = useState<TaskErrors>({});
   const [openLine, setOpenLine] = useState<Line | null>(null);
-  const [leaving, setLeaving] = useState(false);
   // Offline, the Task can be read but not saved or deleted.
   const online = useOnline();
   const section = useRef<HTMLElement>(null);
+  const changed = formKey(input) !== formKey(opened);
 
   useEffect(() => {
     section.current?.scrollIntoView({ block: "nearest" });
   }, []);
+
+  useEffect(() => {
+    draft.current = { input, changed };
+    // With every change undone by hand, there's nothing left for the prompt to ask about.
+    if (!changed) onKeepEditing();
+  }, [draft, input, changed, onKeepEditing]);
 
   // A problem found on saving may be further down than the screen shows.
   useEffect(() => {
@@ -130,7 +155,11 @@ export function TaskEditor({
   function lineProps(line: Line) {
     return { open: openLine === line, onToggle: () => setOpenLine((current) => (current === line ? null : line)) };
   }
-  const closeLine = () => setOpenLine(null);
+  /** A choice was tapped: it's set, and its line closes. */
+  function choose(change: Partial<TaskInput>) {
+    update(change);
+    setOpenLine(null);
+  }
 
   /** Saving shows the change in the list at once and closes the page; a refusal rolls it back with a toast. */
   function save(event: React.FormEvent) {
@@ -168,11 +197,6 @@ export function TaskEditor({
     });
   }
 
-  function back() {
-    if (formKey(input) === formKey(opened)) onClose();
-    else setLeaving(true);
-  }
-
   const waiting = task && !task.completedAt ? task.checkIns[0] : undefined;
   const status = task?.completedAt
     ? "Complete"
@@ -195,17 +219,17 @@ export function TaskEditor({
     <section ref={section} className={styles.editor} aria-labelledby="task-editor-heading" data-refresh-hold>
       <header className={styles.kicker}>
         <h2 id="task-editor-heading">{task ? "Task" : "New Task"}</h2>
-        {leaving ? (
+        {asking && changed ? (
           <span className={styles.confirm} role="group" aria-label="Confirm leaving">
-            <button type="button" className={styles.plain} data-danger onClick={onClose}>
+            <button type="button" className={styles.plain} data-danger onClick={onDiscard}>
               Discard changes
             </button>
-            <button type="button" className={styles.plain} onClick={() => setLeaving(false)} autoFocus>
+            <button type="button" className={styles.plain} onClick={onKeepEditing} autoFocus>
               Keep editing
             </button>
           </span>
         ) : (
-          <button type="button" className="link" onClick={back}>
+          <button type="button" className="link" onClick={onBack}>
             ← Back to the week
           </button>
         )}
@@ -238,42 +262,34 @@ export function TaskEditor({
           >
             <DurationField
               value={input.estimatedMinutes}
-              onChange={(estimatedMinutes) => update({ estimatedMinutes })}
-              onChosen={closeLine}
+              onChoose={(estimatedMinutes) => choose({ estimatedMinutes })}
+              onEnter={(estimatedMinutes) => update({ estimatedMinutes })}
             />
           </FieldLine>
 
-          <FieldLine
+          <WhenLine
             name="Due"
-            value={input.deadline ? dateWords(input.deadline) : "No deadline"}
+            label="Deadline"
+            none="No deadline"
+            value={input.deadline}
+            today={today}
             error={errors.deadline}
             {...lineProps("due")}
-          >
-            <WhenField
-              label="Deadline"
-              none="No deadline"
-              value={input.deadline}
-              today={today}
-              onChange={(deadline) => update({ deadline })}
-              onChosen={closeLine}
-            />
-          </FieldLine>
+            onChoose={(deadline) => choose({ deadline })}
+            onEnter={(deadline) => update({ deadline })}
+          />
 
-          <FieldLine
+          <WhenLine
             name="Earliest Start"
-            value={input.earliestStart ? dateWords(input.earliestStart) : "Any time"}
+            label="Earliest Start"
+            none="Any time"
+            value={input.earliestStart}
+            today={today}
             error={errors.earliestStart}
             {...lineProps("earliestStart")}
-          >
-            <WhenField
-              label="Earliest Start"
-              none="Any time"
-              value={input.earliestStart}
-              today={today}
-              onChange={(earliestStart) => update({ earliestStart })}
-              onChosen={closeLine}
-            />
-          </FieldLine>
+            onChoose={(earliestStart) => choose({ earliestStart })}
+            onEnter={(earliestStart) => update({ earliestStart })}
+          />
 
           <FieldLine
             name="Priority"
@@ -281,13 +297,7 @@ export function TaskEditor({
             error={errors.priority}
             {...lineProps("priority")}
           >
-            <PriorityField
-              value={input.priority}
-              onChange={(priority) => {
-                update({ priority });
-                closeLine();
-              }}
-            />
+            <PriorityField value={input.priority} onChoose={(priority) => choose({ priority })} />
           </FieldLine>
 
           {contexts.length > 1 && (
@@ -295,10 +305,7 @@ export function TaskEditor({
               <ContextField
                 contexts={contexts}
                 value={input.contextId}
-                onChange={(contextId) => {
-                  update({ contextId });
-                  closeLine();
-                }}
+                onChoose={(contextId) => choose({ contextId })}
               />
             </FieldLine>
           )}
@@ -318,34 +325,26 @@ export function TaskEditor({
                 Can be split
               </button>
 
-              <div className={styles.moreField}>
-                <span className={styles.moreName}>Before</span>
-                <BufferChips
-                  label="Buffer before"
-                  classNames={chipStyles}
-                  value={input.bufferBeforeMinutes ?? null}
-                  fallback={defaultBuffers.before}
-                  stored={opened.bufferBeforeMinutes ?? null}
-                  onChange={(bufferBeforeMinutes) => update({ bufferBeforeMinutes })}
-                />
-                {errors.bufferBeforeMinutes && <p className="field-error">{errors.bufferBeforeMinutes}</p>}
-              </div>
+              <BufferField
+                name="Before"
+                value={input.bufferBeforeMinutes}
+                fallback={defaultBuffers.before}
+                stored={opened.bufferBeforeMinutes}
+                error={errors.bufferBeforeMinutes}
+                onChange={(bufferBeforeMinutes) => update({ bufferBeforeMinutes })}
+              />
+
+              <BufferField
+                name="After"
+                value={input.bufferAfterMinutes}
+                fallback={defaultBuffers.after}
+                stored={opened.bufferAfterMinutes}
+                error={errors.bufferAfterMinutes}
+                onChange={(bufferAfterMinutes) => update({ bufferAfterMinutes })}
+              />
 
               <div className={styles.moreField}>
-                <span className={styles.moreName}>After</span>
-                <BufferChips
-                  label="Buffer after"
-                  classNames={chipStyles}
-                  value={input.bufferAfterMinutes ?? null}
-                  fallback={defaultBuffers.after}
-                  stored={opened.bufferAfterMinutes ?? null}
-                  onChange={(bufferAfterMinutes) => update({ bufferAfterMinutes })}
-                />
-                {errors.bufferAfterMinutes && <p className="field-error">{errors.bufferAfterMinutes}</p>}
-              </div>
-
-              <div className={styles.moreField}>
-                <label className={styles.moreName} htmlFor="task-notes">
+                <label className={lineStyles.name} htmlFor="task-notes">
                   Notes
                 </label>
                 <textarea
@@ -359,7 +358,7 @@ export function TaskEditor({
 
               {task && timeZone && declinedTimes.length > 0 && (
                 <div className={styles.moreField}>
-                  <span className={styles.moreName} title="You deleted these times in Google, so this Task stays out of them">
+                  <span className={lineStyles.name} title="You deleted these times in Google, so this Task stays out of them">
                     Declined Times
                   </span>
                   <DeclinedTimes taskTitle={task.title} declinedTimes={declinedTimes} timeZone={timeZone} />
@@ -382,20 +381,29 @@ export function TaskEditor({
   );
 }
 
+/**
+ * Whether a field's free entry (Other, Pick a date) is showing. A stored value off the field's list opens it, and only
+ * a tap takes the focus, so that looking at a Task doesn't bring up the keyboard.
+ */
+function useFreeEntry(storedOffList: boolean) {
+  const [entry, setEntry] = useState<"stored" | "tapped" | null>(storedOffList ? "stored" : null);
+  return { showing: entry !== null, takesFocus: entry === "tapped", show: () => setEntry("tapped") };
+}
+
 /** The common lengths and Other, which shows the minutes: a stored length not on the list opens there, unchanged. */
 function DurationField({
   value,
-  onChange,
-  onChosen,
+  onChoose,
+  onEnter,
 }: {
   value: number;
-  onChange: (minutes: number) => void;
-  /** A length on the list was tapped. Typing under Other doesn't count: the line stays open for it. */
-  onChosen: () => void;
+  onChoose: (minutes: number) => void;
+  /** A length was typed under Other: the line stays open for it. */
+  onEnter: (minutes: number) => void;
 }) {
-  const [other, setOther] = useState<"stored" | "tapped" | null>(DURATIONS.includes(value) ? null : "stored");
+  const other = useFreeEntry(!DURATIONS.includes(value));
   // What's typed, apart from the value, since typing may pass through a length on the list (30, on the way to 300).
-  const [typed, setTyped] = useState(other && !Number.isNaN(value) ? String(value) : "");
+  const [typed, setTyped] = useState(other.showing && !Number.isNaN(value) ? String(value) : "");
   return (
     <div className={styles.when}>
       <div className={styles.chips} role="group" aria-label="Estimated duration">
@@ -404,20 +412,17 @@ function DurationField({
             key={minutes}
             type="button"
             className={styles.chip}
-            aria-pressed={!other && value === minutes}
-            onClick={() => {
-              onChange(minutes);
-              onChosen();
-            }}
+            aria-pressed={!other.showing && value === minutes}
+            onClick={() => onChoose(minutes)}
           >
             {formatDuration(minutes)}
           </button>
         ))}
-        <button type="button" className={styles.chip} aria-pressed={other !== null} onClick={() => setOther("tapped")}>
+        <button type="button" className={styles.chip} aria-pressed={other.showing} onClick={other.show}>
           Other
         </button>
       </div>
-      {other && (
+      {other.showing && (
         <label className={styles.entry}>
           <input
             type="number"
@@ -425,16 +430,49 @@ function DurationField({
             step={15}
             value={typed}
             aria-label="Other duration in minutes"
-            autoFocus={other === "tapped"}
+            autoFocus={other.takesFocus}
             onChange={(e) => {
               setTyped(e.target.value);
-              onChange(e.target.valueAsNumber);
+              onEnter(e.target.valueAsNumber);
             }}
           />
           <span>min</span>
         </label>
       )}
     </div>
+  );
+}
+
+/** A line for a date and optional time, which `none` stands in for when there's no date. */
+function WhenLine({
+  name,
+  label,
+  none,
+  value,
+  today,
+  error,
+  open,
+  onToggle,
+  onChoose,
+  onEnter,
+}: {
+  name: string;
+  /** What the date and time fields are called. */
+  label: string;
+  none: string;
+  value: DateOrDateTime | null;
+  today: string;
+  error?: string;
+  open: boolean;
+  onToggle: () => void;
+  onChoose: (value: DateOrDateTime | null) => void;
+  /** A date or time was entered: the line stays open for it. */
+  onEnter: (value: DateOrDateTime | null) => void;
+}) {
+  return (
+    <FieldLine name={name} value={value ? dateWords(value) : none} error={error} open={open} onToggle={onToggle}>
+      <WhenField label={label} none={none} value={value} today={today} onChoose={onChoose} onEnter={onEnter} />
+    </FieldLine>
   );
 }
 
@@ -447,31 +485,25 @@ function WhenField({
   none,
   value,
   today,
-  onChange,
-  onChosen,
+  onChoose,
+  onEnter,
 }: {
   label: string;
   none: string;
   value: DateOrDateTime | null;
   today: string;
-  onChange: (value: DateOrDateTime | null) => void;
-  /** A choice was tapped. Entering a date or time doesn't count: the line stays open for them. */
-  onChosen: () => void;
+  onChoose: (value: DateOrDateTime | null) => void;
+  onEnter: (value: DateOrDateTime | null) => void;
 }) {
   const tomorrow = addDays(today, 1);
-  const [picking, setPicking] = useState<"stored" | "tapped" | null>(
-    value !== null && value.date !== today && value.date !== tomorrow ? "stored" : null,
-  );
-  const pick = (date: string) => onChange({ date, time: value?.time ?? null });
-  const quick = (date: string, name: string) => (
+  const picker = useFreeEntry(value !== null && value.date !== today && value.date !== tomorrow);
+  const withDate = (date: string) => ({ date, time: value?.time ?? null });
+  const dayChip = (date: string, name: string) => (
     <button
       type="button"
       className={styles.chip}
-      aria-pressed={!picking && value?.date === date}
-      onClick={() => {
-        pick(date);
-        onChosen();
-      }}
+      aria-pressed={!picker.showing && value?.date === date}
+      onClick={() => onChoose(withDate(date))}
     >
       {name}
     </button>
@@ -482,28 +514,25 @@ function WhenField({
         <button
           type="button"
           className={styles.chip}
-          aria-pressed={!picking && value === null}
-          onClick={() => {
-            onChange(null);
-            onChosen();
-          }}
+          aria-pressed={!picker.showing && value === null}
+          onClick={() => onChoose(null)}
         >
           {none}
         </button>
-        {quick(today, "Today")}
-        {quick(tomorrow, "Tomorrow")}
-        <button type="button" className={styles.chip} aria-pressed={picking !== null} onClick={() => setPicking("tapped")}>
+        {dayChip(today, "Today")}
+        {dayChip(tomorrow, "Tomorrow")}
+        <button type="button" className={styles.chip} aria-pressed={picker.showing} onClick={picker.show}>
           Pick a date
         </button>
       </div>
-      {picking && (
+      {picker.showing && (
         <label className={styles.entry}>
           <input
             type="date"
             aria-label={`${label} date`}
             value={value?.date ?? ""}
-            autoFocus={picking === "tapped"}
-            onChange={(e) => (e.target.value ? pick(e.target.value) : onChange(null))}
+            autoFocus={picker.takesFocus}
+            onChange={(e) => onEnter(e.target.value ? withDate(e.target.value) : null)}
           />
         </label>
       )}
@@ -514,7 +543,7 @@ function WhenField({
             type="time"
             aria-label={`${label} time (optional)`}
             value={value.time ?? ""}
-            onChange={(e) => onChange({ ...value, time: e.target.value || null })}
+            onChange={(e) => onEnter({ ...value, time: e.target.value || null })}
           />
           {!value.time && <span className="muted">any time in its Context</span>}
         </label>
@@ -523,7 +552,39 @@ function WhenField({
   );
 }
 
-function PriorityField({ value, onChange }: { value: Priority; onChange: (priority: Priority) => void }) {
+/** A Task's own Buffer on one side, or following the default. */
+function BufferField({
+  name,
+  value,
+  fallback,
+  stored,
+  error,
+  onChange,
+}: {
+  name: "Before" | "After";
+  value: number | null | undefined;
+  fallback: number;
+  stored: number | null | undefined;
+  error?: string;
+  onChange: (minutes: BufferMinutes | null) => void;
+}) {
+  return (
+    <div className={styles.moreField}>
+      <span className={lineStyles.name}>{name}</span>
+      <BufferChips
+        label={`Buffer ${name.toLowerCase()}`}
+        classNames={chipStyles}
+        value={value ?? null}
+        fallback={fallback}
+        stored={stored ?? null}
+        onChange={onChange}
+      />
+      {error && <p className="field-error">{error}</p>}
+    </div>
+  );
+}
+
+function PriorityField({ value, onChoose }: { value: Priority; onChoose: (priority: Priority) => void }) {
   return (
     <div className={styles.chips} role="radiogroup" aria-label="Priority">
       {PRIORITIES.map((priority) => (
@@ -534,7 +595,7 @@ function PriorityField({ value, onChange }: { value: Priority; onChange: (priori
           aria-checked={value === priority}
           className={styles.chip}
           data-priority={priority}
-          onClick={() => onChange(priority)}
+          onClick={() => onChoose(priority)}
         >
           {PRIORITY_LABELS[priority]}
         </button>
@@ -547,11 +608,11 @@ function PriorityField({ value, onChange }: { value: Priority; onChange: (priori
 function ContextField({
   contexts,
   value,
-  onChange,
+  onChoose,
 }: {
   contexts: Context[];
   value: string | null | undefined;
-  onChange: (contextId: string) => void;
+  onChoose: (contextId: string) => void;
 }) {
   return (
     <div className={styles.chips} role="radiogroup" aria-label="Context">
@@ -562,7 +623,7 @@ function ContextField({
           role="radio"
           aria-checked={value === context.id}
           className={styles.chip}
-          onClick={() => onChange(context.id)}
+          onClick={() => onChoose(context.id)}
         >
           {context.name}
         </button>

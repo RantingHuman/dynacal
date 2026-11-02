@@ -106,6 +106,57 @@ test("pins Save to the bottom of a phone's screen, whatever's filled in and wher
   });
 });
 
+for (const width of [320, 390]) {
+  test(`keeps “Earliest Start” on one line at ${width}px`, async ({ browser }) => {
+    await withApp(browser, async (page) => {
+      await page.setViewportSize({ width, height: 844 });
+      await page.goto("/");
+      await page.getByRole("tab", { name: "Tasks" }).click();
+      const editor = await addAndOpen(page);
+
+      const measured = await editor.getByText("Earliest Start", { exact: true }).evaluate((name) => {
+        const words = document.createRange();
+        words.selectNodeContents(name);
+        const lines = new Set([...words.getClientRects()].map((rect) => Math.round(rect.top))).size;
+        const right = words.getBoundingClientRect().right;
+        return { lines, right, valueLeft: name.nextElementSibling?.getBoundingClientRect().left ?? 0 };
+      });
+
+      expect(measured.lines).toBe(1);
+      expect(measured.right).toBeLessThanOrEqual(measured.valueLeft);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    });
+  });
+}
+
+test("keeps unsaved changes when a turn of the device crosses to the other layout, still asking on Back", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await page.setViewportSize({ width: 844, height: 390 });
+    await page.goto("/");
+    const editor = await addAndOpen(page);
+    await editor.getByRole("textbox", { name: "Title" }).fill("Pack for Reno");
+    await editor.getByRole("button", { name: /^Priority, / }).click();
+    await editor.getByRole("radio", { name: "Critical" }).click();
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.getByRole("tab", { name: "Tasks" })).toBeHidden();
+    await expect(editor.getByRole("textbox", { name: "Title" })).toHaveValue("Pack for Reno");
+    await expect(editor.getByRole("button", { name: /^Priority, / })).toHaveAccessibleName("Priority, Critical");
+
+    await page.setViewportSize({ width: 844, height: 390 });
+    await expect(editor.getByRole("textbox", { name: "Title" })).toHaveValue("Pack for Reno");
+    await expect(editor.getByRole("button", { name: /^Priority, / })).toHaveAccessibleName("Priority, Critical");
+
+    await page.getByRole("button", { name: "← Back to the week" }).click();
+    await page.getByRole("button", { name: "Discard changes" }).click();
+    await expect(page.getByRole("form", { name: "Edit Task" })).toHaveCount(0);
+
+    // Once discarded, nothing of the draft comes back.
+    await page.getByRole("button", { name: "Pack for Vegas 1h left" }).click();
+    await expect(editor.getByRole("textbox", { name: "Title" })).toHaveValue("Pack for Vegas");
+  });
+});
+
 test("puts Save right below the fields on a desktop", async ({ browser }) => {
   await withApp(browser, async (page) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
