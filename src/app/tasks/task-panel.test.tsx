@@ -127,6 +127,7 @@ describe("adding a Task through the full form", () => {
     await userEvent.type(screen.getByRole("textbox", { name: /add a task/i }), "Pack for Vegas 1h");
 
     await userEvent.click(screen.getByRole("button", { name: "Full form" }));
+    await userEvent.click(screen.getByRole("button", { name: /^More/ }));
     const canSplit = screen.getByRole("switch", { name: "Can be split" });
     expect(canSplit.getAttribute("aria-checked")).toBe("false");
     await userEvent.click(canSplit);
@@ -137,13 +138,13 @@ describe("adding a Task through the full form", () => {
     await waitFor(() => expect(createTask).toHaveReturned());
   });
 
-  it("keeps the add line's text when the full form is cancelled", async () => {
+  it("keeps the add line's text on going Back from the full form", async () => {
     renderWithEditor();
     const line = screen.getByRole("textbox", { name: /add a task/i });
     await userEvent.type(line, "Pack for Vegas 1h");
 
     await userEvent.click(screen.getByRole("button", { name: "Full form" }));
-    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await userEvent.click(screen.getByRole("button", { name: "← Back to the week" }));
 
     expect(createTask).not.toHaveBeenCalled();
     expect(line).toHaveProperty("value", "Pack for Vegas 1h");

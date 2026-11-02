@@ -157,6 +157,9 @@ describe("the owner never sees the word Block", () => {
     await userEvent.click(screen.getByRole("button", { name: /^Board memo/ }));
     expect(screen.getByRole("form", { name: "Edit Task" })).toBeTruthy();
     expectTaskWords();
+    await userEvent.click(screen.getByRole("button", { name: /^More/ }));
+    expect(screen.getByText("Declined Times")).toBeTruthy();
+    expectTaskWords();
   });
 
   it("in Settings, with the shortest split piece open", async () => {

@@ -4,10 +4,15 @@
   animation: open var(--slow) var(--expo) both;
 }
 
-/* On a phone the editor replaces the whole page, so it takes the page's margins (see phone.module.css). */
+/*
+ * On a phone the editor replaces the whole page, so it takes the page's margins (see phone.module.css) and leaves
+ * room for the pinned Save. It only fades: while it rose, the Save inside it would be placed against it rather than
+ * the screen.
+ */
 @media (max-width: 639.98px) {
   .editor {
-    padding: var(--space-3) var(--space-4) var(--space-6);
+    padding: var(--space-3) var(--space-4) calc(112px + env(safe-area-inset-bottom, 0px));
+    animation-name: fade;
   }
 }
 
@@ -32,21 +37,22 @@
 .kicker {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: center;
   gap: var(--space-3);
   margin: 0 0 var(--space-3);
   padding-bottom: var(--space-2);
   border-bottom: var(--hairline) solid var(--ink);
+}
+
+.kicker h2 {
+  margin: 0;
   font: 600 var(--text-kicker) / 1.4 var(--font-sans);
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 
 .kicker :global(.link) {
-  letter-spacing: 0;
-  text-transform: none;
   font-size: var(--text-meta);
-  font-weight: 400;
 }
 
 .title {
@@ -76,43 +82,10 @@
   font-style: normal;
 }
 
-/* Labels and controls as two columns; on narrow widths the labels stack above their controls. */
-.fields {
-  display: grid;
-  grid-template-columns: 130px minmax(0, 1fr);
-  gap: var(--space-4) var(--space-5);
+/* The lines: see field-line.module.css. */
+.lines {
   margin: 0 0 var(--space-5);
-  padding-top: var(--space-4);
   border-top: var(--hairline) solid var(--rule);
-}
-
-.fields dt {
-  padding-top: var(--space-1);
-  color: var(--soft);
-  font-size: var(--text-kicker);
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-.fields dd {
-  margin: 0;
-}
-
-.fields :global(.field-error) {
-  margin: var(--space-1) 0 0;
-}
-
-@media (max-width: 640px) {
-  .fields {
-    /* minmax(0, …), not 1fr: a wide field (Safari's date fields are) mustn't widen the column past the screen. */
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--space-1);
-  }
-
-  .fields dd {
-    margin-bottom: var(--space-3);
-  }
 }
 
 .chips {
@@ -151,8 +124,7 @@
 }
 
 .chip[aria-pressed="true"],
-.chip[aria-checked="true"],
-.chip[data-pressed="true"] {
+.chip[aria-checked="true"] {
   border-color: var(--ink);
   background: var(--ink);
   color: var(--paper);
@@ -165,40 +137,49 @@
   color: var(--on-accent);
 }
 
-.chip input {
-  width: 64px;
+/* Where Other and Pick a date take their value. */
+.entry {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  /* Safari draws date fields wide: one this wide stays in its row rather than widening the page. */
+  max-width: 100%;
+  overflow: hidden;
+  justify-self: start;
+  padding: 3px 11px;
+  border: var(--hairline) solid var(--ink);
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+}
+
+.entry input {
+  min-width: 0;
+  width: 118px;
   border: 0;
   background: transparent;
   color: inherit;
   font: inherit;
 }
 
-.chip input:focus-visible {
+.entry input:focus-visible {
   outline: none;
 }
 
-.chip:focus-within {
+.entry:focus-within {
   outline: var(--focus-width) solid var(--accent);
   outline-offset: var(--focus-gap);
 }
 
-.chip input[type="date"] {
-  width: 118px;
-}
-
-.chip[data-pressed="true"] input {
-  color-scheme: dark;
-}
-
 .when {
   display: grid;
-  gap: 6px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
 }
 
 .time {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   gap: 6px;
   font-size: 13px;
 }
@@ -271,11 +252,74 @@
   border-color: var(--ink);
 }
 
-.buttons {
+/* What More holds, stacked. */
+.more {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: start;
+  gap: var(--space-3);
+}
+
+.moreField {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-1);
+  width: 100%;
+}
+
+.moreName {
+  color: var(--soft);
+  font-size: var(--text-kicker);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* Save: right below the fields, and on a phone pinned to the bottom of the screen, clear of its safe area. */
+.save {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2) var(--space-3);
+}
+
+.save p {
+  margin: 0;
+}
+
+@media (max-width: 639.98px) {
+  .save {
+    position: fixed;
+    z-index: 30;
+    inset: auto 0 0;
+    padding: var(--space-2) var(--space-4) calc(var(--space-2) + env(safe-area-inset-bottom, 0px));
+    border-top: var(--hairline) solid var(--rule);
+    background: var(--paper);
+  }
+
+  .save :global(.button) {
+    flex: 1 0 100%;
+    min-height: 44px;
+  }
+
+  /* Every line and choice a full-size touch target. */
+  .chip,
+  .entry input,
+  .time input,
+  .plain,
+  .switch {
+    min-height: 44px;
+  }
+
+  .entry {
+    padding-block: 0;
+  }
+
+  .chip,
+  .entry,
+  .switch {
+    font-size: var(--text-control);
+  }
 }
 
 /* Secondary buttons: outlined pills. */
@@ -310,10 +354,6 @@
   border-color: var(--accent);
 }
 
-.danger {
-  margin-left: auto;
-}
-
 /* "Delete it?" cross-fades in place of the button. */
 .confirm,
 .danger.plain {
@@ -322,6 +362,7 @@
 
 .confirm {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
   font-size: var(--text-meta);

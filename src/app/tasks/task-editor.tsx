@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { TaskListItem } from "@/core/commands";
-import { contextTag, type Context } from "@/core/contexts";
+import type { Context } from "@/core/contexts";
 import type { TaskFlag } from "@/core/scheduler";
 import type { Buffers } from "@/core/settings";
 import {
@@ -15,21 +15,56 @@ import {
   type TaskInput,
   validateTask,
 } from "@/core/tasks";
+import { addDays } from "@/core/time-zone";
 import { BufferChips } from "../buffer-chips";
 import { OFFLINE_REASON, useOnline } from "../states/use-online";
 import { createTask, deleteTask, updateTask } from "./actions";
-import { nextSevenDays, spanWords, weekdayName } from "./day-words";
+import { dateWords, spanWords } from "./day-words";
 import { DeclinedTimes } from "./declined-times";
-import { FlagText } from "./flags";
+import { FieldLine, MoreLine } from "./field-line";
+import { FLAG_LABELS, isAlarm } from "./flags";
 import type { ActOnTasks } from "./task-list";
 import styles from "./task-editor.module.css";
 
-const DURATIONS = [15, 30, 45, 60, 90, 120, 180, 240];
+const DURATIONS = [15, 30, 60, 120, 240];
 const chipStyles = { chips: styles.chips, chip: styles.chip };
 
+/** What can be open on the Task screen: one of these at a time, or nothing. */
+type Line = "howLong" | "due" | "earliestStart" | "priority" | "context" | "more";
+
+/** Where each field that can have a problem lives, in the order they appear. */
+const LINE_OF_FIELD: [keyof TaskErrors, Line][] = [
+  ["estimatedMinutes", "howLong"],
+  ["deadline", "due"],
+  ["earliestStart", "earliestStart"],
+  ["priority", "priority"],
+  ["contextId", "context"],
+  ["bufferBeforeMinutes", "more"],
+  ["bufferAfterMinutes", "more"],
+];
+
+/** The form's values as a string, to compare with what it opened with. A Buffer left out follows the default. */
+function formKey(input: TaskInput): string {
+  const { title, notes, estimatedMinutes, deadline, earliestStart, priority, splittable, contextId } = input;
+  const when = (value: DateOrDateTime | null) => value && [value.date, value.time];
+  return JSON.stringify([
+    title,
+    notes,
+    estimatedMinutes,
+    when(deadline),
+    when(earliestStart),
+    priority,
+    splittable,
+    contextId,
+    input.bufferBeforeMinutes ?? null,
+    input.bufferAfterMinutes ?? null,
+  ]);
+}
+
 /**
- * The full-page Task editor, shown in place of the calendar column: every field visible, Save and Cancel, and
- * for an existing Task its remaining time, flag, Declined Times and Delete. Saving goes through the Task commands.
+ * The full-page Task screen, shown in place of the calendar column: the title, then a short list of lines that each
+ * open to show their choices, with the rarely used fields in More. One form state holds every field, whichever lines
+ * are open, so Save always sends them all. Saving goes through the Task commands.
  */
 export function TaskEditor({
   task,
@@ -62,38 +97,52 @@ export function TaskEditor({
   onAdded?: () => void;
 }) {
   // A Task added without a Context goes to the Default Context, so its chip starts chosen.
-  const [input, setInput] = useState<TaskInput>({ ...initial, contextId: initial.contextId ?? contexts[0].id });
-  const tag = task && contextTag(contexts, task.contextId);
+  const [opened] = useState<TaskInput>({ ...initial, contextId: initial.contextId ?? contexts[0].id });
+  const [input, setInput] = useState<TaskInput>(opened);
   const [errors, setErrors] = useState<TaskErrors>({});
+  const [openLine, setOpenLine] = useState<Line | null>(null);
+  const [leaving, setLeaving] = useState(false);
   // Offline, the Task can be read but not saved or deleted.
   const online = useOnline();
-  const offlineTitle = online ? undefined : OFFLINE_REASON;
   const section = useRef<HTMLElement>(null);
 
   useEffect(() => {
     section.current?.scrollIntoView({ block: "nearest" });
   }, []);
 
-  /**
-   * An open Task's time left; while one of its past times waits for a Check-in, that time and "Finished?" instead,
-   * as its row says.
-   */
-  function left(open: TaskListItem): string {
-    const [waiting] = open.checkIns;
-    if (!waiting) return `${formatDuration(open.remainingMinutes)} left`;
-    return `${spanWords(waiting, today, timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone)} · Finished?`;
-  }
+  // A problem found on saving may be further down than the screen shows.
+  useEffect(() => {
+    if (Object.keys(errors).length === 0) return;
+    section.current?.querySelector(".field-error")?.scrollIntoView({ block: "center" });
+  }, [errors]);
 
   function update(change: Partial<TaskInput>) {
     setInput((current) => ({ ...current, ...change }));
+    setErrors((current) => {
+      const next = { ...current };
+      for (const field of Object.keys(change) as (keyof TaskInput)[]) delete next[field];
+      // An Earliest Start after the deadline is said on the Earliest Start, and either can put it right.
+      if ("deadline" in change) delete next.earliestStart;
+      return next;
+    });
   }
+
+  function lineProps(line: Line) {
+    return { open: openLine === line, onToggle: () => setOpenLine((current) => (current === line ? null : line)) };
+  }
+  const closeLine = () => setOpenLine(null);
 
   /** Saving shows the change in the list at once and closes the page; a refusal rolls it back with a toast. */
   function save(event: React.FormEvent) {
     event.preventDefault();
     if (!online) return;
     const invalid = validateTask(input);
-    if (invalid) return setErrors(invalid);
+    if (invalid) {
+      setErrors(invalid);
+      const first = LINE_OF_FIELD.find(([field]) => invalid[field]);
+      if (first) setOpenLine(first[1]);
+      return;
+    }
     onClose();
     // The saved row sweeps a highlighter and says "Saved"; a new Task's row arrives with its own sweep.
     if (task) onSaved(task.id);
@@ -119,15 +168,48 @@ export function TaskEditor({
     });
   }
 
+  function back() {
+    if (formKey(input) === formKey(opened)) onClose();
+    else setLeaving(true);
+  }
+
+  const waiting = task && !task.completedAt ? task.checkIns[0] : undefined;
+  const status = task?.completedAt
+    ? "Complete"
+    : waiting
+      ? `${spanWords(waiting, today, timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone)} · Finished?`
+      : null;
+  const shownFlag = task && !task.completedAt ? flag : null;
+  const declinedTimes = task && timeZone && !task.completedAt ? task.declinedTimes : [];
+  const context = contexts.find((c) => c.id === input.contextId) ?? contexts[0];
+  const ownBuffer = (input.bufferBeforeMinutes ?? null) !== null || (input.bufferAfterMinutes ?? null) !== null;
+  const summary = [
+    input.notes.trim() && "Notes",
+    input.splittable && "Can be split",
+    ownBuffer && "Buffer",
+    declinedTimes.length > 0 && "Declined Times",
+  ].filter((word): word is string => Boolean(word));
+
   return (
     // data-refresh-hold: a background refresh waits until the editor closes (see BackgroundRefresh).
     <section ref={section} className={styles.editor} aria-labelledby="task-editor-heading" data-refresh-hold>
-      <h2 id="task-editor-heading" className={styles.kicker}>
-        <span>{task ? "Task" : "New Task"}</span>
-        <button type="button" className="link" onClick={onClose}>
-          ← Back to the week
-        </button>
-      </h2>
+      <header className={styles.kicker}>
+        <h2 id="task-editor-heading">{task ? "Task" : "New Task"}</h2>
+        {leaving ? (
+          <span className={styles.confirm} role="group" aria-label="Confirm leaving">
+            <button type="button" className={styles.plain} data-danger onClick={onClose}>
+              Discard changes
+            </button>
+            <button type="button" className={styles.plain} onClick={() => setLeaving(false)} autoFocus>
+              Keep editing
+            </button>
+          </span>
+        ) : (
+          <button type="button" className="link" onClick={back}>
+            ← Back to the week
+          </button>
+        )}
+      </header>
       <form onSubmit={save} aria-label={task ? "Edit Task" : "New Task"}>
         <input
           className={styles.title}
@@ -139,217 +221,292 @@ export function TaskEditor({
           onChange={(e) => update({ title: e.target.value })}
         />
         {errors.title && <p className="field-error">{errors.title}</p>}
-        {task && (
+        {(status || shownFlag) && (
           <p className={styles.dek}>
-            {task.completedAt ? "Complete" : left(task)}
-            {tag && (
-              <>
-                {" · "}
-                <span className="context-tag">{tag}</span>
-              </>
-            )}
-            {flag && !task.completedAt && <FlagText flag={flag} />}
+            {status}
+            {status && shownFlag && " · "}
+            {shownFlag && (isAlarm(shownFlag) ? <em>{FLAG_LABELS[shownFlag]}</em> : FLAG_LABELS[shownFlag])}
           </p>
         )}
 
-        <dl className={styles.fields}>
-          <dt>How long</dt>
-          <dd>
-            <DurationField value={input.estimatedMinutes} onChange={(estimatedMinutes) => update({ estimatedMinutes })} />
-            {errors.estimatedMinutes && <p className="field-error">{errors.estimatedMinutes}</p>}
-          </dd>
+        <div className={styles.lines}>
+          <FieldLine
+            name="How long"
+            value={Number.isNaN(input.estimatedMinutes) ? "Not set" : formatDuration(input.estimatedMinutes)}
+            error={errors.estimatedMinutes}
+            {...lineProps("howLong")}
+          >
+            <DurationField
+              value={input.estimatedMinutes}
+              onChange={(estimatedMinutes) => update({ estimatedMinutes })}
+              onChosen={closeLine}
+            />
+          </FieldLine>
 
-          <dt>Due</dt>
-          <dd>
+          <FieldLine
+            name="Due"
+            value={input.deadline ? dateWords(input.deadline) : "No deadline"}
+            error={errors.deadline}
+            {...lineProps("due")}
+          >
             <WhenField
               label="Deadline"
               none="No deadline"
               value={input.deadline}
               today={today}
               onChange={(deadline) => update({ deadline })}
+              onChosen={closeLine}
             />
-            {errors.deadline && <p className="field-error">{errors.deadline}</p>}
-          </dd>
+          </FieldLine>
 
-          <dt>Earliest Start</dt>
-          <dd>
+          <FieldLine
+            name="Earliest Start"
+            value={input.earliestStart ? dateWords(input.earliestStart) : "Any time"}
+            error={errors.earliestStart}
+            {...lineProps("earliestStart")}
+          >
             <WhenField
               label="Earliest Start"
               none="Any time"
               value={input.earliestStart}
               today={today}
               onChange={(earliestStart) => update({ earliestStart })}
+              onChosen={closeLine}
             />
-            {errors.earliestStart && <p className="field-error">{errors.earliestStart}</p>}
-          </dd>
+          </FieldLine>
 
-          <dt>Priority</dt>
-          <dd>
-            <PriorityField value={input.priority} onChange={(priority) => update({ priority })} />
-            {errors.priority && <p className="field-error">{errors.priority}</p>}
-          </dd>
-
-          <dt>Context</dt>
-          <dd>
-            <ContextField contexts={contexts} value={input.contextId} onChange={(contextId) => update({ contextId })} />
-            {errors.contextId && <p className="field-error">{errors.contextId}</p>}
-          </dd>
-
-          <dt>Splitting</dt>
-          <dd>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={input.splittable}
-              className={styles.switch}
-              onClick={() => update({ splittable: !input.splittable })}
-            >
-              <span className={styles.track} aria-hidden>
-                <span className={styles.knob} />
-              </span>
-              Can be split
-            </button>
-          </dd>
-
-          <dt>Before</dt>
-          <dd>
-            <BufferChips
-              label="Buffer before"
-              classNames={chipStyles}
-              value={input.bufferBeforeMinutes ?? null}
-              fallback={defaultBuffers.before}
-              onChange={(bufferBeforeMinutes) => update({ bufferBeforeMinutes })}
+          <FieldLine
+            name="Priority"
+            value={PRIORITY_LABELS[input.priority]}
+            error={errors.priority}
+            {...lineProps("priority")}
+          >
+            <PriorityField
+              value={input.priority}
+              onChange={(priority) => {
+                update({ priority });
+                closeLine();
+              }}
             />
-            {errors.bufferBeforeMinutes && <p className="field-error">{errors.bufferBeforeMinutes}</p>}
-          </dd>
+          </FieldLine>
 
-          <dt>After</dt>
-          <dd>
-            <BufferChips
-              label="Buffer after"
-              classNames={chipStyles}
-              value={input.bufferAfterMinutes ?? null}
-              fallback={defaultBuffers.after}
-              onChange={(bufferAfterMinutes) => update({ bufferAfterMinutes })}
-            />
-            {errors.bufferAfterMinutes && <p className="field-error">{errors.bufferAfterMinutes}</p>}
-          </dd>
-
-          <dt>
-            <label htmlFor="task-notes">Notes</label>
-          </dt>
-          <dd>
-            <textarea
-              id="task-notes"
-              className={styles.notes}
-              rows={5}
-              value={input.notes}
-              onChange={(e) => update({ notes: e.target.value })}
-            />
-          </dd>
-
-          {task && timeZone && !task.completedAt && (
-            <>
-              <dt title="You deleted these times in Google, so this Task stays out of them">Declined Times</dt>
-              <dd>
-                {task.declinedTimes.length === 0 ? (
-                  <span className="muted">None</span>
-                ) : (
-                  <DeclinedTimes taskTitle={task.title} declinedTimes={task.declinedTimes} timeZone={timeZone} />
-                )}
-              </dd>
-            </>
+          {contexts.length > 1 && (
+            <FieldLine name="Context" value={context.name} error={errors.contextId} {...lineProps("context")}>
+              <ContextField
+                contexts={contexts}
+                value={input.contextId}
+                onChange={(contextId) => {
+                  update({ contextId });
+                  closeLine();
+                }}
+              />
+            </FieldLine>
           )}
-        </dl>
 
-        <div className={styles.buttons}>
-          <button className="button" type="submit" disabled={!online} title={offlineTitle}>
+          <MoreLine summary={summary} {...lineProps("more")}>
+            <div className={styles.more}>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={input.splittable}
+                className={styles.switch}
+                onClick={() => update({ splittable: !input.splittable })}
+              >
+                <span className={styles.track} aria-hidden>
+                  <span className={styles.knob} />
+                </span>
+                Can be split
+              </button>
+
+              <div className={styles.moreField}>
+                <span className={styles.moreName}>Before</span>
+                <BufferChips
+                  label="Buffer before"
+                  classNames={chipStyles}
+                  value={input.bufferBeforeMinutes ?? null}
+                  fallback={defaultBuffers.before}
+                  stored={opened.bufferBeforeMinutes ?? null}
+                  onChange={(bufferBeforeMinutes) => update({ bufferBeforeMinutes })}
+                />
+                {errors.bufferBeforeMinutes && <p className="field-error">{errors.bufferBeforeMinutes}</p>}
+              </div>
+
+              <div className={styles.moreField}>
+                <span className={styles.moreName}>After</span>
+                <BufferChips
+                  label="Buffer after"
+                  classNames={chipStyles}
+                  value={input.bufferAfterMinutes ?? null}
+                  fallback={defaultBuffers.after}
+                  stored={opened.bufferAfterMinutes ?? null}
+                  onChange={(bufferAfterMinutes) => update({ bufferAfterMinutes })}
+                />
+                {errors.bufferAfterMinutes && <p className="field-error">{errors.bufferAfterMinutes}</p>}
+              </div>
+
+              <div className={styles.moreField}>
+                <label className={styles.moreName} htmlFor="task-notes">
+                  Notes
+                </label>
+                <textarea
+                  id="task-notes"
+                  className={styles.notes}
+                  rows={3}
+                  value={input.notes}
+                  onChange={(e) => update({ notes: e.target.value })}
+                />
+              </div>
+
+              {task && timeZone && declinedTimes.length > 0 && (
+                <div className={styles.moreField}>
+                  <span className={styles.moreName} title="You deleted these times in Google, so this Task stays out of them">
+                    Declined Times
+                  </span>
+                  <DeclinedTimes taskTitle={task.title} declinedTimes={declinedTimes} timeZone={timeZone} />
+                </div>
+              )}
+
+              {task && <DeleteButton offline={!online} onDelete={remove} />}
+            </div>
+          </MoreLine>
+        </div>
+
+        <div className={styles.save}>
+          <button className="button" type="submit" disabled={!online} title={online ? undefined : OFFLINE_REASON}>
             {task ? "Save" : "Add Task"}
           </button>
-          <button type="button" className={styles.plain} onClick={onClose}>
-            Cancel
-          </button>
-          {task && <DeleteButton offline={!online} onDelete={remove} />}
+          {!online && <p className="muted">{OFFLINE_REASON}</p>}
         </div>
       </form>
     </section>
   );
 }
 
-function DurationField({ value, onChange }: { value: number; onChange: (minutes: number) => void }) {
-  const preset = DURATIONS.includes(value);
+/** The common lengths and Other, which shows the minutes: a stored length not on the list opens there, unchanged. */
+function DurationField({
+  value,
+  onChange,
+  onChosen,
+}: {
+  value: number;
+  onChange: (minutes: number) => void;
+  /** A length on the list was tapped. Typing under Other doesn't count: the line stays open for it. */
+  onChosen: () => void;
+}) {
+  const [other, setOther] = useState<"stored" | "tapped" | null>(DURATIONS.includes(value) ? null : "stored");
+  // What's typed, apart from the value, since typing may pass through a length on the list (30, on the way to 300).
+  const [typed, setTyped] = useState(other && !Number.isNaN(value) ? String(value) : "");
   return (
-    <div className={styles.chips} role="group" aria-label="Estimated duration">
-      {DURATIONS.map((minutes) => (
-        <button
-          key={minutes}
-          type="button"
-          className={styles.chip}
-          aria-pressed={value === minutes}
-          onClick={() => onChange(minutes)}
-        >
-          {formatDuration(minutes)}
+    <div className={styles.when}>
+      <div className={styles.chips} role="group" aria-label="Estimated duration">
+        {DURATIONS.map((minutes) => (
+          <button
+            key={minutes}
+            type="button"
+            className={styles.chip}
+            aria-pressed={!other && value === minutes}
+            onClick={() => {
+              onChange(minutes);
+              onChosen();
+            }}
+          >
+            {formatDuration(minutes)}
+          </button>
+        ))}
+        <button type="button" className={styles.chip} aria-pressed={other !== null} onClick={() => setOther("tapped")}>
+          Other
         </button>
-      ))}
-      <label className={styles.chip} data-pressed={!preset}>
-        <input
-          type="number"
-          min={15}
-          step={15}
-          value={preset || Number.isNaN(value) ? "" : value}
-          placeholder="other"
-          aria-label="Other duration in minutes"
-          onChange={(e) => onChange(e.target.valueAsNumber)}
-        />
-        {!preset && <span>min</span>}
-      </label>
+      </div>
+      {other && (
+        <label className={styles.entry}>
+          <input
+            type="number"
+            min={15}
+            step={15}
+            value={typed}
+            aria-label="Other duration in minutes"
+            autoFocus={other === "tapped"}
+            onChange={(e) => {
+              setTyped(e.target.value);
+              onChange(e.target.valueAsNumber);
+            }}
+          />
+          <span>min</span>
+        </label>
+      )}
     </div>
   );
 }
 
-/** "None", quick picks for the next seven days, a date picker for later, and an optional time once a day is set. */
+/**
+ * "None", Today, Tomorrow, and Pick a date for any other day, where a stored date beyond those opens, unchanged. Once
+ * a day is set, an optional time.
+ */
 function WhenField({
   label,
   none,
   value,
   today,
   onChange,
+  onChosen,
 }: {
   label: string;
   none: string;
   value: DateOrDateTime | null;
   today: string;
   onChange: (value: DateOrDateTime | null) => void;
+  /** A choice was tapped. Entering a date or time doesn't count: the line stays open for them. */
+  onChosen: () => void;
 }) {
-  const quick = nextSevenDays(today);
-  const picked = value !== null && !quick.includes(value.date);
+  const tomorrow = addDays(today, 1);
+  const [picking, setPicking] = useState<"stored" | "tapped" | null>(
+    value !== null && value.date !== today && value.date !== tomorrow ? "stored" : null,
+  );
   const pick = (date: string) => onChange({ date, time: value?.time ?? null });
+  const quick = (date: string, name: string) => (
+    <button
+      type="button"
+      className={styles.chip}
+      aria-pressed={!picking && value?.date === date}
+      onClick={() => {
+        pick(date);
+        onChosen();
+      }}
+    >
+      {name}
+    </button>
+  );
   return (
     <div className={styles.when} role="group" aria-label={label}>
       <div className={styles.chips}>
-        <button type="button" className={styles.chip} aria-pressed={value === null} onClick={() => onChange(null)}>
+        <button
+          type="button"
+          className={styles.chip}
+          aria-pressed={!picking && value === null}
+          onClick={() => {
+            onChange(null);
+            onChosen();
+          }}
+        >
           {none}
         </button>
-        {quick.map((date, n) => (
-          <button
-            key={date}
-            type="button"
-            className={styles.chip}
-            aria-pressed={value?.date === date}
-            onClick={() => pick(date)}
-          >
-            {n === 0 ? "Today" : n === 1 ? "Tomorrow" : weekdayName(date)}
-          </button>
-        ))}
-        <label className={styles.chip} data-pressed={picked}>
+        {quick(today, "Today")}
+        {quick(tomorrow, "Tomorrow")}
+        <button type="button" className={styles.chip} aria-pressed={picking !== null} onClick={() => setPicking("tapped")}>
+          Pick a date
+        </button>
+      </div>
+      {picking && (
+        <label className={styles.entry}>
           <input
             type="date"
             aria-label={`${label} date`}
-            value={picked ? value.date : ""}
+            value={value?.date ?? ""}
+            autoFocus={picking === "tapped"}
             onChange={(e) => (e.target.value ? pick(e.target.value) : onChange(null))}
           />
         </label>
-      </div>
+      )}
       {value && (
         <label className={styles.time}>
           at

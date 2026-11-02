@@ -3,7 +3,7 @@
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { deepWorkContext, taskItem, deferred, workContext } from "../testing/fixtures";
+import { taskItem, deferred, workContext } from "../testing/fixtures";
 import { renderGuarded } from "../testing/render";
 import { clearDeclinedTime, deleteTask, updateTask } from "./actions";
 import { TaskEditorSlot } from "./task-editor-slot";
@@ -67,6 +67,7 @@ describe("the full-page Task editor", () => {
     vi.mocked(updateTask).mockResolvedValue({ ok: true, task: { ...changed, splittable: false } });
     renderPage(changed);
     const editor = await openEditor();
+    await userEvent.click(editor.getByRole("button", { name: /^More/ }));
     const canSplit = editor.getByRole("switch", { name: "Can be split" });
     expect(canSplit.getAttribute("aria-checked")).toBe("true");
 
@@ -92,12 +93,13 @@ describe("the full-page Task editor", () => {
     expect(screen.queryByRole("button", { name: /^Annual plan/ })).toBeNull();
   });
 
-  it("cancels changes without saving", async () => {
+  it("leaves without saving when asked to discard changes", async () => {
     renderPage();
     const editor = await openEditor();
     await userEvent.clear(editor.getByRole("textbox", { name: "Title" }));
     await userEvent.type(editor.getByRole("textbox", { name: "Title" }), "Annual plan");
-    await userEvent.click(editor.getByRole("button", { name: "Cancel" }));
+    await userEvent.click(screen.getByRole("button", { name: "← Back to the week" }));
+    await userEvent.click(screen.getByRole("button", { name: "Discard changes" }));
     expect(screen.getByText("Calendar")).toBeTruthy();
     expect(screen.getByRole("button", { name: /^Write planning doc/ })).toBeTruthy();
     expect(updateTask).not.toHaveBeenCalled();
@@ -110,6 +112,7 @@ describe("the full-page Task editor", () => {
     renderPage();
     const editor = await openEditor();
 
+    await userEvent.click(editor.getByRole("button", { name: /^More/ }));
     await userEvent.click(editor.getByRole("button", { name: "Delete" }));
     await userEvent.click(within(editor.getByRole("group", { name: "Confirm delete" })).getByRole("button", { name: "Delete" }));
 
@@ -125,6 +128,7 @@ describe("the full-page Task editor", () => {
     vi.mocked(deleteTask).mockResolvedValue(undefined);
     const page = renderPage();
     const editor = await openEditor();
+    await userEvent.click(editor.getByRole("button", { name: /^More/ }));
     await userEvent.click(editor.getByRole("button", { name: "Delete" }));
     expect(editor.getByText("Delete it?")).toBeTruthy();
     await userEvent.click(editor.getByRole("button", { name: "Keep" }));
@@ -148,6 +152,7 @@ describe("the full-page Task editor", () => {
     vi.mocked(clearDeclinedTime).mockResolvedValue({ ok: true });
     renderPage({ ...task, declinedTimes: [{ id: 7, start: new Date("2026-10-27T10:00:00Z"), end: new Date("2026-10-27T11:00:00Z") }] });
     const editor = await openEditor();
+    await userEvent.click(editor.getByRole("button", { name: /^More/ }));
     expect(editor.getByText("Declined Times")).toBeTruthy();
     await userEvent.click(editor.getByRole("button", { name: /Clear the Declined Time.*for “Write planning doc”/ }));
     expect(clearDeclinedTime).toHaveBeenCalledWith(7);
@@ -156,6 +161,7 @@ describe("the full-page Task editor", () => {
   it("disables changes if the connection drops while deletion is being confirmed", async () => {
     renderPage({ ...task, declinedTimes: [{ id: 7, start: new Date("2026-10-27T10:00:00Z"), end: new Date("2026-10-27T11:00:00Z") }] });
     const editor = await openEditor();
+    await userEvent.click(editor.getByRole("button", { name: /^More/ }));
     await userEvent.click(editor.getByRole("button", { name: "Delete" }));
     Object.defineProperty(navigator, "onLine", { configurable: true, value: false });
     act(() => window.dispatchEvent(new Event("offline")));
@@ -166,7 +172,7 @@ describe("the full-page Task editor", () => {
     expect(editor.getByRole("button", { name: "Keep" })).toHaveProperty("disabled", false);
     await userEvent.click(editor.getByRole("button", { name: "Keep" }));
     expect(editor.getByRole("button", { name: "Delete" })).toHaveProperty("disabled", true);
-    await userEvent.click(editor.getByRole("button", { name: "Cancel" }));
+    await userEvent.click(screen.getByRole("button", { name: "← Back to the week" }));
     expect(screen.getByText("Calendar")).toBeTruthy();
     expect(deleteTask).not.toHaveBeenCalled();
     expect(clearDeclinedTime).not.toHaveBeenCalled();
@@ -191,15 +197,16 @@ describe("the full-page Task editor", () => {
     }
   });
 
-  it("offers the default and each step for the Buffers, and saves null for the default", async () => {
+  it("offers the default and the other steps for the Buffers, and saves null for the default", async () => {
     vi.mocked(updateTask).mockResolvedValue({ ok: true, task });
     renderPage({ ...task, bufferAfterMinutes: 30 });
     const editor = await openEditor();
+    await userEvent.click(editor.getByRole("button", { name: /^More/ }));
     const before = within(editor.getByRole("radiogroup", { name: "Buffer before" }));
     const after = within(editor.getByRole("radiogroup", { name: "Buffer after" }));
 
-    expect(before.getAllByRole("radio").map((c) => c.textContent)).toEqual(["Default (none)", "0", "15m", "30m", "45m", "1h"]);
-    expect(after.getAllByRole("radio").map((c) => c.textContent)).toEqual(["Default (15m)", "0", "15m", "30m", "45m", "1h"]);
+    expect(before.getAllByRole("radio").map((c) => c.textContent)).toEqual(["Default (none)", "15m", "30m", "45m", "1h"]);
+    expect(after.getAllByRole("radio").map((c) => c.textContent)).toEqual(["Default (15m)", "0", "30m", "45m", "1h"]);
     expect(before.getByRole("radio", { name: "Default (none)" }).getAttribute("aria-checked")).toBe("true");
     expect(after.getByRole("radio", { name: "30m" }).getAttribute("aria-checked")).toBe("true");
 
@@ -212,47 +219,5 @@ describe("the full-page Task editor", () => {
       expect.objectContaining({ bufferBeforeMinutes: 15, bufferAfterMinutes: null }),
     );
     await waitFor(() => expect(updateTask).toHaveReturned());
-  });
-});
-
-describe("a Task's Context in the editor", () => {
-  beforeEach(() => vi.mocked(updateTask).mockReset());
-
-  it("is a row of chips, one per Context, the Default Context first", async () => {
-    renderPage(task, [workContext, deepWorkContext]);
-    const editor = await openEditor();
-
-    const chips = within(editor.getByRole("radiogroup", { name: "Context" })).getAllByRole("radio");
-
-    expect(chips.map((c) => [c.textContent, c.getAttribute("aria-checked")])).toEqual([
-      ["Work", "true"],
-      ["Deep work", "false"],
-    ]);
-  });
-
-  it("moves the Task to the chosen Context when saved", async () => {
-    vi.mocked(updateTask).mockResolvedValue({ ok: true, task: { ...task, contextId: "deep" } });
-    renderPage(task, [workContext, deepWorkContext]);
-    const editor = await openEditor();
-
-    await userEvent.click(editor.getByRole("radio", { name: "Deep work" }));
-    await userEvent.click(editor.getByRole("button", { name: "Save" }));
-
-    expect(updateTask).toHaveBeenCalledWith("task-1", expect.objectContaining({ contextId: "deep" }));
-    await waitFor(() => expect(updateTask).toHaveReturned());
-  });
-
-  it("is named as a tag beside the time left, for a Context other than the default", async () => {
-    renderPage({ ...task, contextId: "deep" }, [workContext, deepWorkContext]);
-    const editor = await openEditor();
-
-    expect(editor.getByText(/^1h left/).textContent).toBe("1h left · Deep work");
-  });
-
-  it("isn't tagged for the Default Context", async () => {
-    renderPage(task, [workContext, deepWorkContext]);
-    const editor = await openEditor();
-
-    expect(editor.getByText(/^1h left/).textContent).toBe("1h left");
   });
 });

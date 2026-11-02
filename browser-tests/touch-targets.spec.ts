@@ -60,6 +60,70 @@ test("gives the phone's small controls a 44px tap area without overlapping", asy
   });
 });
 
+test("gives every line and choice on the Task screen a 44px tap area, with no sideways scroll", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await asPhone(page);
+    await page.goto("/settings");
+    await page.getByRole("button", { name: "+ Context" }).click();
+    const form = page.getByRole("form", { name: "New Context" });
+    await form.getByRole("textbox", { name: "Name" }).fill("Deep work");
+    await form.getByRole("button", { name: "Add" }).click();
+    await expect(page.getByRole("status")).toHaveText("Deep work added");
+
+    await page.goto("/");
+    await page.getByRole("tab", { name: "Tasks" }).click();
+    await page.getByRole("textbox", { name: "Add a Task" }).fill("Write a report 1h");
+    await page.getByRole("textbox", { name: "Add a Task" }).press("Enter");
+    await page.getByRole("button", { name: /^Write a report/ }).click();
+    const editor = page.getByRole("form", { name: "Edit Task" });
+    const line = (name: string) => editor.getByRole("button", { name: new RegExp(`^${name}, `) });
+
+    await expectTappable(page.getByRole("button", { name: "← Back to the week" }));
+    await expectTappable(editor.getByRole("button", { name: "Save" }));
+    await expectTappable(editor.getByRole("button", { name: /^More/ }));
+    for (const name of ["How long", "Due", "Earliest Start", "Priority", "Context"]) await expectTappable(line(name));
+
+    // Each line's choices, as it's opened.
+    const everyChoice = async (name: string, group: Locator, role: "button" | "radio") => {
+      await line(name).click();
+      const choices = await group.getByRole(role).all();
+      expect(choices.length, name).toBeGreaterThan(1);
+      for (const choice of choices) await expectTappable(choice);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth), name).toBeLessThanOrEqual(390);
+    };
+    await everyChoice("How long", editor.getByRole("group", { name: "Estimated duration" }), "button");
+    await editor.getByRole("button", { name: "Other" }).click();
+    await expectTappable(editor.getByRole("spinbutton", { name: "Other duration in minutes" }));
+    await everyChoice("Due", editor.getByRole("group", { name: "Deadline" }), "button");
+    await editor.getByRole("button", { name: "Pick a date" }).click();
+    await expectTappable(editor.getByLabel("Deadline date"));
+    await editor.getByLabel("Deadline date").fill("2026-01-20");
+    await expectTappable(editor.getByLabel("Deadline time (optional)"));
+    await everyChoice("Earliest Start", editor.getByRole("group", { name: "Earliest Start" }), "button");
+    await everyChoice("Priority", editor.getByRole("radiogroup", { name: "Priority" }), "radio");
+    await everyChoice("Context", editor.getByRole("radiogroup", { name: "Context" }), "radio");
+
+    await editor.getByRole("button", { name: /^More/ }).click();
+    await expectTappable(editor.getByRole("switch", { name: "Can be split" }));
+    for (const label of ["Buffer before", "Buffer after"]) {
+      for (const choice of await editor.getByRole("radiogroup", { name: label }).getByRole("radio").all()) {
+        await expectTappable(choice);
+      }
+    }
+    const remove = editor.getByRole("button", { name: "Delete", exact: true });
+    await remove.scrollIntoViewIfNeeded();
+    await expectTappable(remove);
+    await remove.click();
+    await expectTappable(remove);
+    await expectTappable(editor.getByRole("button", { name: "Keep" }));
+
+    await page.getByRole("button", { name: "← Back to the week" }).click();
+    await expectTappable(page.getByRole("button", { name: "Discard changes" }));
+    await expectTappable(page.getByRole("button", { name: "Keep editing" }));
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  });
+});
+
 test("gives a past time's line a 44px tap area for its Check-in", async ({ browser }) => {
   await withApp(browser, async (page) => {
     await asPhone(page);

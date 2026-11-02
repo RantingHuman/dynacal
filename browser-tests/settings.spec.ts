@@ -54,6 +54,7 @@ test("adds a Context on a phone, and places a Task moved into it only in its win
     await page.getByRole("textbox", { name: "Add a Task" }).press("Enter");
     await page.getByRole("button", { name: /^Write essay/ }).click();
     const editor = page.getByRole("form", { name: "Edit Task" });
+    await editor.getByRole("button", { name: /^Context, / }).click();
     await editor.getByRole("radio", { name: "Deep work" }).click();
     await editor.getByRole("button", { name: "Save", exact: true }).click();
 
