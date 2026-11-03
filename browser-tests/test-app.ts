@@ -5,7 +5,7 @@ import { constants } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { expect, type Browser, type Page } from "@playwright/test";
+import { expect, type Browser, type BrowserContextOptions, type Page } from "@playwright/test";
 
 async function freePort(): Promise<number> {
   const server = createServer();
@@ -38,19 +38,20 @@ const TIME_ZONE = "Europe/London";
  * Data the test runtime seeds before the test starts. "past-times": three one-hour Tasks whose times passed this
  * morning and wait for a Check-in (see `seedPastTimes` in test-runtime.ts). "started-time": a one-hour Task that
  * started at 08:30 (see `seedStartedTime`). "full-day": fourteen short Tasks today (see `seedFullDay`).
+ * "showcase": a representative week for the README's screenshots (see `seedShowcase`).
  */
-export type Seed = "past-times" | "started-time" | "full-day";
+export type Seed = "past-times" | "started-time" | "full-day" | "showcase";
 
 export async function withApp(
   browser: Browser,
   run: (page: Page, fixture: { calendarWrites: () => Promise<string> }) => Promise<void>,
-  { seed }: { seed?: Seed } = {},
+  { seed, contextOptions }: { seed?: Seed; contextOptions?: BrowserContextOptions } = {},
 ) {
   const build = process.env.DYNACAL_TEST_BUILD;
   if (!build) throw new Error("Test build was not prepared");
   const port = await freePort();
   const origin = `http://127.0.0.1:${port}`;
-  const context = await browser.newContext({ baseURL: origin, timezoneId: TIME_ZONE });
+  const context = await browser.newContext({ ...contextOptions, baseURL: origin, timezoneId: TIME_ZONE });
   const unexpectedRequests: string[] = [];
   await context.route("**/*", async (route) => {
     const url = route.request().url();
