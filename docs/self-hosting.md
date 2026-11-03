@@ -9,7 +9,7 @@ Each dynacal deployment belongs to one person: you. It runs as a single Docker c
 3. Open **Google Auth Platform** (formerly the OAuth consent screen) and configure it:
    - **Branding**: give the app a name (e.g. "dynacal") and your email as the support and developer contact.
    - **Audience**: choose **External**.
-   - **Data access**: add the scope `https://www.googleapis.com/auth/calendar` (listed as Google Calendar API, "See, edit, share, and permanently delete all the calendars you can access using Google Calendar"). dynacal uses it to read your Busy Calendars and, later, to write its Blocks to its own "dynacal" calendar.
+   - **Data access**: add the scope `https://www.googleapis.com/auth/calendar` (listed as Google Calendar API, "See, edit, share, and permanently delete all the calendars you can access using Google Calendar"). dynacal uses it to read your Busy Calendars and to write your Tasks' times to its own "dynacal" calendar.
 4. Under **Clients**, create a client of type **Web application**:
    - **Authorized redirect URIs**: add `<PUBLIC_BASE_URL>/api/auth/google/callback`, for example `https://dynacal.example.com/api/auth/google/callback`. For local use, add `http://localhost:3000/api/auth/google/callback`.
    - Copy the **client ID** and **client secret**.
@@ -22,6 +22,8 @@ dynacal uses web push for reminders. Generate a key pair once:
 ```bash
 npx web-push generate-vapid-keys
 ```
+
+Keep the same pair afterwards: browsers that already have reminders on are tied to it, and a new pair means switching reminders off and on again in each one.
 
 ## 3. Configure
 
@@ -65,20 +67,24 @@ The first time you sign in, dynacal walks you through setup:
 
 1. **Connect Google Calendar.** This is a second Google consent, separate from signing in, that grants calendar access. Connect the same `OWNER_EMAIL` account; any other account is refused. It uses the same redirect URI as sign-in, so there's nothing extra to register.
 2. **Choose your Busy Calendars**: the calendars whose Events dynacal plans around. Your primary calendar is suggested to start with; nothing counts as busy time until you confirm your choice.
-3. **Set your Working Hours and time zone.**
+3. **Confirm your time zone and hours.** The hours become your first Context, called Work, which every Task uses until you add others.
 
-You can change Busy Calendars, and whether Events marked "free" or all-day Events count as busy, under **Settings** at any time. If Google access stops working, choose **Reconnect** in Settings.
+Under **Settings** you can change your Busy Calendars, whether Events marked "free" or all-day Events count as busy, your Contexts, Buffers, the shortest piece a Task may be split into, and how long before a Task starts you're reminded. If Google access stops working, choose **Reconnect** in Settings.
 
-You can also adjust your Schedule from any Google Calendar app, by editing Blocks in the "dynacal" calendar:
+To get reminders, choose **Enable reminders** on the home page in each browser you use. On iPhone, add dynacal to your Home Screen first and open it from there; Safari in a normal tab can't receive them.
 
-- **Move or resize a Block** and dynacal pins it at its new time, just as dragging it in dynacal does.
-- **Delete a Block** and dynacal places its Task again wherever it fits, which may be the same time. The Task itself isn't deleted; to remove it, delete it in dynacal.
-- **Turn a Block into an all-day event** and dynacal treats it as deleted, and removes the all-day event from Google.
+You can also adjust your Schedule from any Google Calendar app, by editing your Tasks' times in the "dynacal" calendar:
+
+- **Move or resize a time** and dynacal pins it there, just as dragging it in dynacal does.
+- **Delete a time** and dynacal places its Task again wherever it fits, which may be the same time. The Task itself isn't deleted; to remove it, delete it in dynacal.
+- **Turn a time into an all-day event** and dynacal treats it as deleted, and removes the all-day event from Google.
 - **Title and description** edits are put back at the next sync; edit the Task in dynacal instead.
+
+Commitments go in your own calendars, not the dynacal one: dynacal only plans around Events in your Busy Calendars.
 
 ## 7. Instant sync (push notifications)
 
-dynacal rereads your Busy Calendars and the dynacal calendar every 5 minutes. On top of that, it can ask Google to notify it the moment something changes, so a new meeting or a Block you moved on your phone shows up within seconds.
+dynacal rereads your Busy Calendars and the dynacal calendar every 5 minutes. On top of that, it can ask Google to notify it the moment something changes, so a new meeting or a Task's time you moved on your phone shows up within seconds.
 
 Google only delivers these notifications to a **public `https://` address with a valid certificate** (not self-signed). So dynacal registers for them only when `PUBLIC_BASE_URL` starts with `https://`, and Google must be able to reach `<PUBLIC_BASE_URL>/api/google/calendar-notifications` from the internet. Behind a reverse proxy, make sure that path is passed through without any extra sign-in in front of it; dynacal checks every notification against a secret it shares only with Google.
 
@@ -96,4 +102,4 @@ pnpm install
 pnpm dev
 ```
 
-`pnpm dev` reads `.env` and stores data in `./data/dynacal.db`. Run the tests with `pnpm test`, and the type checker with `pnpm typecheck`.
+`pnpm dev` reads `.env` and stores data in `./data/dynacal.db`. Run the tests with `pnpm test`, and the type checker with `pnpm typecheck`. The README covers the browser tests.

@@ -2,15 +2,17 @@
 
 A self-hosted planner that turns your to-do list into a time-blocked schedule, fitted around what's already on your Google Calendar.
 
-You give dynacal Tasks, each with an estimated duration, a deadline and a Priority. It finds free time within your Working Hours, places Blocks for each Task (splitting a Task only when you allow it), and writes them to a dedicated "dynacal" calendar in your Google account, so your Schedule shows up in any Google Calendar app. When your calendar changes, it recalculates.
+You give dynacal Tasks, each with an estimated duration, a deadline and a Priority. It finds free time inside each Task's Context, gives each Task its time (splitting a Task only when you allow it), and writes those times to a dedicated "dynacal" calendar in your Google account, so your Schedule shows up in any Google Calendar app. When your calendar changes, it recalculates.
 
 ## Features
 
-- **Scheduling around your real calendar.** Pick the Busy Calendars whose Events count as busy time. dynacal plans around them and never edits them.
+- **Scheduling around your real calendar.** Pick the Busy Calendars whose Events count as busy time. dynacal plans around them and never edits them. Commitments are added in your own calendar, not in dynacal.
+- **Contexts.** Named weekly windows such as "Deep work: weekdays 08:00–11:00". Every Task belongs to one Context and is placed only inside its windows (see [ADR-0007](docs/adr/0007-contexts-replace-working-hours.md)). Buffers keep time free before and after Tasks and Events.
 - **Deadline-first, Priority-aware.** Tasks are placed earliest-deadline-first. When there isn't time for everything, the lower-Priority Task is the one that misses (see [ADR-0003](docs/adr/0003-deadline-first-priority-decides-misses.md)). Tasks that can't make their deadline are flagged At Risk.
-- **Hands-on when you want it.** Drag a Block to pin it, and Recalculation plans around it. You can also move, resize or delete Blocks from any Google Calendar app, and dynacal picks up the change.
-- **Review what happened.** After a Block's time passes, mark its work as done, not done or partly done. Remaining time is rescheduled.
-- **Reminders** through web push, a set lead time before each Block starts.
+- **Hands-on when you want it.** Drag a Task on the Schedule to pin it, and Recalculation plans around it. Tap it to mark it done, send it to tomorrow, or move it, even after its time has started. Move off today sends most of a day's Tasks on at once, and Undo puts things back. You can also move, resize or delete a Task's time from any Google Calendar app, and dynacal picks up the change.
+- **Check-ins.** Once a Task's time has passed, dynacal asks "Finished?": answer Finished, More time, Didn't start or Tomorrow, and it plans the rest (see [ADR-0006](docs/adr/0006-remaining-duration-is-what-the-owner-says.md)). Completed Tasks stay in the Task List for 7 days, folded under one line.
+- **Reminders** through web push, a set lead time before each Task starts. Switch them on in each browser you use; on iPhone, add dynacal to your Home Screen and open it from there first.
+- **Works offline.** Once reminders are on in a browser, it keeps a copy of the home page, so dynacal still opens without a connection and shows the Schedule as it last saw it.
 - **Instant sync** via Google push notifications when served over public HTTPS, with polling every 5 minutes as a fallback.
 - **Yours alone.** Each deployment serves one person, with their own Google OAuth client, and keeps all its data in one SQLite file (see [ADR-0001](docs/adr/0001-self-hosted-single-tenant.md)).
 
@@ -44,6 +46,8 @@ pnpm exec playwright install chromium
 pnpm test:browser
 ```
 
+`pnpm check` runs the type checker, the tests and the browser tests in one go.
+
 Each browser test starts its own isolated server with a throwaway database, a fake Google Calendar and a fake push sender, so it never touches real data or accounts ([ADR-0005](docs/adr/0005-isolated-browser-test-runtime.md), [browser-tests/README.md](browser-tests/README.md)). Real Google sign-in and sync, push delivery, installed-app behaviour on a phone, and reduced motion still need checking by hand.
 
 Stack: Next.js, React, SQLite via Drizzle, and a pure TypeScript scheduler with no I/O ([ADR-0004](docs/adr/0004-single-container-typescript-sqlite.md)).
@@ -53,7 +57,7 @@ Stack: Next.js, React, SQLite via Drizzle, and a pure TypeScript scheduler with 
 - `src/app/` holds the Next.js UI and API routes.
 - `drizzle/` holds database migrations. After changing `src/core/db/schema.ts`, generate a new one with `pnpm db:generate`.
 
-[GLOSSARY.md](GLOSSARY.md) defines the domain terms (Task, Block, Pinned Block, Busy Calendar and so on), and [docs/adr/](docs/adr/) records the main design decisions.
+[GLOSSARY.md](GLOSSARY.md) defines the domain terms (Task, Block, Context, Check-in, Busy Calendar and so on), and [docs/adr/](docs/adr/) records the main design decisions.
 
 ## License
 
