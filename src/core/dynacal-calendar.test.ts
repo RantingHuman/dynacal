@@ -65,6 +65,22 @@ describe("the dynacal calendar", () => {
     expect((await app.calendar.listCalendars()).map((c) => c.name)).toEqual(["Work", "dynacal"]);
   });
 
+  it("is created on the next sync if creating it failed on connecting", async () => {
+    const app = appInLondon();
+    vi.spyOn(app.calendar, "createCalendar").mockRejectedValueOnce(new Error("Google Calendar is unavailable"));
+    await expect(app.commands.connectGoogle(grant)).rejects.toThrow();
+    await app.commands.setBusyCalendars(["work"]);
+    createTask(app, { title: "Write report" });
+
+    await app.commands.syncEvents();
+
+    expect((await app.calendar.listCalendars()).map((c) => c.name)).toEqual(["Work", "dynacal"]);
+    const [dynacal] = (await app.calendar.listCalendars()).filter((c) => c.name === "dynacal");
+    expect((await app.calendar.listDynacalCalendarEvents(dynacal.id, { start: at("00:00"), end: at("23:59") })).map((e) => e.title)).toEqual([
+      "Write report",
+    ]);
+  });
+
   it("isn't offered as a Busy Calendar", async () => {
     const app = appInLondon();
     await app.commands.connectGoogle(grant);

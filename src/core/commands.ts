@@ -5,6 +5,7 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { and, eq, gt, gte, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import {
+  CalendarAuthError,
   type CalendarEvent,
   type CalendarGateway,
   type DynacalCalendarEventInGoogle,
@@ -41,6 +42,7 @@ import {
 import type { DayMoveUndo, MoveToDayResult, UndoDayMoveResult } from "./day-moves";
 import type { Db } from "./db";
 import {
+  forgetConnection,
   markBroken,
   markHealthy,
   readBusyCalendarsChosenAt,
@@ -987,10 +989,15 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     const problem = connectionProblem(getGoogleConnection());
     if (problem) return problem;
     return unlessRefused(async () => {
+      const calendars = await calendar.listCalendars();
       // Keeps names current after a rename in Google, and fills them in for Busy Calendars saved before names were.
-      saveBusyCalendarNames(await calendar.listCalendars());
+      saveBusyCalendarNames(calendars);
       const eventsChanged = await readEvents();
-      const recalculated = await onDynacalCalendar(() => updateDynacalCalendar(eventsChanged));
+      const recalculated = await onDynacalCalendar(async () => {
+        // Connecting may have failed to create the dynacal calendar; until it's there, no Block reaches Google.
+        if (dynacalCalendarId() === null) await ensureDynacalCalendar(calendars);
+        return updateDynacalCalendar(eventsChanged);
+      });
       return { ok: true, recalculated } as const;
     });
   }
@@ -1031,9 +1038,18 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     async connectGoogle(grant: GoogleGrant): Promise<ConnectGoogleResult> {
       const email = grant.email.trim().toLowerCase();
       if (email !== owner) return { ok: false, reason: "not-owner" };
+      const firstConnection = getGoogleConnection().status === "not-connected";
       saveGrant(db, email, grant, clock.now());
-      const calendars = await calendar.listCalendars();
-      // Google has answered, so the connection is healthy: reconnecting is how the owner mends a broken one.
+      let calendars: GoogleCalendar[];
+      try {
+        calendars = await calendar.listCalendars();
+      } catch (error) {
+        // A first connection Google didn't refuse, only failed to answer, was never connected: it isn't broken.
+        if (firstConnection && !(error instanceof CalendarAuthError)) forgetConnection(db);
+        throw error;
+      }
+      // Google has answered, so the connection is healthy: reconnecting is how the owner mends a broken one. If
+      // creating the dynacal calendar fails after this, the next sync creates it.
       markHealthy(db);
       await ensureDynacalCalendar(calendars);
       saveBusyCalendarNames(calendars);

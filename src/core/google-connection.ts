@@ -57,6 +57,11 @@ export function saveGrant(db: Writer, email: string, grant: GoogleGrant, now: Da
     .run();
 }
 
+/** Forgets the connection, tokens and all, as if Google was never connected. */
+export function forgetConnection(db: Pick<Db, "delete">): void {
+  db.delete(googleConnection).where(theRow).run();
+}
+
 export function markBroken(db: Writer, now: Date): void {
   db.update(googleConnection).set({ brokenAt: now }).where(theRow).run();
 }

@@ -217,4 +217,15 @@ describe("a passing Google failure", () => {
 
     expect(app.commands.getGoogleConnection().status).not.toBe("connected");
   });
+
+  it("on the first connection leaves Google not connected, rather than broken, since Google refused nothing", async () => {
+    const app = createTestApp();
+    app.calendar.addCalendar({ id: "work", name: "Work", primary: true });
+
+    app.calendar.failNextCall();
+    await expect(app.commands.connectGoogle(grant)).rejects.toThrow();
+
+    expect(app.commands.getGoogleConnection()).toEqual({ status: "not-connected" });
+    expect(app.commands.getSetupStatus().googleConnected).toBe(false);
+  });
 });
