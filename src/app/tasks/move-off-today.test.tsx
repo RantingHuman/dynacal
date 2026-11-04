@@ -165,8 +165,8 @@ describe("Move off today", () => {
 describe("choosing what moves", () => {
   const twoAndAPin = () =>
     renderPhone(
-      [taskItem({ id: "t1", title: "Board memo" }), taskItem({ id: "t2", title: "Call Sam" }), taskItem({ id: "t3", title: "Pinned one" })],
-      [at("t1", "Board memo", "15:00", "16:00"), at("t2", "Call Sam", "16:00", "16:30"), at("t3", "Pinned one", "17:00", "17:30", true)],
+      [taskItem({ id: "t1", title: "Board memo" }), taskItem({ id: "t2", title: "Call the plumber" }), taskItem({ id: "t3", title: "Pinned one" })],
+      [at("t1", "Board memo", "15:00", "16:00"), at("t2", "Call the plumber", "16:00", "16:30"), at("t3", "Pinned one", "17:00", "17:30", true)],
     );
 
   it("counts the ticks on the button as they change", async () => {
@@ -231,10 +231,10 @@ describe("moving", () => {
     renderPhone(
       [
         taskItem({ id: "t1", title: "Board memo" }),
-        taskItem({ id: "t2", title: "Call Sam" }),
+        taskItem({ id: "t2", title: "Call the plumber" }),
         taskItem({ id: "t3", title: "File invoices", deadline: { date: "2026-10-27", time: null } }),
       ],
-      [at("t1", "Board memo", "15:00", "16:00"), at("t2", "Call Sam", "16:00", "16:30"), at("t3", "File invoices", "17:00", "17:30")],
+      [at("t1", "Board memo", "15:00", "16:00"), at("t2", "Call the plumber", "16:00", "16:30"), at("t3", "File invoices", "17:00", "17:30")],
     );
   /** Where a moved Task ends up: the given day at 09:00. */
   const on = (id: string, date: string) => ({ id, nextStart: new Date(`${date}T09:00:00.000Z`) });
@@ -295,7 +295,7 @@ describe("moving", () => {
     vi.mocked(moveTasksToDay).mockResolvedValue(result);
     threeToday();
     await openList();
-    if ("moved" in result && result.moved.length === 1) await userEvent.click(row(/Call Sam/));
+    if ("moved" in result && result.moved.length === 1) await userEvent.click(row(/Call the plumber/));
 
     await userEvent.click(button(/^Move \d to tomorrow$/));
 

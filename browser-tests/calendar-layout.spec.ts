@@ -33,25 +33,39 @@ test("adds nothing when an empty spot on the calendar is clicked", async ({ brow
   });
 });
 
-test("gives a 30-minute Block's whole line to its title on desktop", async ({ browser }) => {
+test("gives a 15-minute Block's whole line to its title, at full size, on desktop", async ({ browser }) => {
   await withApp(browser, async (page) => {
-    await addTask(page, "Quick call with Priya about the Q4 plan 30m");
-    const block = page.getByRole("button", { name: /^Quick call with Priya about the Q4 plan, 09:00–09:30/ });
+    await addTask(page, "Quick call with the agency about the Q4 plan 15m");
+    const block = page.getByRole("button", { name: /^Quick call with the agency about the Q4 plan, 09:00–09:15/ });
     await expect(block).toBeVisible();
     await expectReadable(block, ".block-title");
+    expect(await block.locator(".block-title").evaluate((el) => getComputedStyle(el).fontSize)).toBe("15px");
     // Too short for two lines: the time is left to the grid position, the tooltip and the details label.
     await expect(block.locator(".block-time")).toHaveCount(0);
-    await expect(block).toHaveAttribute("title", /09:00–09:30/);
+    await expect(block).toHaveAttribute("title", /09:00–09:15/);
+    const check = await block.getByRole("button", { name: /^Mark/ }).boundingBox();
+    const outer = await block.boundingBox();
+    if (!check || !outer) throw new Error("Block has no check");
+    expect(check.y + check.height, "check inside the Block").toBeLessThanOrEqual(outer.y + outer.height + 0.5);
     // The title's text area runs right up to the round check, rather than stopping partway to make room for the
     // time. (Measure the area, not the text: a range reports an ellipsised title's full, unclipped width.)
     const titleRight = await block.locator(".block-title").evaluate((el) => {
       const style = getComputedStyle(el);
       return el.getBoundingClientRect().right - parseFloat(style.paddingRight) - parseFloat(style.borderRightWidth);
     });
-    const check = await block.getByRole("button", { name: /^Mark/ }).boundingBox();
-    if (!check) throw new Error("Block has no check");
     expect(titleRight, "title clear of the check").toBeLessThanOrEqual(check.x + 0.5);
     expect(titleRight, "title uses the line").toBeGreaterThan(check.x - 24);
+  });
+});
+
+test("keeps the title above the time on a 30-minute Block on desktop", async ({ browser }) => {
+  await withApp(browser, async (page) => {
+    await addTask(page, "Quick call 30m");
+    const block = page.getByRole("button", { name: /^Quick call, 09:00–09:30/ });
+    await expect(block).toBeVisible();
+    await expectReadable(block, ".block-title");
+    await expectReadable(block, ".block-time");
+    await expect(block.locator(".block-time")).toHaveText("09:00–09:30");
   });
 });
 

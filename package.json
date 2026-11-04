@@ -13,7 +13,8 @@
     "test:watch": "vitest",
     "test:browser": "node --test --test-reporter=dot browser-tests/isolation.test.cjs && node browser-tests/check-production.mjs && playwright test",
     "check": "pnpm typecheck && vitest run --reporter=dot && pnpm test:browser --reporter=dot",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "screenshots": "playwright test -c browser-tests/screenshots.config.ts"
   },
   "packageManager": "pnpm@9.1.4",
   "dependencies": {

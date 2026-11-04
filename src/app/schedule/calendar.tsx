@@ -62,7 +62,8 @@ export interface CalendarEvent {
 
 type View = "day" | "week";
 
-const HOUR_PX = 48;
+/** Tall enough that a 15-minute Task or Event (20px) fits its title at full size. */
+const HOUR_PX = 80;
 /**
  * Below this height a Block or Event can't fit its title above its time, so it shows only its title: the grid
  * position, the tooltip and the details label still give the time.

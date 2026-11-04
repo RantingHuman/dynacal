@@ -155,6 +155,7 @@
 }
 
 .dayNumber {
+  position: relative;
   font: 30px / 1 var(--font-serif);
   letter-spacing: 0;
 }
@@ -163,11 +164,12 @@
   color: var(--accent);
 }
 
+/* Under the date's number only, as wide as it, so it never runs under the day's name. */
 .daySquiggle {
   position: absolute;
-  left: 0;
-  bottom: -4px;
-  width: 30px;
+  left: -2px;
+  bottom: -5px;
+  width: calc(100% + 4px);
   height: 6px;
   /* The squiggle's units are half as tall as this one, so a 2.5px line is 5 of them. */
   --squiggle-stroke: 5;
@@ -298,6 +300,12 @@
  * A tab that isn't showing stays laid out but unseen and unreachable. Hidden with display: none, its animations would
  * start again each time it came back, so a Task ticked long ago would look as if it had just been ticked.
  */
+/* The Task List lines up with the Schedule, at the page's own margins. */
+.tabPanel > :global(.task-panel) {
+  padding-inline: 0;
+  border-bottom: 0;
+}
+
 .tabPanel[hidden] {
   display: block;
   position: absolute;

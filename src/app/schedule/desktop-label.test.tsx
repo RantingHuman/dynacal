@@ -19,7 +19,7 @@ const block: CalendarBlock = {
   start: "2026-10-27T10:00:00.000Z", end: "2026-10-27T12:00:00.000Z", pinned: false,
 };
 const event: CalendarEvent = {
-  id: "event-1", ref: { calendarId: "work", eventId: "event-1" }, title: "Lunch with Sam",
+  id: "event-1", ref: { calendarId: "work", eventId: "event-1" }, title: "Team lunch",
   calendarName: "Work", allDay: false, start: "2026-10-27T13:00:00.000Z", end: "2026-10-27T14:00:00.000Z",
   free: false, countsAsBusy: true, busyOverride: null,
 };
@@ -122,11 +122,11 @@ describe("desktop Block label", () => {
   });
 
   it("shows a refused move and stays open", async () => {
-    vi.mocked(moveBlock).mockResolvedValue({ ok: false, errors: { block: "That would overlap Lunch with Sam." } });
+    vi.mocked(moveBlock).mockResolvedValue({ ok: false, errors: { block: "That would overlap Team lunch." } });
     const close = renderBlock();
     await userEvent.click(screen.getByRole("button", { name: "Move" }));
     await userEvent.click(screen.getByRole("button", { name: "+15m" }));
-    expect((await screen.findByRole("alert")).textContent).toBe("That would overlap Lunch with Sam.");
+    expect((await screen.findByRole("alert")).textContent).toBe("That would overlap Team lunch.");
     expect(close).not.toHaveBeenCalled();
   });
 

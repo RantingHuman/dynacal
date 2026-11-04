@@ -493,7 +493,7 @@ input[type="checkbox"]:disabled {
 }
 
 /*
- * A Block or Event too short for two lines (under about 45 minutes) shows only its title, across the whole line.
+ * A Block or Event too short for two lines (under about 30 minutes) shows only its title, across the whole line.
  * Stacked with the time, the title shrank to a sliver; beside it, the title was cut to a few letters.
  */
 .block.compact,

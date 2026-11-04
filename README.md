@@ -4,6 +4,15 @@ A self-hosted planner that turns your to-do list into a time-blocked schedule, f
 
 You give dynacal Tasks, each with an estimated duration, a deadline and a Priority. It finds free time inside each Task's Context, gives each Task its time (splitting a Task only when you allow it), and writes those times to a dedicated "dynacal" calendar in your Google account, so your Schedule shows up in any Google Calendar app. When your calendar changes, it recalculates.
 
+<p align="center">
+  <img src="docs/screenshots/computer.png" alt="dynacal on a computer: the Task List beside the week's Schedule, with meetings and Tasks placed around them" width="100%">
+</p>
+<p align="center">
+  <img src="docs/screenshots/phone-schedule.png" alt="dynacal on a phone: today's Schedule, one Task asking Finished?" width="32%">
+  &nbsp;
+  <img src="docs/screenshots/phone-tasks.png" alt="dynacal on a phone: the Task List with Contexts and deadlines" width="32%">
+</p>
+
 ## Features
 
 - **Scheduling around your real calendar.** Pick the Busy Calendars whose Events count as busy time. dynacal plans around them and never edits them. Commitments are added in your own calendar, not in dynacal.
@@ -46,9 +55,9 @@ pnpm exec playwright install chromium
 pnpm test:browser
 ```
 
-`pnpm check` runs the type checker, the tests and the browser tests in one go.
+`pnpm check` runs the type checker, the tests and the browser tests in one go. `pnpm screenshots` retakes the screenshots above from sample data.
 
-Each browser test starts its own isolated server with a throwaway database, a fake Google Calendar and a fake push sender, so it never touches real data or accounts ([ADR-0005](docs/adr/0005-isolated-browser-test-runtime.md), [browser-tests/README.md](browser-tests/README.md)). Real Google sign-in and sync, push delivery, installed-app behaviour on a phone, and reduced motion still need checking by hand.
+Each browser test starts its own isolated server with a throwaway database, a fake Google Calendar and a fake push sender, so it never touches real data or accounts ([ADR-0005](docs/adr/0005-isolated-browser-test-runtime.md), [browser-tests/README.md](browser-tests/README.md)).
 
 Stack: Next.js, React, SQLite via Drizzle, and a pure TypeScript scheduler with no I/O ([ADR-0004](docs/adr/0004-single-container-typescript-sqlite.md)).
 

@@ -411,11 +411,11 @@ describe("the More section", () => {
     const editor = await openScreen();
 
     await userEvent.click(more(editor));
-    await userEvent.type(editor.getByRole("textbox", { name: "Notes" }), "Ask Sam");
+    await userEvent.type(editor.getByRole("textbox", { name: "Notes" }), "Ask the team");
     await userEvent.click(more(editor));
 
     expect(more(editor).textContent).toBe("More · Notes");
-    expect(await saved(editor)).toEqual(expect.objectContaining({ notes: "Ask Sam" }));
+    expect(await saved(editor)).toEqual(expect.objectContaining({ notes: "Ask the team" }));
   });
 
   it("closes an open line, as only one thing is open at a time", async () => {
@@ -958,7 +958,7 @@ describe("the When line", () => {
               {
                 id: "event-1",
                 ref: { calendarId: "work", eventId: "event-1" },
-                title: "Lunch with Sam",
+                title: "Team lunch",
                 calendarName: "Work",
                 allDay: false,
                 start: "2026-10-27T15:00:00.000Z",
@@ -978,7 +978,7 @@ describe("the When line", () => {
     const editor = await openScreen();
     await userEvent.click(editor.getByRole("button", { name: /^When, / }));
 
-    expect(screen.getByRole("alert").textContent).toContain("Lunch with Sam");
+    expect(screen.getByRole("alert").textContent).toContain("Team lunch");
   });
 
   it("a Task moved with Tomorrow keeps its new Earliest Start when what's typed is saved", async () => {

@@ -49,8 +49,11 @@ function DayHeading({ date, today, action }: { date: string; today: boolean; act
   return (
     <div className={styles.dayHead}>
       <h3 className={styles.dayHeading} data-today={today}>
-        <span className={styles.dayNumber}>{dateParts(date).day}</span> {weekdayName(date)}
-        {today && <Squiggle waves={3} className={styles.daySquiggle} />}
+        <span className={styles.dayNumber}>
+          {dateParts(date).day}
+          {today && <Squiggle waves={2} className={styles.daySquiggle} />}
+        </span>{" "}
+        {weekdayName(date)}
       </h3>
       {action}
     </div>
