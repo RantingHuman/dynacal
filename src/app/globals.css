@@ -493,26 +493,13 @@ input[type="checkbox"]:disabled {
 }
 
 /*
- * A Block or Event too short for two lines (under about 45 minutes) shows only its title, across the whole line.
+ * A Block or Event too short for two lines (under about 30 minutes) shows only its title, across the whole line.
  * Stacked with the time, the title shrank to a sliver; beside it, the title was cut to a few letters.
  */
 .block.compact,
 .event.compact {
   padding-top: 0.05rem;
   padding-bottom: 0;
-}
-
-/* Shorter still (a 15-minute Task or Event), the title is set smaller and centred in the height there is. */
-.block.tiny,
-.event.tiny {
-  justify-content: center;
-  padding-top: 0;
-}
-
-.block.tiny .block-title,
-.event.tiny .block-title {
-  font-size: var(--text-kicker);
-  line-height: 1;
 }
 
 /* Events: read-only busy time from Busy Calendars, drawn on card with a thin ink edge so they read differently from Blocks. */

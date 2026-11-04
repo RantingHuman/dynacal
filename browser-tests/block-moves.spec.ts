@@ -35,7 +35,7 @@ test("drags a Block on desktop and keeps the new time after reload", async ({ br
     if (!box) throw new Error("Block has no position");
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 24, { steps: 6 });
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 40, { steps: 6 });
     await page.mouse.up();
     await expect(page.getByText("Pinned at 09:30")).toBeVisible();
     await page.reload();
@@ -56,7 +56,7 @@ test("undoes a drag from its message", async ({ browser }) => {
     if (!box) throw new Error("Block has no position");
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 24, { steps: 6 });
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 40, { steps: 6 });
     await page.mouse.up();
     await expect(page.getByText("Pinned at 09:30.")).toBeVisible();
 
