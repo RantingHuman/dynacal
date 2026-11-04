@@ -891,8 +891,49 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
    * the Google connection is broken: Events may have changed unseen, so the last Schedule stands.
    */
   function recalculateAutomatically(): AutomaticRecalculationResult {
-    if (getGoogleConnection().status === "broken") return { ok: false, reason: "connection-broken" };
+    if (getGoogleConnection().status === "broken") {
+      refreshFlags();
+      return { ok: false, reason: "connection-broken" };
+    }
     return recalculate();
+  }
+
+  /**
+   * While Recalculation is paused, the flags still follow the Schedule as it stands, so a deadline passing makes a
+   * Task Overdue and a Task added meanwhile isn't shown as fine: every time that hasn't ended is held where it is,
+   * and nothing new is placed. Only the flags are saved.
+   */
+  function refreshFlags(): void {
+    const current = getSettings();
+    const { timeZone, minimumBlockMinutes, taskBuffers } = current;
+    if (timeZone === null) return;
+    const allContexts = commands.listContexts();
+    const now = clock.now();
+    db.transaction((tx) => {
+      const taskRows = tx.select().from(tasks).where(isNull(tasks.completedAt)).orderBy(tasks.createdAt, sql`rowid`).all();
+      const held = tx.select().from(blocks).where(gt(blocks.end, now)).all();
+      const result = schedule({
+        now,
+        timeZone,
+        contexts: allContexts,
+        minimumBlockMinutes,
+        planningHorizonDays: PLANNING_HORIZON_DAYS,
+        tasks: schedulerTasks({ taskRows, timeZone, contexts: allContexts, buffers: taskBuffers }),
+        // The whole Planning Horizon taken, so the flags describe only the times already there.
+        busy: [{ start: now, end: planningHorizonEnd(now) }],
+        pinnedBlocks: held,
+        startedBlocks: [],
+        awaitingBlocks: pastBlocks(tx, now).filter(awaitsCheckIn),
+        previousSchedule: [],
+      });
+      for (const row of taskRows) {
+        tx.update(tasks)
+          .set({ scheduleFlag: result.flags[row.id] ?? null })
+          .where(eq(tasks.id, row.id))
+          .run();
+      }
+    });
+    lastRecalculatedAt = now;
   }
 
   /**
@@ -904,7 +945,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     return result.reason === "connection-broken" ? { recalculationPaused: true } : { needsTimeZone: true };
   }
 
-  /** When the latest Recalculation ran, in this process. */
+  /** When the latest Recalculation ran, in this process, or the flags were refreshed while it's paused. */
   let lastRecalculatedAt: Date | null = null;
 
   /**

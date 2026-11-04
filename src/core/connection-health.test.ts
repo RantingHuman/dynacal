@@ -109,17 +109,47 @@ describe("a broken Google connection", () => {
     expect(blocks(app).map(([title]) => title)).toEqual(["Write report", "Plan offsite"]);
   });
 
-  it("pauses Recalculation as time passes", async () => {
+  it("pauses Recalculation as time passes, but still flags a Task Overdue once its deadline passes", async () => {
     const app = await connectedApp();
     const task = createTask(app, { deadline: { date: "2026-01-05", time: "12:00" } });
     app.calendar.breakConnection();
     await app.commands.syncEvents();
+    app.clock.set(at("10:30"));
+    app.commands.updateTask(task.id, { ...taskInput({ deadline: { date: "2026-01-05", time: "12:00" } }), estimatedMinutes: 120 });
 
     app.clock.set(at("12:05"));
     app.commands.recalculateAsTimePasses();
 
+    expect(blocks(app)).toEqual([["Write report", at("09:00"), at("10:00")]]);
     const view = app.commands.getSchedule();
-    expect(view.status === "ready" && view.flags[task.id]).toBeNull();
+    expect(view.status === "ready" && view.flags[task.id]).toBe("overdue");
+  });
+
+  it("flags a Task added while paused by the Schedule as it stands, which has no time for it", async () => {
+    const app = await connectedApp();
+    app.calendar.breakConnection();
+    await app.commands.syncEvents();
+
+    const due = createTask(app, { title: "Due Friday", deadline: { date: "2026-01-09", time: null } });
+    const someday = createTask(app, { title: "Someday" });
+
+    expect(blocks(app)).toEqual([]);
+    const view = app.commands.getSchedule();
+    expect(view.status === "ready" && [view.flags[due.id], view.flags[someday.id]]).toEqual(["unscheduled", "later"]);
+  });
+
+  it("flags a Task At Risk while paused once it needs more time than it has before its deadline", async () => {
+    const app = await connectedApp();
+    const task = createTask(app, { deadline: { date: "2026-01-05", time: "17:00" } });
+    app.calendar.breakConnection();
+    await app.commands.syncEvents();
+    app.clock.set(at("08:30"));
+
+    app.commands.updateTask(task.id, taskInput({ deadline: { date: "2026-01-05", time: "17:00" }, estimatedMinutes: 120 }));
+
+    expect(blocks(app)).toEqual([["Write report", at("09:00"), at("10:00")]]);
+    const view = app.commands.getSchedule();
+    expect(view.status === "ready" && view.flags[task.id]).toBe("at-risk");
   });
 
   it("still lets Tasks be edited and completed", async () => {
