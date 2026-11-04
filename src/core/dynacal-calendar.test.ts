@@ -464,3 +464,24 @@ describe("A moved Block in the dynacal calendar", () => {
     expect(app.calendar.blockEvent(eventId)).toEqual(["Write report", at("09:00"), at("10:00")]);
   });
 });
+
+describe("A past time in the dynacal calendar", () => {
+  it("is back in Google when a move to a day that took it is undone, so it asks Finished? again in both places", async () => {
+    const app = appInLondon();
+    const dynacal = await connect(app);
+    const task = createTask(app);
+    await app.commands.writeBlocksToGoogle();
+    app.clock.set(at("10:30"));
+    const moved = app.commands.moveTasksToDay([task.id], "2026-01-06");
+    if (!moved.ok || !("undo" in moved)) throw new Error("move failed");
+    await app.commands.writeBlocksToGoogle();
+
+    app.commands.undoDayMove(moved.undo);
+    await app.commands.writeBlocksToGoogle();
+
+    expect(app.calendar.blockEventsOn(dynacal)).toEqual([["Write report", at("09:00"), at("10:00"), 10]]);
+    app.calendar.writes = [];
+    await app.commands.writeBlocksToGoogle();
+    expect(app.calendar.writes).toEqual([]);
+  });
+});

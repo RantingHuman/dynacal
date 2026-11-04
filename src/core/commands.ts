@@ -641,6 +641,20 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         forget(written.eventId);
       }
     }
+    // A past time waiting for a Check-in whose event left Google, as when its Task moved to a day and the move was
+    // undone, is written again, so it stays in the dynacal calendar until it's answered.
+    const settled = db.select().from(blockEvents).where(eq(blockEvents.calendarId, calendarId)).all();
+    const waitingWithoutEvent = db
+      .select({ block: blocks, title: tasks.title })
+      .from(blocks)
+      .innerJoin(tasks, eq(blocks.taskId, tasks.id))
+      .where(and(lte(blocks.end, now), isNull(blocks.review), isNull(tasks.completedAt)))
+      .all()
+      .filter(({ block: b }) => !settled.some((e) => e.blockId === b.id || (e.taskId === b.taskId && e.start.getTime() === b.start.getTime())));
+    for (const { block, title } of waitingWithoutEvent) {
+      const event = { taskId: block.taskId, blockId: block.id, title, start: block.start, end: block.end, reminderMinutes: reminderLeadMinutes };
+      record(await calendar.createDynacalCalendarEvent(calendarId, blockCalendarEvent(block.taskId, event)), event);
+    }
   }
 
   /**
