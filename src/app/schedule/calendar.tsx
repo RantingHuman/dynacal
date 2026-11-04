@@ -62,6 +62,12 @@ export interface CalendarEvent {
 
 type View = "day" | "week";
 
+/**
+ * What's open over the calendar: a Block (its label while it hasn't ended, or its Check-in once it has and waits
+ * for one) or an Event's details. One value, so only one can be open.
+ */
+type Open = { kind: "block" | "event"; id: string } | null;
+
 /** Tall enough that a 15-minute Task or Event (20px) fits its title at full size. */
 const HOUR_PX = 80;
 /**
@@ -208,8 +214,7 @@ export function Calendar({
     return opening ? toZoned(new Date(opening.start), timeZone).date : today;
   });
   const [moving, startMoving] = useTransition();
-  const [editingId, setEditingId] = useState<string | null>(openBlockId ?? null);
-  const [openEventId, setOpenEventId] = useState<string | null>(null);
+  const [open, setOpen] = useState<Open>(openBlockId ? { kind: "block", id: openBlockId } : null);
   const [preview, setPreview] = useState<{ id: string; start: number; end: number; mode: DragMode } | null>(null);
   const [landing, setLanding] = useState<Landing | null>(null);
   /** Which way the grid last changed, so it slides (or fades) in; null until it first does. */
@@ -221,7 +226,6 @@ export function Calendar({
   const completedTasks = new Set(tasks.filter((t) => t.completedAt !== null).map((t) => t.id));
   // A Block that has ended and waits for a Check-in asks "Finished?"; its label answers.
   const checkIns = useScheduleCheckIns();
-  const [checkingInId, setCheckingInId] = useState<string | null>(null);
   const drag = useRef<Drag | null>(null);
   /**
    * Set when a drag ends, and cleared only once the click that follows it has been handled, so the end of a
@@ -253,11 +257,14 @@ export function Calendar({
 
   const conflictingBlocks = new Set(conflicts.map((c) => c.blockId));
   const conflictingEvents = new Set(conflicts.map((c) => c.eventId));
-  const editing = blocks.find((b) => b.id === editingId) ?? null;
-  const checkingIn = blocks.find((b) => b.id === checkingInId && checkIns.waiting.has(b.id)) ?? null;
+  const openBlock = open?.kind === "block" ? (blocks.find((b) => b.id === open.id) ?? null) : null;
+  const openEnded = openBlock !== null && new Date(openBlock.end).getTime() <= now;
+  const editing = openBlock && !openEnded ? openBlock : null;
+  const checkingIn = openBlock && openEnded && checkIns.waiting.has(openBlock.id) ? openBlock : null;
   const checkingInView = checkingIn && checkIns.waiting.get(checkingIn.id);
   const eventsById = new Map(events.map((e) => [e.id, e]));
-  const openEvent = openEventId === null ? null : (eventsById.get(openEventId) ?? null);
+  const openEvent = open?.kind === "event" ? (eventsById.get(open.id) ?? null) : null;
+  const openEventId = openEvent?.id ?? null;
   const shown = blocks.map((b) =>
     preview?.id === b.id ? { ...b, start: new Date(preview.start).toISOString(), end: new Date(preview.end).toISOString() } : b,
   );
@@ -369,16 +376,12 @@ export function Calendar({
     const ended = new Date(block.end).getTime() <= now;
     if (ended && !checkIns.waiting.has(block.id)) return;
     clearMessage();
-    setOpenEventId(null);
-    setEditingId(ended ? null : block.id);
-    setCheckingInId(ended ? block.id : null);
+    setOpen({ kind: "block", id: block.id });
   }
 
   function openEventDetails(event: CalendarEvent) {
     if (!online) return warn(OFFLINE_REASON);
-    setEditingId(null);
-    setCheckingInId(null);
-    setOpenEventId(event.id);
+    setOpen({ kind: "event", id: event.id });
   }
 
   /** What makes an Event clickable, and how it's marked when it has a Busy Override or its details are open. */
@@ -536,7 +539,7 @@ export function Calendar({
           block={editing}
           timeZone={timeZone}
           conflicts={eventsInConflict(editing.id, conflicts, events)}
-          onClose={() => setEditingId(null)}
+          onClose={() => setOpen(null)}
         />
       )}
 
@@ -547,7 +550,7 @@ export function Calendar({
           checkIn={checkingInView}
           timeZone={timeZone}
           answers={checkIns.answers}
-          onClose={() => setCheckingInId(null)}
+          onClose={() => setOpen(null)}
         />
       )}
 
@@ -556,7 +559,7 @@ export function Calendar({
           key={openEvent.id}
           event={openEvent}
           timeZone={timeZone}
-          onClose={() => setOpenEventId(null)}
+          onClose={() => setOpen(null)}
         />
       )}
 
