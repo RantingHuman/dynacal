@@ -146,6 +146,7 @@ export type { GoogleConnectionView, GoogleGrant } from "./google-connection";
 export type ConnectGoogleResult = { ok: true } | { ok: false; reason: "not-owner" };
 
 export interface SetupStatus {
+  /** Google is connected and healthy: not broken. */
   googleConnected: boolean;
   /** The owner has saved their Busy Calendars at least once (the primary calendar is only a suggestion until then). */
   busyCalendarsChosen: boolean;
@@ -1160,14 +1161,15 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
 
     /** First-run setup: connect Google (and choose Busy Calendars), then save the time zone and the hours that become Work. */
     getSetupStatus(): SetupStatus {
-      const googleConnected = getGoogleConnection().status !== "not-connected";
+      const { status } = getGoogleConnection();
       const chosen = busyCalendarsChosen();
       const timeZoneSaved = getSettings().timeZone !== null;
       return {
-        googleConnected,
+        googleConnected: status === "connected",
         busyCalendarsChosen: chosen,
         timeZoneSaved,
-        complete: googleConnected && chosen && timeZoneSaved,
+        // A connection broken since setup still counts: the home screen keeps the Schedule and says to reconnect.
+        complete: status !== "not-connected" && chosen && timeZoneSaved,
       };
     },
 
