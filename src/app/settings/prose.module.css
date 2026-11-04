@@ -351,6 +351,16 @@
   transform: translate(-50%, 0);
 }
 
+/* A failed save stays up, in the accent, with Try again to press. */
+.toast[data-failed] {
+  background: var(--accent);
+  pointer-events: auto;
+}
+
+.toastAction {
+  color: inherit;
+}
+
 @media (max-width: 860px) {
   .letter {
     padding-left: var(--space-4);

@@ -51,6 +51,44 @@ function useToast() {
   return { toast, show };
 }
 
+/** A save as you go that failed: what to say, and how to try it again. */
+interface FailedSave {
+  message: string;
+  retry: () => void;
+}
+
+/**
+ * The note after a save as you go. "Settings saved" fades after a moment; a save that failed stays said, with Try
+ * again, until that same save goes through, so a value on screen is never left unsaved without a word. Each saver
+ * has its own `key`.
+ */
+function useSaveNote() {
+  const { toast, show } = useToast();
+  const [failures, setFailures] = useState<ReadonlyMap<string, FailedSave>>(() => new Map());
+  function saved(key: string, message = "Settings saved") {
+    setFailures((current) => {
+      if (!current.has(key)) return current;
+      const next = new Map(current);
+      next.delete(key);
+      return next;
+    });
+    show(message);
+  }
+  function failed(key: string, message: string, retry: () => void) {
+    setFailures((current) => new Map(current).set(key, { message, retry }));
+  }
+  const failure = [...failures.values()].at(-1) ?? null;
+  return { toast, show, saved, failed, failure };
+}
+
+export type SaveNote = Pick<ReturnType<typeof useSaveNote>, "saved" | "failed">;
+
+/** Each try at a save as you go, counted, so Try again can run the save once more. */
+function useAttempts(): [number, () => void] {
+  const [attempt, setAttempt] = useState(0);
+  return [attempt, () => setAttempt((n) => n + 1)];
+}
+
 /**
  * Settings as "How dynacal plans for you": headed paragraphs of sentences whose underlined values open small
  * editors. There's no Save button: a change settles for a moment, then what's valid saves with a quiet toast.
@@ -71,7 +109,9 @@ export function SettingsProse({
   const [draft, setDraft] = useState(initial);
   const [saved, setSaved] = useState(initial);
   const [open, setOpen] = useState<OpenValue>(null);
-  const { toast, show } = useToast();
+  const note = useSaveNote();
+  const { toast, show, failure } = note;
+  const [attempt, retry] = useAttempts();
   const held = validateSettings(draft);
 
   useEffect(() => {
@@ -82,19 +122,19 @@ export function SettingsProse({
         const result = await saveSettings(save);
         if (result.ok) {
           setSaved(result.settings);
-          show("Settings saved");
+          note.saved("settings");
         } else {
           console.error("Settings refused:", result.errors);
-          show("Settings weren't saved. Please try again.");
+          note.failed("settings", "Settings weren't saved.", retry);
         }
       } catch (e) {
         console.error("Saving Settings failed:", e);
-        show("Settings weren't saved. Check your connection.");
+        note.failed("settings", "Settings weren't saved. Check your connection.", retry);
       }
     }, SETTLE_MS);
     return () => clearTimeout(timer);
-    // `show` only sets state, so it's safe to leave out.
-  }, [draft, saved]);
+    // `note` and `retry` only set state, so they're safe to leave out.
+  }, [draft, saved, attempt]);
 
   const update = (change: Partial<Settings>) => setDraft((d) => ({ ...d, ...change }));
   const toggleOpen = (id: string) => (o: boolean) => setOpen(o ? id : null);
@@ -107,7 +147,7 @@ export function SettingsProse({
     <>
       <h2 className={styles.kicker}>Your calendar</h2>
       {calendar.status === "connected" ? (
-        <YourCalendar view={calendar} open={open === "busy"} onOpenChange={toggleOpen("busy")} onSaved={show} />
+        <YourCalendar view={calendar} open={open === "busy"} onOpenChange={toggleOpen("busy")} note={note} />
       ) : (
         <div className={styles.prose}>
           <span className={styles.stack}>
@@ -138,6 +178,7 @@ export function SettingsProse({
           open={open}
           onOpen={setOpen}
           onSaved={show}
+          note={note}
         />
       ))}
       <NewContext contexts={contexts} open={open} onOpen={setOpen} onAdded={show} />
@@ -275,8 +316,17 @@ export function SettingsProse({
       </p>
       <p className={styles.muted}>Any single Event can still be overridden from its details.</p>
 
-      <div className={styles.toast} data-show={toast !== null} role="status">
-        {toast}
+      <div className={styles.toast} data-show={toast !== null || failure !== null} data-failed={failure !== null || undefined} role="status">
+        {failure ? (
+          <>
+            {failure.message}{" "}
+            <button type="button" className={`link ${styles.toastAction}`} onClick={failure.retry}>
+              Try again
+            </button>
+          </>
+        ) : (
+          toast
+        )}
       </div>
     </>
   );
@@ -293,6 +343,7 @@ function ContextParagraph({
   open,
   onOpen,
   onSaved,
+  note,
 }: {
   context: Context;
   /** Every Context, the Default Context first: a new name is checked against the others. */
@@ -300,13 +351,16 @@ function ContextParagraph({
   open: OpenValue;
   onOpen: (open: OpenValue) => void;
   onSaved: (message: string) => void;
+  note: SaveNote;
 }) {
   const [draft, setDraft] = useState(context.windows);
   const [saved, setSaved] = useState(context.windows);
+  const [attempt, retry] = useAttempts();
   const manage = useManageContext(context, contexts, onSaved);
   // Each Context's editors are told apart by its id: "<id>/hours:mon,tue".
   const prefix = `${context.id}/`;
 
+  const key = `context:${context.id}`;
   useEffect(() => {
     const { save } = windowsToSave(draft, saved);
     if (!save) return;
@@ -315,19 +369,19 @@ function ContextParagraph({
         const result = await saveContextWindows(context.id, save);
         if (result.ok) {
           setSaved(result.context.windows);
-          onSaved("Settings saved");
+          note.saved(key);
         } else {
           console.error("Context windows refused:", result);
-          onSaved("Settings weren't saved. Please try again.");
+          note.failed(key, `${context.name}'s hours weren't saved.`, retry);
         }
       } catch (e) {
         console.error("Saving Context windows failed:", e);
-        onSaved("Settings weren't saved. Check your connection.");
+        note.failed(key, `${context.name}'s hours weren't saved. Check your connection.`, retry);
       }
     }, SETTLE_MS);
     return () => clearTimeout(timer);
-    // `onSaved` only sets state, so it's safe to leave out.
-  }, [context.id, draft, saved]);
+    // `note` and `retry` only set state, so they're safe to leave out.
+  }, [context.id, draft, saved, attempt]);
 
   // Gone until the page reloads its Contexts without it.
   if (manage.deleted) return null;
@@ -618,12 +672,12 @@ function YourCalendar({
   view,
   open,
   onOpenChange,
-  onSaved,
+  note,
 }: {
   view: Extract<CalendarView, { status: "connected" }>;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSaved: (message: string) => void;
+  note: SaveNote;
 }) {
   const initial = () => new Set(view.calendars.filter((c) => c.busy).map((c) => c.id));
   const [chosen, setChosen] = useState<Set<string>>(initial);
@@ -636,13 +690,13 @@ function YourCalendar({
       if (result.ok) {
         setSaved(ids);
         setHeld(undefined);
-        onSaved("Settings saved");
+        note.saved("busy");
       } else {
         setHeld(result.errors.busyCalendars);
       }
     } catch (e) {
       console.error("Saving Busy Calendars failed:", e);
-      onSaved("Busy Calendars weren't saved. Check your connection.");
+      note.failed("busy", "Busy Calendars weren't saved. Check your connection.", () => save(ids));
     }
   }
 
