@@ -42,7 +42,7 @@ vi.mock("./settings/actions", () => ({
 }));
 
 // Now is Tuesday 27 October 2026, 14:00 London time. "Pack for vegas" was at 10:30 and waits for a Check-in;
-// "Print mystery machine" was at 08:00 and is answered; "Board memo" is pinned at 15:00, over Lunch with Sam.
+// "Print mystery machine" was at 08:00 and is answered; "Board memo" is pinned at 15:00, over Team lunch.
 const work = { id: "work", name: "Work", windows: DEFAULT_WINDOWS, isDefault: true };
 const NOW = "2026-10-27T14:00:00.000Z";
 const horizon = { start: NOW, end: "2026-11-10T14:00:00.000Z" };
@@ -59,7 +59,7 @@ const pinned: CalendarBlock = {
   start: "2026-10-27T15:00:00.000Z", end: "2026-10-27T16:00:00.000Z", pinned: true,
 };
 const lunch: CalendarEvent = {
-  id: "event-1", ref: { calendarId: "work", eventId: "event-1" }, title: "Lunch with Sam",
+  id: "event-1", ref: { calendarId: "work", eventId: "event-1" }, title: "Team lunch",
   calendarName: "Work", allDay: false, start: "2026-10-27T15:30:00.000Z", end: "2026-10-27T16:30:00.000Z",
   free: false, countsAsBusy: true, busyOverride: null,
 };

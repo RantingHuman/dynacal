@@ -81,9 +81,9 @@ function seedShowcase(commands: ReturnType<typeof createCommands>, clock: FakeCl
   const meetings: [string, string, string, string][] = [
     ["standup-mon", "Team stand-up", "2026-01-05T09:30", "2026-01-05T09:45"],
     ["review", "Design review", "2026-01-05T11:30", "2026-01-05T12:30"],
-    ["lunch", "Lunch with Priya", "2026-01-05T12:30", "2026-01-05T13:30"],
+    ["lunch", "Team lunch", "2026-01-05T12:30", "2026-01-05T13:30"],
     ["standup-tue", "Team stand-up", "2026-01-06T09:30", "2026-01-06T09:45"],
-    ["one-to-one", "1:1 with Sam", "2026-01-06T14:00", "2026-01-06T14:30"],
+    ["one-to-one", "Planning meeting", "2026-01-06T14:00", "2026-01-06T14:30"],
     ["dentist", "Dentist", "2026-01-07T16:00", "2026-01-07T17:00"],
   ];
   for (const [, title, startAt, endAt] of meetings) {

@@ -36,7 +36,7 @@ const block: CalendarBlock = {
 const lunch: CalendarEvent = {
   id: "event-1",
   ref: { calendarId: "work", eventId: "event-1" },
-  title: "Lunch with Sam",
+  title: "Team lunch",
   calendarName: "Work",
   allDay: false,
   start: "2026-10-27T11:00:00.000Z",
@@ -153,13 +153,13 @@ describe("the Block sheet on a phone", () => {
   });
 
   it("leaves the Task where it was and says why when the move is refused", async () => {
-    vi.mocked(moveBlock).mockResolvedValue({ ok: false, errors: { block: "That would overlap Lunch with Sam." } });
+    vi.mocked(moveBlock).mockResolvedValue({ ok: false, errors: { block: "That would overlap Team lunch." } });
     const onClose = renderSheet();
 
     await openMove();
     await userEvent.click(screen.getByRole("button", { name: "−15m" }));
 
-    await waitFor(() => expect(screen.getByText("That would overlap Lunch with Sam.")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("That would overlap Team lunch.")).toBeTruthy());
     expect(onClose).not.toHaveBeenCalled();
   });
 
@@ -219,7 +219,7 @@ describe("the Block sheet on a phone", () => {
       </WithTaskList>,
     );
 
-    expect(screen.getByRole("alert").textContent).toContain("Lunch with Sam");
+    expect(screen.getByRole("alert").textContent).toContain("Team lunch");
   });
 
   it("completes the Task with Done and closes", async () => {

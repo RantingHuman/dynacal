@@ -252,6 +252,20 @@
   }
 }
 
+/* In a Block too short for the full-size check, a smaller one is centred in its height. */
+:global(.tiny) > .check {
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin-top: -5px;
+  border-width: 1px;
+}
+
+:global(.tiny) > .check svg {
+  width: 7px;
+  height: 7px;
+}
+
 /* A Block with a check leaves room for it beside its title. */
 .hasCheck :global(.block-title) {
   padding-right: 16px;

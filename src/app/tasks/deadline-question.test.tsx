@@ -69,12 +69,12 @@ describe("the deadline question", () => {
   });
 
   it("asks one question covering several Tasks, naming each", async () => {
-    await ask(dueOn("2026-10-27"), dueOn("2026-10-28", null, "Call Sam"));
+    await ask(dueOn("2026-10-27"), dueOn("2026-10-28", null, "Call the plumber"));
 
     const question = screen.getByRole("alertdialog", { name: "2 Tasks due earlier. Move the due dates too?" });
     expect(within(question).getAllByRole("listitem").map((i) => i.textContent)).toEqual([
       "Write report, due today",
-      "Call Sam, due tomorrow",
+      "Call the plumber, due tomorrow",
     ]);
   });
 

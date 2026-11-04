@@ -35,8 +35,8 @@ test("adds nothing when an empty spot on the calendar is clicked", async ({ brow
 
 test("gives a 30-minute Block's whole line to its title on desktop", async ({ browser }) => {
   await withApp(browser, async (page) => {
-    await addTask(page, "Quick call with Priya about the Q4 plan 30m");
-    const block = page.getByRole("button", { name: /^Quick call with Priya about the Q4 plan, 09:00–09:30/ });
+    await addTask(page, "Quick call with the agency about the Q4 plan 30m");
+    const block = page.getByRole("button", { name: /^Quick call with the agency about the Q4 plan, 09:00–09:30/ });
     await expect(block).toBeVisible();
     await expectReadable(block, ".block-title");
     // Too short for two lines: the time is left to the grid position, the tooltip and the details label.

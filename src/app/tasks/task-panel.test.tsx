@@ -384,7 +384,7 @@ describe("a Later Task's row", () => {
 describe("a Task's Context on its row", () => {
   it("is a tag naming a Context other than the default, and nothing for the Default Context", () => {
     renderPanel(
-      [taskItem({ title: "Write essay", contextId: "deep" }), taskItem({ title: "Email Sam" })],
+      [taskItem({ title: "Write essay", contextId: "deep" }), taskItem({ title: "Email the landlord" })],
       {},
       [workContext, deepWorkContext],
     );

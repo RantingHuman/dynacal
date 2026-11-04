@@ -68,6 +68,8 @@ const HOUR_PX = 48;
  * position, the tooltip and the details label still give the time.
  */
 const TWO_LINE_PX = 36;
+/** Below this height (under about 25 minutes) even one title line at full size is cut off, so it's set smaller. */
+const ONE_LINE_PX = 20;
 
 /** Long enough for a landing's longest part, the drop's flash (--rise). */
 const LANDING_MS = 900;
@@ -628,11 +630,12 @@ export function Calendar({
                   `${event.title}, ${formatMinutes(top)}–${formatMinutes(bottom)} (Event${eventNotes(event)})`,
                 );
                 const compact = px(bottom) - px(top) < TWO_LINE_PX;
+                const tiny = px(bottom) - px(top) < ONE_LINE_PX;
                 return (
                   <div
                     key={`${event.id}-${day}`}
                     {...props}
-                    className={`event ${props.className}${compact ? " compact" : ""}`}
+                    className={`event ${props.className}${compact ? " compact" : ""}${tiny ? " tiny" : ""}`}
                     style={{ top: px(top), height: px(bottom) - px(top) }}
                   >
                     <span className="block-title">
@@ -659,6 +662,7 @@ export function Calendar({
                 const glide = glideOrder.get(block.displayKey);
                 const landed = landing?.id === block.id ? landing.kind : null;
                 const compact = px(bottom) - px(top) < TWO_LINE_PX;
+                const tiny = px(bottom) - px(top) < ONE_LINE_PX;
                 const classes = [
                   "block",
                   overEvent && detailStyles.besideEvent,
@@ -671,6 +675,7 @@ export function Calendar({
                   glide !== undefined && styles.glide,
                   completedTasks.has(block.taskId) && styles.done,
                   compact && "compact",
+                  tiny && "tiny",
                 ].filter(Boolean);
                 // Only a Block's first part carries its name: a name must be unique on the page.
                 const first = toZoned(new Date(block.start), timeZone).date === day;
