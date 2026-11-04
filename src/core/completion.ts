@@ -33,11 +33,12 @@ export interface WhereItWent {
 
 /**
  * After Didn't start, says where the Task went. While Automatic Recalculation is paused (the Google connection is
- * broken) it isn't placed at all: `recalculationPaused`.
+ * broken) it isn't placed at all: `recalculationPaused`. Nor is it without a time zone: `needsTimeZone`.
  */
 export type CheckInResult =
   | ({ ok: true } & Partial<WhereItWent>)
   | { ok: true; recalculationPaused: true }
+  | { ok: true; needsTimeZone: true }
   | { ok: false; notFound: true }
   | { ok: false; errors: { block?: string; minutes?: string } };
 

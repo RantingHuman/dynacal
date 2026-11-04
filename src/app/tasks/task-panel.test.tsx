@@ -625,7 +625,7 @@ describe("a Task waiting for a Check-in", () => {
   });
 
   describe("answered Tomorrow", () => {
-    const undo = { tasks: [{ id: "t1", earliestStart: null, deadline: null, times: [], waiting: [] }] };
+    const undo = { tasks: [{ id: "t1", earliestStart: null, deadline: null, movedTo: { earliestStart: { date: "2026-10-28", time: null }, deadline: null }, times: [], waiting: [] }] };
     const moved = {
       ok: true as const,
       undo,
@@ -679,7 +679,7 @@ describe("a Task waiting for a Check-in", () => {
 
       await userEvent.click(await screen.findByRole("button", { name: "Undo" }));
 
-      expect(await screen.findByText("Not moved back: it's completed or deleted.")).toBeTruthy();
+      expect(await screen.findByText("Not moved back: it's changed since.")).toBeTruthy();
     });
 
     it("asks about a Task due before tomorrow, and Move both moves its due date too", async () => {

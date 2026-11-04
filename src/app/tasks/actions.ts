@@ -86,6 +86,7 @@ const dayMoveUndoSchema = z.strictObject({
       id: z.string(),
       earliestStart: dateOrDateTimeSchema,
       deadline: dateOrDateTimeSchema,
+      movedTo: z.strictObject({ earliestStart: dateOrDateTimeSchema.unwrap(), deadline: dateOrDateTimeSchema }),
       times: z.array(movedOffTimeSchema),
       waiting: z.array(movedOffTimeSchema),
     }),

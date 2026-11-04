@@ -186,6 +186,16 @@ describe("answering a Check-in Didn't start", () => {
     expect(commands.getSchedule()).toMatchObject({ flags: { [task.id]: "later" } });
   });
 
+  it("says the Task isn't placed for want of a time zone, not because Google needs reconnecting", () => {
+    const { commands, clock } = appInLondon();
+    const task = createTask(commands);
+    at(clock, "2026-01-05T10:05:00Z");
+    const blockId = firstCheckIn(commands, task.id).blockId;
+    commands.updateSettings({ timeZone: null });
+
+    expect(commands.checkIn(blockId, { answer: "didnt-start" })).toEqual({ ok: true, needsTimeZone: true });
+  });
+
   it("keeps a Task whose deadline has passed Overdue, and still places it", () => {
     const { commands, clock } = appInLondon();
     const task = createTask(commands, { deadline: { date: "2026-01-05", time: "12:00" } });

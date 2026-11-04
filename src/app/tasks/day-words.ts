@@ -55,14 +55,18 @@ export function spanWords(span: { start: Date; end: Date }, today: string, timeZ
 /** What a move says while Recalculation is paused, so the Task wasn't placed anywhere. */
 export const NOT_PLACED_WORDS = "Not placed yet: planning is paused until you reconnect Google";
 
+/** What a move says when there's no time zone yet, so there's no Schedule to place the Task in. */
+export const NEEDS_TIME_ZONE_WORDS = "Not placed yet: set your time zone in Settings";
+
 /**
- * What Undo of a move to a day says. Tasks completed or deleted since the move are left alone, so aren't called moved
- * back; while Recalculation is paused it says what the move itself says.
+ * What Undo of a move to a day says. Tasks changed since the move (completed, deleted, edited or pinned) are left
+ * alone, so aren't called moved back; while Recalculation is paused it says what the move itself says.
  */
-export function movedBackWords({ skipped, recalculationPaused }: UndoDayMoveResult, count: number): string {
-  if (skipped > 0 && skipped === count) return `Not moved back: ${count === 1 ? "it's" : "they're"} completed or deleted.`;
+export function movedBackWords({ skipped, recalculationPaused, needsTimeZone }: UndoDayMoveResult, count: number): string {
+  if (skipped > 0 && skipped === count) return `Not moved back: ${count === 1 ? "it's" : "they've"} changed since.`;
   if (recalculationPaused) return NOT_PLACED_WORDS;
-  return skipped > 0 ? `Moved back ${count - skipped}. ${skipped} completed or deleted.` : "Moved back";
+  if (needsTimeZone) return NEEDS_TIME_ZONE_WORDS;
+  return skipped > 0 ? `Moved back ${count - skipped}. ${skipped} changed since.` : "Moved back";
 }
 
 /**

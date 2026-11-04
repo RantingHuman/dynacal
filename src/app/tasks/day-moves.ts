@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { MoveToDayResult } from "@/core/day-moves";
 import { addDays } from "@/core/time-zone";
 import { moveTasksToDay, undoDayMove } from "./actions";
-import { movedBackWords, movedManyToDayWords, movedToDayWords, NOT_PLACED_WORDS, todayIn, zoneOrBrowser } from "./day-words";
+import { movedBackWords, movedManyToDayWords, movedToDayWords, NEEDS_TIME_ZONE_WORDS, NOT_PLACED_WORDS, todayIn, zoneOrBrowser } from "./day-words";
 import { useTaskList } from "./task-list";
 
 /** A Task to move. */
@@ -13,6 +13,7 @@ type TaskToMove = { id: string; title: string };
 /** What the message says about a move that was made. */
 function movedMessage(result: MoveToDayResult & { ok: true }, today: string, timeZone: string): string {
   if ("recalculationPaused" in result) return NOT_PLACED_WORDS;
+  if ("needsTimeZone" in result) return NEEDS_TIME_ZONE_WORDS;
   const [first] = result.moved;
   return result.moved.length === 1
     ? movedToDayWords(first.nextStart, first.later === true, today, timeZone)

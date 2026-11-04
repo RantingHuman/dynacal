@@ -260,11 +260,12 @@ describe("moving", () => {
 
   it.each<[string, UndoDayMoveResult, string]>([
     ["planning paused, in the forward move's words", { ok: true, skipped: 0, recalculationPaused: true }, NOT_PLACED_WORDS],
-    ["one completed meanwhile", { ok: true, skipped: 1 }, "Moved back 1. 1 completed or deleted."],
-    ["all completed meanwhile", { ok: true, skipped: 2 }, "Not moved back: they're completed or deleted."],
-    ["all completed, with planning paused too", { ok: true, skipped: 2, recalculationPaused: true }, "Not moved back: they're completed or deleted."],
+    ["no time zone, so nothing placed", { ok: true, skipped: 0, needsTimeZone: true }, "Not placed yet: set your time zone in Settings"],
+    ["one completed meanwhile", { ok: true, skipped: 1 }, "Moved back 1. 1 changed since."],
+    ["all completed meanwhile", { ok: true, skipped: 2 }, "Not moved back: they've changed since."],
+    ["all completed, with planning paused too", { ok: true, skipped: 2, recalculationPaused: true }, "Not moved back: they've changed since."],
   ])("Undo says what happened: %s", async (_, result, words) => {
-    const forTwo = (id: string) => ({ id, earliestStart: null, deadline: null, times: [], waiting: [] });
+    const forTwo = (id: string) => ({ id, earliestStart: null, deadline: null, movedTo: { earliestStart: { date: "2026-10-28", time: null }, deadline: null }, times: [], waiting: [] });
     vi.mocked(moveTasksToDay).mockResolvedValue({
       ok: true,
       undo: { tasks: [forTwo("t1"), forTwo("t2")] },

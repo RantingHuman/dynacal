@@ -373,6 +373,10 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     };
   }
 
+  function sameDateOrDateTime(a: DateOrDateTime | null, b: DateOrDateTime | null): boolean {
+    return a?.date === b?.date && (a?.time ?? null) === (b?.time ?? null);
+  }
+
   /** Blocks that have ended. */
   function pastBlocks(tx: Pick<Db, "select">, now: Date) {
     return tx.select().from(blocks).where(lte(blocks.end, now)).all();
@@ -889,6 +893,15 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
   function recalculateAutomatically(): AutomaticRecalculationResult {
     if (getGoogleConnection().status === "broken") return { ok: false, reason: "connection-broken" };
     return recalculate();
+  }
+
+  /**
+   * Why an automatic Recalculation didn't place anything, as a command result says it: paused while the Google
+   * connection is broken, or no time zone yet. Empty when it ran.
+   */
+  function notPlaced(result: AutomaticRecalculationResult): { recalculationPaused: true } | { needsTimeZone: true } | null {
+    if (result.ok) return null;
+    return result.reason === "connection-broken" ? { recalculationPaused: true } : { needsTimeZone: true };
   }
 
   /** When the latest Recalculation ran, in this process. */
@@ -1452,7 +1465,8 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         }
         case "didnt-start":
           db.delete(blocks).where(eq(blocks.id, blockId)).run();
-          if (!recalculateAutomatically().ok) return { ok: true, recalculationPaused: true };
+          const why = notPlaced(recalculateAutomatically());
+          if (why) return { ok: true, ...why };
           return { ok: true, ...whereItWent(found.block.taskId) };
       }
       recalculateAutomatically();
@@ -1501,10 +1515,12 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
             })
             .where(eq(tasks.id, row.id))
             .run();
-          return { id: row.id, earliestStart: oldEarliestStart, deadline, times, waiting: answered };
+          const movedTo = { earliestStart, deadline: movesDeadline ? earliestStart : deadline };
+          return { id: row.id, earliestStart: oldEarliestStart, deadline, movedTo, times, waiting: answered };
         }),
       }));
-      if (!recalculateAutomatically().ok) return { ok: true, undo, recalculationPaused: true };
+      const why = notPlaced(recalculateAutomatically());
+      if (why) return { ok: true, undo, ...why };
       return {
         ok: true,
         undo,
@@ -1520,7 +1536,23 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       const now = clock.now();
       let skipped = 0;
       db.transaction((tx) => {
-        for (const { id, earliestStart, deadline, times, waiting } of undo.tasks) {
+        for (const { id, earliestStart, deadline, movedTo, times, waiting } of undo.tasks) {
+          // A Task changed since the move keeps that change: putting the old times back would quietly undo it.
+          const current = tx.select().from(tasks).where(and(eq(tasks.id, id), isNull(tasks.completedAt))).get();
+          const pinnedSince = tx
+            .select({ id: blocks.id })
+            .from(blocks)
+            .where(and(eq(blocks.taskId, id), gt(blocks.end, now), eq(blocks.pinned, true)))
+            .get();
+          if (
+            !current ||
+            pinnedSince ||
+            !sameDateOrDateTime(toTask(current).earliestStart, movedTo.earliestStart) ||
+            !sameDateOrDateTime(toTask(current).deadline, movedTo.deadline)
+          ) {
+            skipped += 1;
+            continue;
+          }
           const row = tx
             .update(tasks)
             .set({
@@ -1544,7 +1576,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
           }
         }
       });
-      return recalculateAutomatically().ok ? { ok: true, skipped } : { ok: true, skipped, recalculationPaused: true };
+      return { ok: true, skipped, ...notPlaced(recalculateAutomatically()) };
     },
 
     /**
