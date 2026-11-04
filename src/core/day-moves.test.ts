@@ -305,6 +305,37 @@ describe("undoing a move to a day", () => {
     expect(app.commands.undoDayMove(undo)).toEqual({ ok: true, skipped: 1 });
   });
 
+  it("leaves alone a Task whose deadline was changed since the move, rather than putting the old one back", () => {
+    const app = appInLondon();
+    const task = createTask(app, { deadline: { date: "2026-01-09", time: null } });
+    const { undo } = moved(app, [task.id], TUESDAY);
+    const changed = { ...listed(app, task.id), deadline: { date: "2026-01-16", time: null } };
+    app.commands.updateTask(task.id, changed);
+
+    expect(app.commands.undoDayMove(undo)).toEqual({ ok: true, skipped: 1 });
+    expect(listed(app, task.id).deadline).toEqual({ date: "2026-01-16", time: null });
+    expect(listed(app, task.id).earliestStart).toEqual({ date: TUESDAY, time: null });
+  });
+
+  it("leaves alone a Task pinned at a new time since the move, rather than taking that time away", () => {
+    const app = appInLondon();
+    const task = createTask(app);
+    const { undo } = moved(app, [task.id], TUESDAY);
+    pin(app, task.id, "2026-01-06T14:00:00Z", "2026-01-06T15:00:00Z");
+
+    expect(app.commands.undoDayMove(undo)).toEqual({ ok: true, skipped: 1 });
+    expect(timesOf(app, task.id)).toEqual([["2026-01-06T14:00:00.000Z", "2026-01-06T15:00:00.000Z", true]]);
+  });
+
+  it("still moves back a Task whose deadline the move itself brought to the day", () => {
+    const app = appInLondon();
+    const task = createTask(app, { deadline: { date: "2026-01-05", time: "17:00" } });
+    const { undo } = moved(app, [task.id], TUESDAY, { moveDeadlines: true });
+
+    expect(app.commands.undoDayMove(undo)).toEqual({ ok: true, skipped: 0 });
+    expect(listed(app, task.id).deadline).toEqual({ date: "2026-01-05", time: "17:00" });
+  });
+
   it("says when planning is paused, so the Task isn't placed yet", async () => {
     const app = appInLondon();
     await connect(app);

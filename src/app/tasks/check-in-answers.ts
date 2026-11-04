@@ -4,7 +4,7 @@ import type { CheckInAnswer, CheckInResult } from "@/core/completion";
 import { checkIn } from "./actions";
 import { useCompletion } from "./completion";
 import { useMoveToTomorrow } from "./day-moves";
-import { movedWords, NOT_PLACED_WORDS, todayIn, zoneOrBrowser } from "./day-words";
+import { movedWords, NEEDS_TIME_ZONE_WORDS, NOT_PLACED_WORDS, todayIn, zoneOrBrowser } from "./day-words";
 import { useTaskList } from "./task-list";
 
 /** The Task a Check-in is about. */
@@ -56,7 +56,9 @@ export function useCheckInAnswers() {
           notify(
             "recalculationPaused" in result
               ? NOT_PLACED_WORDS
-              : movedWords(result.nextStart ?? null, "later" in result, todayIn(timeZone), zone),
+              : "needsTimeZone" in result
+                ? NEEDS_TIME_ZONE_WORDS
+                : movedWords(result.nextStart ?? null, "later" in result, todayIn(timeZone), zone),
           ),
         ),
       );

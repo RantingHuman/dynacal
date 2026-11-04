@@ -41,6 +41,26 @@ describe("Settings save as you go", () => {
     await waitFor(() => expect(screen.getByRole("status").textContent).toBe("Settings saved"));
   });
 
+  it("keeps saying a save failed, with Try again, until a save goes through", async () => {
+    vi.mocked(saveSettings).mockRejectedValueOnce(new Error("offline"));
+    // The failed save is logged, as it should be.
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    renderSettings();
+
+    await userEvent.click(screen.getByRole("switch", { name: "Count free Events" }));
+    const retry = await screen.findByRole("button", { name: "Try again" });
+    // Longer than "Settings saved" stays up.
+    await new Promise((resolve) => setTimeout(resolve, 2100));
+    expect(screen.getByRole("status").textContent).toContain("Settings weren't saved. Check your connection.");
+
+    await userEvent.click(retry);
+
+    await waitFor(() => expect(screen.getByRole("status").textContent).toBe("Settings saved"));
+    expect(saveSettings).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(saveSettings).mock.calls[1][0]).toMatchObject({ countFreeEvents: true });
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+  });
+
   it("holds an invalid value unsaved with its message, while other changes still save", async () => {
     renderSettings();
     const editor = await openMinimumBlockLength();

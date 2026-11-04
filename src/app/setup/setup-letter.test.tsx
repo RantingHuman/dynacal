@@ -60,4 +60,16 @@ describe("the setup letter", () => {
     expect(screen.getByRole("link", { name: "Go to your Schedule →" }).getAttribute("href")).toBe("/");
     expect(screen.queryByRole("button", { name: "That’s right" })).toBeNull();
   });
+
+  it("doesn't say that's everything while the Google connection is broken", () => {
+    renderGuarded(
+      <SetupLetter
+        status={{ googleConnected: false, busyCalendarsChosen: true, timeZoneSaved: true, complete: true }}
+        calendar={{ status: "broken", email: "owner@example.com" }}
+        settings={settings}
+        windows={DEFAULT_WINDOWS}
+      />,
+    );
+    expect(screen.queryByRole("link", { name: "Go to your Schedule →" })).toBeNull();
+  });
 });

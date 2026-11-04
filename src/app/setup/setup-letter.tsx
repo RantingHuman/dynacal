@@ -68,7 +68,7 @@ export function SetupLetter({
 
       <WeekParagraph settings={settings} windows={windows} later={!status.busyCalendarsChosen} done={status.timeZoneSaved} />
 
-      {status.complete && (
+      {status.complete && status.googleConnected && (
         <p className={styles.prose}>
           <span className={styles.paraNum}>✓</span>
           That&rsquo;s everything.{" "}

@@ -26,12 +26,14 @@ export interface MovedOffTime {
 /**
  * What Undo needs: each Task's Earliest Start and deadline, its times that hadn't ended and that Recalculation wouldn't
  * put back (pinned or started), and its past times whose Check-ins the move answered. Recalculation places the others.
+ * `movedTo` is what the move set, so Undo can tell a Task changed since and leave it alone.
  */
 export interface DayMoveUndo {
   tasks: {
     id: string;
     earliestStart: DateOrDateTime | null;
     deadline: DateOrDateTime | null;
+    movedTo: { earliestStart: DateOrDateTime; deadline: DateOrDateTime | null };
     times: MovedOffTime[];
     waiting: MovedOffTime[];
   }[];
@@ -44,8 +46,12 @@ export interface DayMoveUndo {
 export type MoveToDayResult =
   | { ok: true; undo: DayMoveUndo; moved: MovedTask[] }
   | { ok: true; undo: DayMoveUndo; recalculationPaused: true }
+  | { ok: true; undo: DayMoveUndo; needsTimeZone: true }
   | { ok: false; notFound: true }
   | { ok: false; deadlineBefore: TaskDeadlineBefore[] };
 
-/** `skipped` counts the Tasks left alone, as they've been completed or deleted since the move. */
-export type UndoDayMoveResult = { ok: true; skipped: number; recalculationPaused?: true };
+/**
+ * `skipped` counts the Tasks left alone, as they've changed since the move: completed, deleted, given another Earliest
+ * Start or deadline, or pinned at a new time. Undo never overwrites a change the owner made after the move.
+ */
+export type UndoDayMoveResult = { ok: true; skipped: number; recalculationPaused?: true; needsTimeZone?: true };

@@ -45,7 +45,7 @@ const packing = () =>
   });
 
 /** The desktop home as the page composes it: the Tasks column publishes the Tasks the calendar reads. */
-function renderDesktop(tasks: TaskListItem[] = [packing()]) {
+function renderDesktop(tasks: TaskListItem[] = [packing()], openBlockId?: string) {
   renderGuarded(
     <WithTaskList tasks={tasks}>
       <TaskPanel />
@@ -56,6 +56,7 @@ function renderDesktop(tasks: TaskListItem[] = [packing()]) {
         events={[]}
         conflicts={[]}
         contextWindows={DEFAULT_WINDOWS}
+        openBlockId={openBlockId}
       />
     </WithTaskList>,
   );
@@ -103,6 +104,13 @@ describe("a past time on the desktop calendar", () => {
     for (const answer of ["Finished", "More time", "Didn't start", "Tomorrow"]) {
       expect(within(label()).getByRole("button", { name: answer })).toBeTruthy();
     }
+  });
+
+  it("opened from a reminder tapped after it ended, asks “Finished?” rather than offering to move it", () => {
+    renderDesktop([packing()], "block-1");
+
+    expect(within(label()).getByRole("button", { name: "Didn't start" })).toBeTruthy();
+    expect(within(label()).queryByRole("button", { name: "Move" })).toBeNull();
   });
 
   it("answered Finished, completes the Task about that time", async () => {

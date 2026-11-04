@@ -65,6 +65,22 @@ describe("the dynacal calendar", () => {
     expect((await app.calendar.listCalendars()).map((c) => c.name)).toEqual(["Work", "dynacal"]);
   });
 
+  it("is created on the next sync if creating it failed on connecting", async () => {
+    const app = appInLondon();
+    vi.spyOn(app.calendar, "createCalendar").mockRejectedValueOnce(new Error("Google Calendar is unavailable"));
+    await expect(app.commands.connectGoogle(grant)).rejects.toThrow();
+    await app.commands.setBusyCalendars(["work"]);
+    createTask(app, { title: "Write report" });
+
+    await app.commands.syncEvents();
+
+    expect((await app.calendar.listCalendars()).map((c) => c.name)).toEqual(["Work", "dynacal"]);
+    const [dynacal] = (await app.calendar.listCalendars()).filter((c) => c.name === "dynacal");
+    expect((await app.calendar.listDynacalCalendarEvents(dynacal.id, { start: at("00:00"), end: at("23:59") })).map((e) => e.title)).toEqual([
+      "Write report",
+    ]);
+  });
+
   it("isn't offered as a Busy Calendar", async () => {
     const app = appInLondon();
     await app.commands.connectGoogle(grant);
@@ -446,5 +462,26 @@ describe("A moved Block in the dynacal calendar", () => {
 
     expect(app.calendar.writes).toEqual([{ kind: "update-event", calendarId: dynacal, eventId }]);
     expect(app.calendar.blockEvent(eventId)).toEqual(["Write report", at("09:00"), at("10:00")]);
+  });
+});
+
+describe("A past time in the dynacal calendar", () => {
+  it("is back in Google when a move to a day that took it is undone, so it asks Finished? again in both places", async () => {
+    const app = appInLondon();
+    const dynacal = await connect(app);
+    const task = createTask(app);
+    await app.commands.writeBlocksToGoogle();
+    app.clock.set(at("10:30"));
+    const moved = app.commands.moveTasksToDay([task.id], "2026-01-06");
+    if (!moved.ok || !("undo" in moved)) throw new Error("move failed");
+    await app.commands.writeBlocksToGoogle();
+
+    app.commands.undoDayMove(moved.undo);
+    await app.commands.writeBlocksToGoogle();
+
+    expect(app.calendar.blockEventsOn(dynacal)).toEqual([["Write report", at("09:00"), at("10:00"), 10]]);
+    app.calendar.writes = [];
+    await app.commands.writeBlocksToGoogle();
+    expect(app.calendar.writes).toEqual([]);
   });
 });

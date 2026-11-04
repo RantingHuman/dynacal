@@ -5,6 +5,7 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { and, eq, gt, gte, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import {
+  CalendarAuthError,
   type CalendarEvent,
   type CalendarGateway,
   type DynacalCalendarEventInGoogle,
@@ -41,6 +42,7 @@ import {
 import type { DayMoveUndo, MoveToDayResult, UndoDayMoveResult } from "./day-moves";
 import type { Db } from "./db";
 import {
+  forgetConnection,
   markBroken,
   markHealthy,
   readBusyCalendarsChosenAt,
@@ -144,6 +146,7 @@ export type { GoogleConnectionView, GoogleGrant } from "./google-connection";
 export type ConnectGoogleResult = { ok: true } | { ok: false; reason: "not-owner" };
 
 export interface SetupStatus {
+  /** Google is connected and healthy: not broken. */
   googleConnected: boolean;
   /** The owner has saved their Busy Calendars at least once (the primary calendar is only a suggestion until then). */
   busyCalendarsChosen: boolean;
@@ -368,6 +371,10 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       bufferBeforeMinutes: input.bufferBeforeMinutes,
       bufferAfterMinutes: input.bufferAfterMinutes,
     };
+  }
+
+  function sameDateOrDateTime(a: DateOrDateTime | null, b: DateOrDateTime | null): boolean {
+    return a?.date === b?.date && (a?.time ?? null) === (b?.time ?? null);
   }
 
   /** Blocks that have ended. */
@@ -638,6 +645,20 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         forget(written.eventId);
       }
     }
+    // A past time waiting for a Check-in whose event left Google, as when its Task moved to a day and the move was
+    // undone, is written again, so it stays in the dynacal calendar until it's answered.
+    const settled = db.select().from(blockEvents).where(eq(blockEvents.calendarId, calendarId)).all();
+    const waitingWithoutEvent = db
+      .select({ block: blocks, title: tasks.title })
+      .from(blocks)
+      .innerJoin(tasks, eq(blocks.taskId, tasks.id))
+      .where(and(lte(blocks.end, now), isNull(blocks.review), isNull(tasks.completedAt)))
+      .all()
+      .filter(({ block: b }) => !settled.some((e) => e.blockId === b.id || (e.taskId === b.taskId && e.start.getTime() === b.start.getTime())));
+    for (const { block, title } of waitingWithoutEvent) {
+      const event = { taskId: block.taskId, blockId: block.id, title, start: block.start, end: block.end, reminderMinutes: reminderLeadMinutes };
+      record(await calendar.createDynacalCalendarEvent(calendarId, blockCalendarEvent(block.taskId, event)), event);
+    }
   }
 
   /**
@@ -870,11 +891,61 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
    * the Google connection is broken: Events may have changed unseen, so the last Schedule stands.
    */
   function recalculateAutomatically(): AutomaticRecalculationResult {
-    if (getGoogleConnection().status === "broken") return { ok: false, reason: "connection-broken" };
+    if (getGoogleConnection().status === "broken") {
+      refreshFlags();
+      return { ok: false, reason: "connection-broken" };
+    }
     return recalculate();
   }
 
-  /** When the latest Recalculation ran, in this process. */
+  /**
+   * While Recalculation is paused, the flags still follow the Schedule as it stands, so a deadline passing makes a
+   * Task Overdue and a Task added meanwhile isn't shown as fine: every time that hasn't ended is held where it is,
+   * and nothing new is placed. Only the flags are saved.
+   */
+  function refreshFlags(): void {
+    const current = getSettings();
+    const { timeZone, minimumBlockMinutes, taskBuffers } = current;
+    if (timeZone === null) return;
+    const allContexts = commands.listContexts();
+    const now = clock.now();
+    db.transaction((tx) => {
+      const taskRows = tx.select().from(tasks).where(isNull(tasks.completedAt)).orderBy(tasks.createdAt, sql`rowid`).all();
+      const held = tx.select().from(blocks).where(gt(blocks.end, now)).all();
+      const result = schedule({
+        now,
+        timeZone,
+        contexts: allContexts,
+        minimumBlockMinutes,
+        planningHorizonDays: PLANNING_HORIZON_DAYS,
+        tasks: schedulerTasks({ taskRows, timeZone, contexts: allContexts, buffers: taskBuffers }),
+        // The whole Planning Horizon taken, so the flags describe only the times already there.
+        busy: [{ start: now, end: planningHorizonEnd(now) }],
+        pinnedBlocks: held,
+        startedBlocks: [],
+        awaitingBlocks: pastBlocks(tx, now).filter(awaitsCheckIn),
+        previousSchedule: [],
+      });
+      for (const row of taskRows) {
+        tx.update(tasks)
+          .set({ scheduleFlag: result.flags[row.id] ?? null })
+          .where(eq(tasks.id, row.id))
+          .run();
+      }
+    });
+    lastRecalculatedAt = now;
+  }
+
+  /**
+   * Why an automatic Recalculation didn't place anything, as a command result says it: paused while the Google
+   * connection is broken, or no time zone yet. Empty when it ran.
+   */
+  function notPlaced(result: AutomaticRecalculationResult): { recalculationPaused: true } | { needsTimeZone: true } | null {
+    if (result.ok) return null;
+    return result.reason === "connection-broken" ? { recalculationPaused: true } : { needsTimeZone: true };
+  }
+
+  /** When the latest Recalculation ran, in this process, or the flags were refreshed while it's paused. */
   let lastRecalculatedAt: Date | null = null;
 
   /**
@@ -987,10 +1058,15 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     const problem = connectionProblem(getGoogleConnection());
     if (problem) return problem;
     return unlessRefused(async () => {
+      const calendars = await calendar.listCalendars();
       // Keeps names current after a rename in Google, and fills them in for Busy Calendars saved before names were.
-      saveBusyCalendarNames(await calendar.listCalendars());
+      saveBusyCalendarNames(calendars);
       const eventsChanged = await readEvents();
-      const recalculated = await onDynacalCalendar(() => updateDynacalCalendar(eventsChanged));
+      const recalculated = await onDynacalCalendar(async () => {
+        // Connecting may have failed to create the dynacal calendar; until it's there, no Block reaches Google.
+        if (dynacalCalendarId() === null) await ensureDynacalCalendar(calendars);
+        return updateDynacalCalendar(eventsChanged);
+      });
       return { ok: true, recalculated } as const;
     });
   }
@@ -1031,9 +1107,18 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
     async connectGoogle(grant: GoogleGrant): Promise<ConnectGoogleResult> {
       const email = grant.email.trim().toLowerCase();
       if (email !== owner) return { ok: false, reason: "not-owner" };
+      const firstConnection = getGoogleConnection().status === "not-connected";
       saveGrant(db, email, grant, clock.now());
-      const calendars = await calendar.listCalendars();
-      // Google has answered, so the connection is healthy: reconnecting is how the owner mends a broken one.
+      let calendars: GoogleCalendar[];
+      try {
+        calendars = await calendar.listCalendars();
+      } catch (error) {
+        // A first connection Google didn't refuse, only failed to answer, was never connected: it isn't broken.
+        if (firstConnection && !(error instanceof CalendarAuthError)) forgetConnection(db);
+        throw error;
+      }
+      // Google has answered, so the connection is healthy: reconnecting is how the owner mends a broken one. If
+      // creating the dynacal calendar fails after this, the next sync creates it.
       markHealthy(db);
       await ensureDynacalCalendar(calendars);
       saveBusyCalendarNames(calendars);
@@ -1144,14 +1229,15 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
 
     /** First-run setup: connect Google (and choose Busy Calendars), then save the time zone and the hours that become Work. */
     getSetupStatus(): SetupStatus {
-      const googleConnected = getGoogleConnection().status !== "not-connected";
+      const { status } = getGoogleConnection();
       const chosen = busyCalendarsChosen();
       const timeZoneSaved = getSettings().timeZone !== null;
       return {
-        googleConnected,
+        googleConnected: status === "connected",
         busyCalendarsChosen: chosen,
         timeZoneSaved,
-        complete: googleConnected && chosen && timeZoneSaved,
+        // A connection broken since setup still counts: the home screen keeps the Schedule and says to reconnect.
+        complete: status !== "not-connected" && chosen && timeZoneSaved,
       };
     },
 
@@ -1420,7 +1506,8 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         }
         case "didnt-start":
           db.delete(blocks).where(eq(blocks.id, blockId)).run();
-          if (!recalculateAutomatically().ok) return { ok: true, recalculationPaused: true };
+          const why = notPlaced(recalculateAutomatically());
+          if (why) return { ok: true, ...why };
           return { ok: true, ...whereItWent(found.block.taskId) };
       }
       recalculateAutomatically();
@@ -1469,10 +1556,12 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
             })
             .where(eq(tasks.id, row.id))
             .run();
-          return { id: row.id, earliestStart: oldEarliestStart, deadline, times, waiting: answered };
+          const movedTo = { earliestStart, deadline: movesDeadline ? earliestStart : deadline };
+          return { id: row.id, earliestStart: oldEarliestStart, deadline, movedTo, times, waiting: answered };
         }),
       }));
-      if (!recalculateAutomatically().ok) return { ok: true, undo, recalculationPaused: true };
+      const why = notPlaced(recalculateAutomatically());
+      if (why) return { ok: true, undo, ...why };
       return {
         ok: true,
         undo,
@@ -1488,7 +1577,23 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       const now = clock.now();
       let skipped = 0;
       db.transaction((tx) => {
-        for (const { id, earliestStart, deadline, times, waiting } of undo.tasks) {
+        for (const { id, earliestStart, deadline, movedTo, times, waiting } of undo.tasks) {
+          // A Task changed since the move keeps that change: putting the old times back would quietly undo it.
+          const current = tx.select().from(tasks).where(and(eq(tasks.id, id), isNull(tasks.completedAt))).get();
+          const pinnedSince = tx
+            .select({ id: blocks.id })
+            .from(blocks)
+            .where(and(eq(blocks.taskId, id), gt(blocks.end, now), eq(blocks.pinned, true)))
+            .get();
+          if (
+            !current ||
+            pinnedSince ||
+            !sameDateOrDateTime(toTask(current).earliestStart, movedTo.earliestStart) ||
+            !sameDateOrDateTime(toTask(current).deadline, movedTo.deadline)
+          ) {
+            skipped += 1;
+            continue;
+          }
           const row = tx
             .update(tasks)
             .set({
@@ -1512,7 +1617,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
           }
         }
       });
-      return recalculateAutomatically().ok ? { ok: true, skipped } : { ok: true, skipped, recalculationPaused: true };
+      return { ok: true, skipped, ...notPlaced(recalculateAutomatically()) };
     },
 
     /**

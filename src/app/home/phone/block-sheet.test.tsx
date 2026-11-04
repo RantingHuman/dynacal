@@ -446,7 +446,7 @@ describe("the Block sheet on a phone", () => {
   });
 
   describe("Tomorrow", () => {
-    const undo = { tasks: [{ id: "t1", earliestStart: null, deadline: null, times: [], waiting: [] }] };
+    const undo = { tasks: [{ id: "t1", earliestStart: null, deadline: null, movedTo: { earliestStart: { date: "2026-10-28", time: null }, deadline: null }, times: [], waiting: [] }] };
 
     beforeEach(() => {
       vi.useFakeTimers({ toFake: ["Date"] });
@@ -541,7 +541,7 @@ describe("the Block sheet on a phone", () => {
       });
 
       it("moves both on Move both, says so, and Undo restores them", async () => {
-        const undoDeadline = { tasks: [{ id: "t1", earliestStart: null, deadline, times: [], waiting: [] }] };
+        const undoDeadline = { tasks: [{ id: "t1", earliestStart: null, deadline, movedTo: { earliestStart: { date: "2026-10-28", time: null }, deadline: null }, times: [], waiting: [] }] };
         vi.mocked(moveTasksToDay).mockResolvedValueOnce({
           ok: true,
           undo: undoDeadline,

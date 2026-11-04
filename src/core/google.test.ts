@@ -147,6 +147,18 @@ describe("first-run setup", () => {
     await commands.setBusyCalendars(["work"]);
     expect(commands.getSetupStatus()).toEqual(status(true, true, true, true));
   });
+
+  it("doesn't count a broken connection as connected, though setup stays finished so the Schedule stays reachable", async () => {
+    const { commands, calendar } = appWithCalendars();
+    commands.updateSettings({ timeZone: "Europe/London" });
+    await commands.connectGoogle(grant);
+    await commands.setBusyCalendars(["work"]);
+
+    calendar.breakConnection();
+    await commands.syncEvents();
+
+    expect(commands.getSetupStatus()).toEqual({ googleConnected: false, busyCalendarsChosen: true, timeZoneSaved: true, complete: true });
+  });
 });
 
 describe("polling Google for Event changes", () => {
