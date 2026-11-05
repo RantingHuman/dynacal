@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_WINDOWS, type TimeWindow, type WeeklyWindows } from "./settings";
-import { runDays, runHours, setRunHours, windowRuns } from "./window-runs";
+import { dayNames, hoursGroups, runDays, runHours, sameWeek, weekFromGroups, windowRuns } from "./window-runs";
 
 const window = (startHour: number, endHour: number): TimeWindow => ({ start: startHour * 60, end: endHour * 60 });
 
@@ -46,47 +46,6 @@ describe("window runs", () => {
   });
 });
 
-describe("editing windows by run", () => {
-  it("editing a run gives every day in it the new hours and leaves the other days alone", () => {
-    const hours = setRunHours(weekdaysNineToFive, ["mon", "tue", "wed", "thu", "fri"], [window(8, 12), window(13, 16)]);
-
-    expect(windowRuns(hours)).toEqual([
-      { days: ["mon", "tue", "wed", "thu", "fri"], windows: [window(8, 12), window(13, 16)] },
-      { days: ["sat", "sun"], windows: [] },
-    ]);
-  });
-
-  it("giving one day its own hours splits it off its run", () => {
-    const hours = setRunHours(weekdaysNineToFive, ["fri"], [window(9, 15)]);
-
-    expect(windowRuns(hours)).toEqual([
-      { days: ["mon", "tue", "wed", "thu"], windows: [window(9, 17)] },
-      { days: ["fri"], windows: [window(9, 15)] },
-      { days: ["sat", "sun"], windows: [] },
-    ]);
-  });
-
-  it("splitting a day from the middle of a run leaves the days either side as runs of their own", () => {
-    const hours = setRunHours(weekdaysNineToFive, ["wed"], []);
-
-    expect(windowRuns(hours).map((r) => r.days)).toEqual([["mon", "tue"], ["wed"], ["thu", "fri"], ["sat", "sun"]]);
-  });
-
-  it("a day given the same hours as its neighbours joins their run", () => {
-    const split = setRunHours(weekdaysNineToFive, ["sat"], [window(10, 12)]);
-
-    const hours = setRunHours(split, ["sat"], []);
-
-    expect(windowRuns(hours).map((r) => r.days)).toEqual([["mon", "tue", "wed", "thu", "fri"], ["sat", "sun"]]);
-  });
-
-  it("gives each day its own copy of the windows, so editing one day later never changes another", () => {
-    const hours = setRunHours(weekdaysNineToFive, ["mon", "tue"], [window(9, 17)]);
-
-    expect(hours.mon[0]).not.toBe(hours.tue[0]);
-  });
-});
-
 describe("a run's hours in words", () => {
   it("lists one, two or more windows as a sentence would, with midnight at the end of the day as 24:00", () => {
     expect(runHours([window(9, 17)])).toBe("09:00–17:00");
@@ -100,5 +59,45 @@ describe("naming a run's days", () => {
     expect(runDays(["fri"])).toBe("Friday");
     expect(runDays(["sat", "sun"])).toBe("Saturday and Sunday");
     expect(runDays(["mon", "tue", "wed", "thu"])).toBe("Monday to Thursday");
+  });
+});
+
+describe("hours groups", () => {
+  const off: WeeklyWindows = { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] };
+  const gym: WeeklyWindows = { ...off, mon: [window(7, 8)], wed: [window(7, 8)], fri: [window(7, 8)] };
+
+  it("groups days with the same windows even when they aren't adjacent, and leaves days off out", () => {
+    expect(hoursGroups(gym)).toEqual([{ days: ["mon", "wed", "fri"], windows: [window(7, 8)] }]);
+    expect(hoursGroups({ ...weekdaysNineToFive, sat: [window(10, 14)], sun: [window(10, 14)] })).toEqual([
+      { days: ["mon", "tue", "wed", "thu", "fri"], windows: [window(9, 17)] },
+      { days: ["sat", "sun"], windows: [window(10, 14)] },
+    ]);
+  });
+
+  it("gives back the same week from its groups", () => {
+    expect(weekFromGroups(hoursGroups(gym))).toEqual(gym);
+    expect(weekFromGroups(hoursGroups(weekdaysNineToFive))).toEqual(weekdaysNineToFive);
+  });
+
+  it("keeps overlapping windows from two groups on the same day, for validation to hold", () => {
+    const week = weekFromGroups([
+      { days: ["mon"], windows: [window(9, 17)] },
+      { days: ["mon", "tue"], windows: [window(16, 18)] },
+    ]);
+    expect(week.mon).toEqual([window(9, 17), window(16, 18)]);
+    expect(week.tue).toEqual([window(16, 18)]);
+  });
+
+  it("treats the same windows entered in a different order as the same week", () => {
+    const split: WeeklyWindows = { ...off, mon: [window(13, 17), window(9, 12)] };
+    expect(sameWeek(split, { ...off, mon: [window(9, 12), window(13, 17)] })).toBe(true);
+    expect(sameWeek(split, off)).toBe(false);
+  });
+
+  it("names any set of days", () => {
+    expect(dayNames(["mon", "tue", "wed", "thu", "fri"])).toBe("Monday to Friday");
+    expect(dayNames(["fri", "wed", "mon"])).toBe("Monday, Wednesday and Friday");
+    expect(dayNames(["sat", "sun"])).toBe("Saturday and Sunday");
+    expect(dayNames(["thu"])).toBe("Thursday");
   });
 });

@@ -47,10 +47,11 @@ describe("the setup letter", () => {
   it("prevents confirmation when the hours overlap", async () => {
     renderGuarded(<SetupLetter status={{ ...status, googleConnected: true, busyCalendarsChosen: true }} calendar={connected} settings={settings} windows={DEFAULT_WINDOWS} />);
     await userEvent.click(screen.getByRole("button", { name: "09:00–17:00" }));
-    const editor = within(screen.getByRole("group", { name: "Monday to Friday hours" }));
-    await userEvent.click(editor.getByRole("button", { name: "+ window" }));
-    fireEvent.change(editor.getByLabelText("Monday to Friday window 2 start"), { target: { value: "16:00" } });
-    expect(editor.getByRole("alert").textContent).toBe("09:00–17:00 overlaps 16:00–18:00.");
+    const editor = within(screen.getByRole("group", { name: "Hours" }));
+    await userEvent.click(editor.getByRole("button", { name: "+ more hours" }));
+    within(editor.getByRole("group", { name: "Hours 2" })).getByRole("slider", { name: "Start" }).focus();
+    await userEvent.keyboard("{ArrowUp>8/}");
+    expect(editor.getByRole("alert").textContent).toBe("09:00–17:00 overlaps 16:00–20:00.");
     expect(screen.getByRole("button", { name: "That’s right" })).toHaveProperty("disabled", true);
     expect(saveSetupWeek).not.toHaveBeenCalled();
   });

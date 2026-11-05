@@ -1,86 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { formatMinutes, type TimeWindow } from "@/core/settings";
-import { DAY_MINUTES } from "@/core/time";
 import styles from "./prose.module.css";
 
 // The small editors that open under an underlined value. They render as spans, since they sit inside a sentence.
-
-/** Time inputs can't show 24:00, so midnight at the end of the day displays as 00:00. */
-function toTimeInput(minutes: number): string {
-  return formatMinutes(minutes % DAY_MINUTES);
-}
-
-function fromTimeInput(value: string): number {
-  const [h, m] = value.split(":").map(Number);
-  return h * 60 + m;
-}
-
-/** A window's end of 00:00 means midnight at the end of the day. */
-function fromEndInput(value: string): number {
-  const minutes = fromTimeInput(value);
-  return minutes === 0 ? DAY_MINUTES : minutes;
-}
-
-/** A new window starts where the day's last one ends, so adding one never overlaps. */
-function nextWindow(windows: TimeWindow[]): TimeWindow {
-  if (windows.length === 0) return { start: 9 * 60, end: 17 * 60 };
-  const start = Math.min(Math.max(...windows.map((w) => w.end)), DAY_MINUTES - 60);
-  return { start, end: start + 60 };
-}
-
-/** Any number of windows for a day (or a run of days), with "+ window" and ×. No windows is a day off. */
-export function WindowsEditor({
-  windows,
-  onChange,
-  label,
-}: {
-  windows: TimeWindow[];
-  onChange: (windows: TimeWindow[]) => void;
-  /** Names the days for screen readers: "Monday to Friday". */
-  label: string;
-}) {
-  const change = (i: number, window: TimeWindow) => onChange(windows.map((w, j) => (j === i ? window : w)));
-
-  return (
-    <span className={styles.windows}>
-      {windows.length === 0 && <span className={styles.off}>Day off</span>}
-      {windows.map((w, i) => (
-        <span key={i} className={styles.window}>
-          <input
-            type="time"
-            step={900}
-            className={styles.field}
-            aria-label={`${label} window ${i + 1} start`}
-            value={toTimeInput(w.start)}
-            onChange={(e) => e.target.value && change(i, { ...w, start: fromTimeInput(e.target.value) })}
-          />
-          –
-          <input
-            type="time"
-            step={900}
-            className={styles.field}
-            aria-label={`${label} window ${i + 1} end`}
-            value={toTimeInput(w.end)}
-            onChange={(e) => e.target.value && change(i, { ...w, end: fromEndInput(e.target.value) })}
-          />
-          <button
-            type="button"
-            className={styles.remove}
-            aria-label={`Remove ${label} window ${i + 1}`}
-            onClick={() => onChange(windows.filter((_, j) => j !== i))}
-          >
-            ×
-          </button>
-        </span>
-      ))}
-      <button type="button" className="link" onClick={() => onChange([...windows, nextWindow(windows)])}>
-        + window
-      </button>
-    </span>
-  );
-}
 
 export function browserTimeZone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone;

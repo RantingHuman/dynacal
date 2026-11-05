@@ -237,46 +237,6 @@
   width: 72px;
 }
 
-.windows {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 12px;
-}
-
-.window {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-variant-numeric: tabular-nums;
-}
-
-.window .field {
-  width: 112px;
-}
-
-.remove {
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  border: var(--hairline) solid var(--rule);
-  border-radius: var(--radius-pill);
-  background: transparent;
-  color: var(--soft);
-  line-height: 1;
-  cursor: pointer;
-}
-
-.remove:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.off {
-  color: var(--soft);
-  font: italic var(--text-body) var(--font-serif);
-}
-
 .chips {
   display: flex;
   flex-wrap: wrap;
@@ -435,4 +395,14 @@ form.prose .alert {
     row-gap: var(--space-5);
     margin: var(--space-4) 0 var(--space-5);
   }
+}
+
+/* The week editor needs the sheet's full width on a phone, and room on a computer. */
+.weekEditor {
+  min-width: min(420px, calc(100vw - 2 * var(--space-4)));
+}
+
+/* The week in words at the top of its editor, since on a phone the sheet covers the sentence. */
+.weekSummary {
+  font: 18px / 1.35 var(--font-serif);
 }

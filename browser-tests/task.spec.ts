@@ -87,7 +87,10 @@ test("puts a Task in a Context typed as “@deep” on a phone, placed in its wi
     const form = page.getByRole("form", { name: "New Context" });
     await form.getByRole("textbox", { name: "Name" }).fill("Deep work");
     await form.getByRole("button", { name: "09:00–17:00" }).click();
-    await form.getByLabel("Monday to Friday window 1 start").fill("14:00");
+    const start = form.getByRole("slider", { name: "Start" });
+    await start.focus();
+    for (let i = 0; i < 20; i++) await start.press("ArrowDown"); // 09:00 to 14:00 in 15-minute steps
+    await form.getByRole("button", { name: "Done" }).click();
     await form.getByRole("button", { name: "Add" }).click();
     await expect(page.getByRole("status")).toHaveText("Deep work added");
 
