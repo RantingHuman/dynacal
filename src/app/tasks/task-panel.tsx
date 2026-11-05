@@ -4,7 +4,7 @@ import { useCallback, useState, ViewTransition } from "react";
 import type { TaskListItem } from "@/core/commands";
 import { contextTag } from "@/core/contexts";
 import { heldOrder } from "@/core/motion";
-import { formatDuration, type TaskInput } from "@/core/tasks";
+import type { TaskInput } from "@/core/tasks";
 import { toZoned } from "@/core/time-zone";
 import { Squiggle } from "../states/squiggle";
 import statesStyles from "../states/states.module.css";
@@ -16,7 +16,7 @@ import { CheckInSheet } from "./check-in-sheet";
 import { CompleteTaskButton } from "./complete-task-button";
 import { useCompletion } from "./completion";
 import { daysAgoWords, deadlineWords, spanWords, zoneOrBrowser } from "./day-words";
-import { contextShortWords, FlagText } from "./flags";
+import { contextShortWords, FLAG_LABELS, isAlarm } from "./flags";
 import { inputOf, useTaskEditor } from "./task-editor-context";
 import { useTaskList, type ActOnTasks } from "./task-list";
 import { TASK_LINE_ID, TaskLineAdd } from "./task-line-add";
@@ -89,13 +89,12 @@ function RowTitle({ title, sweep }: { title: string; sweep: boolean }) {
 }
 
 /** "Saved" by a row, gone for good once it has faded. */
-function SavedNote() {
+function SavedNote({ lead }: { lead: boolean }) {
   const { played, ref } = usePlayedOnce();
   if (played) return null;
   return (
     <span ref={ref} className={styles.saved} role="status">
-      {" "}
-      · Saved
+      {lead ? " · " : ""}Saved
     </span>
   );
 }
@@ -181,23 +180,27 @@ export function TaskPanel() {
     const tag = contextTag(contexts, task.contextId);
     // A Context's time running short says so in one phrase, which keeps the row short at phone width.
     const contextShort = contextShortWords(flag, tag, task.deadline, today);
+    // The row's details, each said once and joined with " · ". A Task's length isn't among them: the Schedule
+    // already shows how long each time is, and the Task's editor holds the estimate.
+    const parts: React.ReactNode[] = contextShort
+      ? [<em key="short" className={styles.flag}>{contextShort}</em>]
+      : [
+          tag && <span key="tag" className="context-tag">{tag}</span>,
+          task.deadline && deadlineWords(task.deadline, today),
+          flag && (isAlarm(flag) ? <em key="flag" className={styles.flag}>{FLAG_LABELS[flag]}</em> : FLAG_LABELS[flag]),
+        ].filter(Boolean);
+    const joined = (lead: boolean) =>
+      parts.map((part, i) => (
+        <span key={i}>
+          {lead || i > 0 ? " · " : ""}
+          {part}
+        </span>
+      ));
+    const saveNote = (lead: boolean) => justSaved && <SavedNote key={saved.n} lead={lead} />;
     const details = (
       <>
-        {contextShort ? (
-          <em className={styles.flag}> · {contextShort}</em>
-        ) : (
-          <>
-            {tag && (
-              <>
-                {" · "}
-                <span className="context-tag">{tag}</span>
-              </>
-            )}
-            {task.deadline && ` · ${deadlineWords(task.deadline, today)}`}
-            {flag && <FlagText flag={flag} className={styles.flag} />}
-          </>
-        )}
-        {justSaved && <SavedNote key={saved.n} />}
+        {joined(true)}
+        {saveNote(true)}
       </>
     );
     // A new key replays the sweep: once on arrival, and again on each save.
@@ -244,10 +247,13 @@ export function TaskPanel() {
             openButton(
               <>
                 {title}
-                <span className={styles.meta}>
-                  {task.completedAt ? "Complete" : `${formatDuration(task.remainingMinutes)} left`}
-                  {details}
-                </span>
+                {(task.completedAt || parts.length > 0 || justSaved) && (
+                  <span className={styles.meta}>
+                    {task.completedAt && "Complete"}
+                    {joined(Boolean(task.completedAt))}
+                    {saveNote(Boolean(task.completedAt) || parts.length > 0)}
+                  </span>
+                )}
               </>,
             )
           )}

@@ -37,7 +37,7 @@ test("keeps the last week readable offline and falls back for an uncached page",
     await page.evaluate(() => navigator.serviceWorker.ready);
     await page.waitForFunction(() => navigator.serviceWorker.controller !== null);
     await page.reload();
-    await expect(page.getByRole("button", { name: "Prepare the report 1h left" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Prepare the report", exact: true })).toBeVisible();
     await page.waitForFunction(async () => Boolean(await caches.match("/")) && Boolean(await caches.match("/offline")));
 
     await page.context().setOffline(true);
@@ -46,13 +46,13 @@ test("keeps the last week readable offline and falls back for an uncached page",
     await expect(page.getByRole("button", { name: "Mark “Prepare the report” complete" })).toBeDisabled();
 
     await page.reload();
-    await expect(page.getByRole("button", { name: "Prepare the report 1h left" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Prepare the report", exact: true })).toBeVisible();
     await expect(page.getByRole("status").filter({ hasText: "Offline." })).toBeVisible();
     await expect(page.getByRole("textbox", { name: "Add a Task" })).toBeDisabled();
     await expect(page.getByRole("button", { name: "Mark “Prepare the report” complete" })).toBeDisabled();
 
     // A page loaded offline can still open a Task to read it.
-    await page.getByRole("button", { name: "Prepare the report 1h left" }).click();
+    await page.getByRole("button", { name: "Prepare the report", exact: true }).click();
     const editor = page.getByRole("form", { name: "Edit Task" });
     await expect(editor.getByRole("button", { name: "Save" })).toBeDisabled();
     await expect(editor.getByText("Offline: this needs a connection.")).toBeVisible();

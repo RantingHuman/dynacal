@@ -373,7 +373,7 @@ describe("a Later Task's row", () => {
   it("says Later quietly where flags show, never Unscheduled, and offers no splitting", () => {
     renderPanel([photos], { [photos.id]: "later" });
 
-    const later = taskList().getByText("· Later", { exact: false });
+    const later = taskList().getByText("Later");
     // Flags are emphasised as alarms; Later isn't one.
     expect(later.closest("em")).toBeNull();
     expect(screen.queryByText(/Unscheduled/)).toBeNull();
@@ -405,7 +405,7 @@ describe("a row's message when a Task won't fit before its deadline", () => {
   afterEach(() => vi.useRealTimers());
   const byFriday = { date: "2026-10-30", time: null };
   // Splittable, so the row has no "Allow splitting" button after its text.
-  const meta = (row: HTMLElement) => row.textContent?.replace(/^.*?(\d+h|\d+m)/, "$1");
+  const meta = (row: HTMLElement) => row.querySelector('[class*="meta"]')?.textContent;
 
   it("names the Task's Context, saying whether its time is short or there's none", () => {
     const essay = taskItem({ title: "Write essay", contextId: "deep", deadline: byFriday, splittable: true });
@@ -413,8 +413,8 @@ describe("a row's message when a Task won't fit before its deadline", () => {
     renderPanel([essay, draft], { [essay.id]: "at-risk", [draft.id]: "unscheduled" }, [workContext, deepWorkContext]);
 
     const [essayRow, draftRow] = taskList().getAllByRole("listitem");
-    expect(meta(essayRow)).toBe("1h left · Too little Deep work time before Fri");
-    expect(meta(draftRow)).toBe("1h left · No Deep work time before Fri");
+    expect(meta(essayRow)).toBe("Too little Deep work time before Fri");
+    expect(meta(draftRow)).toBe("No Deep work time before Fri");
     // Still an alarm.
     expect(within(essayRow).getByText("Too little Deep work time before Fri", { exact: false }).closest("em")).toBeTruthy();
   });
@@ -425,8 +425,8 @@ describe("a row's message when a Task won't fit before its deadline", () => {
     renderPanel([memo, talk], { [memo.id]: "at-risk", [talk.id]: "unscheduled" });
 
     const [memoRow, talkRow] = taskList().getAllByRole("listitem");
-    expect(meta(memoRow)).toBe("1h left · due Fri · At Risk");
-    expect(meta(talkRow)).toBe("1h left · due Fri · Unscheduled");
+    expect(meta(memoRow)).toBe("due Fri · At Risk");
+    expect(meta(talkRow)).toBe("due Fri · Unscheduled");
   });
 });
 
@@ -825,7 +825,7 @@ describe("a Task waiting for a Check-in", () => {
       });
     });
 
-    it("makes the amount picked the time left at once, and closes", async () => {
+    it("takes the answer at once, and closes", async () => {
       const answering = deferred<{ ok: true }>();
       vi.mocked(checkIn).mockReturnValue(answering.promise);
       renderPanel([single()]);
@@ -835,7 +835,6 @@ describe("a Task waiting for a Check-in", () => {
 
       expect(checkIn).toHaveBeenCalledWith("block-1", { answer: "more-time", minutes: 30 });
       await waitFor(() => expect(screen.queryByRole("complementary", { name: "Pack for vegas" })).toBeNull());
-      expect(taskList().getByText(/30m left/)).toBeTruthy();
       expect(screen.queryByRole("button", { name: "Finished? ›" })).toBeNull();
       answering.resolve({ ok: true });
       await waitFor(() => expect(checkIn).toHaveReturned());
