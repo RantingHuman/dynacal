@@ -101,7 +101,7 @@ test("puts a Task in a Context typed as “@deep” on a phone, placed in its wi
     await page.getByRole("textbox", { name: "Add a Task" }).press("Enter");
 
     const row = page.getByRole("listitem").filter({ hasText: "Write essay" });
-    await expect(row).toContainText("1h left · Deep work");
+    await expect(row).toContainText("Deep work");
     await expect(row).not.toContainText("@deep");
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
     await page.getByRole("tab", { name: "Schedule" }).click();

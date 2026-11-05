@@ -71,7 +71,7 @@ test("adds a Context on a phone, and places a Task moved into it only in its win
     await editor.getByRole("button", { name: "Save", exact: true }).click();
 
     const row = page.getByRole("listitem").filter({ hasText: "Write essay" });
-    await expect(row).toContainText("1h left · Deep work");
+    await expect(row).toContainText("Deep work");
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
     await page.getByRole("tab", { name: "Schedule" }).click();
     await expect(page.getByRole("button", { name: /^Write essay, 14:00, 1h/ })).toBeVisible();

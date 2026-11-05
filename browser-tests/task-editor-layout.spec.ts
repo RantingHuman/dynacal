@@ -8,7 +8,7 @@ async function addAndOpen(page: Page) {
   const line = page.getByRole("textbox", { name: "Add a Task" });
   await line.fill("Pack for Vegas 1h");
   await line.press("Enter");
-  await page.getByRole("button", { name: "Pack for Vegas 1h left" }).click();
+  await page.getByRole("button", { name: "Pack for Vegas", exact: true }).click();
   return page.getByRole("form", { name: "Edit Task" });
 }
 
@@ -152,7 +152,7 @@ test("keeps unsaved changes when a turn of the device crosses to the other layou
     await expect(page.getByRole("form", { name: "Edit Task" })).toHaveCount(0);
 
     // Once discarded, nothing of the draft comes back.
-    await page.getByRole("button", { name: "Pack for Vegas 1h left" }).click();
+    await page.getByRole("button", { name: "Pack for Vegas", exact: true }).click();
     await expect(editor.getByRole("textbox", { name: "Title" })).toHaveValue("Pack for Vegas");
   });
 });
