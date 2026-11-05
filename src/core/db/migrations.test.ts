@@ -398,4 +398,52 @@ describe("migrations", () => {
     }
     expect(sqlite.pragma("integrity_check")).toEqual([{ integrity_check: "ok" }]);
   });
+
+  describe("giving the Google connection one status", () => {
+    function oldConnection(brokenAt: number | null, dynacalCalendarId: string | null) {
+      const sqlite = migratedUpTo("explicit-connection-status");
+      sqlite
+        .prepare(
+          `INSERT INTO google_connection
+             (id, email, refresh_token, access_token, access_token_expires_at, connected_at, broken_at, dynacal_calendar_id, busy_calendars_chosen_at)
+           VALUES (1, 'owner@example.com', 'refresh', 'access', 5000, 1000, ?, ?, 2000)`,
+        )
+        .run(brokenAt, dynacalCalendarId);
+      migrateDatabase(drizzle(sqlite, { schema }));
+      return sqlite;
+    }
+    const row = (sqlite: Database.Database) => sqlite.prepare("SELECT * FROM google_connection").get();
+    const keptAsItWas = {
+      id: 1,
+      email: "owner@example.com",
+      refresh_token: "refresh",
+      access_token: "access",
+      access_token_expires_at: 5000,
+      connected_at: 1000,
+      busy_calendars_chosen_at: 2000,
+    };
+
+    it("makes a connection Google hadn't refused healthy, with its dynacal calendar or still without one", () => {
+      expect(row(oldConnection(null, "dynacal"))).toEqual({ ...keptAsItWas, status: "healthy", dynacal_calendar_id: "dynacal" });
+      expect(row(oldConnection(null, null))).toEqual({ ...keptAsItWas, status: "healthy", dynacal_calendar_id: null });
+    });
+
+    it("makes a broken connection refused, whether or not it had a dynacal calendar yet", () => {
+      expect(row(oldConnection(3000, "dynacal"))).toEqual({ ...keptAsItWas, status: "refused", dynacal_calendar_id: "dynacal" });
+      expect(row(oldConnection(3000, null))).toEqual({ ...keptAsItWas, status: "refused", dynacal_calendar_id: null });
+    });
+
+    it("leaves Google not connected when there was no connection", () => {
+      const sqlite = migratedUpTo("explicit-connection-status");
+      migrateDatabase(drizzle(sqlite, { schema }));
+      expect(row(sqlite)).toBeUndefined();
+    });
+
+    it("refuses a status it doesn't know, and a dynacal calendar on a connection Google hasn't answered yet", () => {
+      const sqlite = oldConnection(null, "dynacal");
+      expect(() => sqlite.prepare("UPDATE google_connection SET status = 'broken'").run()).toThrow(/CHECK constraint/);
+      expect(() => sqlite.prepare("UPDATE google_connection SET status = 'unverified'").run()).toThrow(/CHECK constraint/);
+      expect(() => sqlite.prepare("UPDATE google_connection SET status = 'unverified', dynacal_calendar_id = NULL").run()).not.toThrow();
+    });
+  });
 });
