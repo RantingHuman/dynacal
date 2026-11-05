@@ -30,7 +30,6 @@ import {
 } from "./contexts";
 import { connectionProblem, unlessRefused, watchConnectionHealth } from "./connection-health";
 import {
-  awaitsCheckIn,
   checkInViews,
   hasLeftTaskList,
   validateMoreTimeMinutes,
@@ -69,6 +68,7 @@ import {
   tasks,
 } from "./db/schema";
 import { blockCalendarEvent, planBlockEventWrites, type WantedBlockEvent } from "./block-events";
+import { checkInState, waitingForCheckIn } from "./check-in-state";
 import {
   checkedOverride,
   eventKey,
@@ -378,8 +378,15 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
   }
 
   /** Blocks that have ended. */
-  function pastBlocks(tx: Pick<Db, "select">, now: Date) {
-    return tx.select().from(blocks).where(lte(blocks.end, now)).all();
+  /** The past Blocks waiting for a Check-in. */
+  function waitingBlocks(tx: Pick<Db, "select">, now: Date) {
+    return tx
+      .select({ block: blocks })
+      .from(blocks)
+      .innerJoin(tasks, eq(blocks.taskId, tasks.id))
+      .where(waitingForCheckIn(now))
+      .all()
+      .map((row) => row.block);
   }
 
   function toTask(row: Omit<typeof tasks.$inferSelect, "scheduleFlag" | "completedAt">): Task {
@@ -652,7 +659,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       .select({ block: blocks, title: tasks.title })
       .from(blocks)
       .innerJoin(tasks, eq(blocks.taskId, tasks.id))
-      .where(and(lte(blocks.end, now), isNull(blocks.review), isNull(tasks.completedAt)))
+      .where(waitingForCheckIn(now))
       .all()
       .filter(({ block: b }) => !settled.some((e) => e.blockId === b.id || (e.taskId === b.taskId && e.start.getTime() === b.start.getTime())));
     for (const { block, title } of waitingWithoutEvent) {
@@ -669,16 +676,18 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
    */
   async function settleEndedBlockEvents(calendarId: string, now: Date): Promise<void> {
     const ended = db
-      .select({ record: blockEvents, taskId: tasks.id, completedAt: tasks.completedAt })
+      // The Task's ID is selected so an open Task (completedAt null) isn't read as a missing one.
+      .select({ record: blockEvents, task: { id: tasks.id, completedAt: tasks.completedAt } })
       .from(blockEvents)
       // Left: a deleted Task's events are still settled.
       .leftJoin(tasks, eq(tasks.id, blockEvents.taskId))
       .where(and(eq(blockEvents.calendarId, calendarId), lte(blockEvents.end, now)))
       .all();
-    for (const { record, taskId, completedAt } of ended) {
-      const taskOpen = taskId !== null && completedAt === null;
+    for (const { record, task } of ended) {
       const block = blockFor(record);
-      if (block && awaitsCheckIn(block) && taskOpen) continue;
+      // Kept while its Block waits for a Check-in, or (moved on to a time still to come) could yet.
+      const state = block && checkInState(block, task, now);
+      if (state === "waiting" || state === "not-ended") continue;
       if (!block) await calendar.deleteDynacalCalendarEvent(calendarId, record.eventId);
       forgetBlockEvent(calendarId, record.eventId);
     }
@@ -836,8 +845,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
   function finishTask(id: string): boolean {
     const now = clock.now();
     return db.transaction((tx) => {
-      const row = tx.update(tasks).set({ completedAt: now, scheduleFlag: null }).where(eq(tasks.id, id)).returning().get();
-      if (!row) return false;
+      if (!tx.select({ id: tasks.id }).from(tasks).where(eq(tasks.id, id)).get()) return false;
       tx.delete(blocks)
         .where(and(eq(blocks.taskId, id), gte(blocks.start, now)))
         .run();
@@ -845,10 +853,13 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         .set({ end: now })
         .where(and(eq(blocks.taskId, id), lt(blocks.start, now), gt(blocks.end, now)))
         .run();
+      // Its waiting past times, the one just cut short included, are answered Finished before the Task closes.
+      const waiting = waitingBlocks(tx, now).filter((b) => b.taskId === id);
       tx.update(blocks)
         .set({ review: "finished" })
-        .where(and(eq(blocks.taskId, id), lte(blocks.end, now), isNull(blocks.review)))
+        .where(inArray(blocks.id, waiting.map((b) => b.id)))
         .run();
+      tx.update(tasks).set({ completedAt: now, scheduleFlag: null }).where(eq(tasks.id, id)).run();
       return true;
     });
   }
@@ -923,7 +934,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         busy: [{ start: now, end: planningHorizonEnd(now) }],
         pinnedBlocks: held,
         startedBlocks: [],
-        awaitingBlocks: pastBlocks(tx, now).filter(awaitsCheckIn),
+        awaitingBlocks: waitingBlocks(tx, now),
         previousSchedule: [],
       });
       for (const row of taskRows) {
@@ -1006,7 +1017,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         busy,
         pinnedBlocks: [...inProgress.filter((b) => b.pinned), ...pinnedAhead],
         startedBlocks: inProgress.filter((b) => !b.pinned),
-        awaitingBlocks: pastBlocks(tx, now).filter(awaitsCheckIn),
+        awaitingBlocks: waitingBlocks(tx, now),
         previousSchedule,
       });
 
@@ -1302,9 +1313,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
      */
     listTasks(): TaskListItem[] {
       const now = clock.now();
-      const waiting = pastBlocks(db, now)
-        .filter(awaitsCheckIn)
-        .sort((a, b) => a.start.getTime() - b.start.getTime());
+      const waiting = waitingBlocks(db, now).sort((a, b) => a.start.getTime() - b.start.getTime());
       return db
         .select()
         .from(tasks)
@@ -1482,13 +1491,14 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
      */
     checkIn(blockId: string, answer: CheckInAnswer): CheckInResult {
       const found = db
-        .select({ block: blocks, completedAt: tasks.completedAt })
+        .select({ block: blocks, task: { id: tasks.id, completedAt: tasks.completedAt } })
         .from(blocks)
         .innerJoin(tasks, eq(blocks.taskId, tasks.id))
         .where(eq(blocks.id, blockId))
         .get();
-      if (!found || found.completedAt !== null || !awaitsCheckIn(found.block)) return { ok: false, notFound: true };
-      if (found.block.end > clock.now()) {
+      const state = found && checkInState(found.block, found.task, clock.now());
+      if (!found || state === "answered" || state === "task-closed") return { ok: false, notFound: true };
+      if (state === "not-ended") {
         return { ok: false, errors: { block: "This time hasn't ended yet, so there's nothing to check in." } };
       }
       switch (answer.answer) {
@@ -1536,16 +1546,21 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
         tasks: open.map((row) => {
           const { earliestStart: oldEarliestStart, deadline } = toTask(row);
           const unended = and(eq(blocks.taskId, row.id), gt(blocks.end, now));
-          const waiting = and(eq(blocks.taskId, row.id), lte(blocks.end, now), isNull(blocks.review));
           const asItWas = { id: blocks.id, start: blocks.start, end: blocks.end, pinned: blocks.pinned };
           const times = tx
             .select(asItWas)
             .from(blocks)
             .where(and(unended, or(eq(blocks.pinned, true), lt(blocks.start, now))))
             .all();
-          const answered = tx.select(asItWas).from(blocks).where(waiting).orderBy(blocks.start).all();
+          const answered = tx
+            .select(asItWas)
+            .from(blocks)
+            .innerJoin(tasks, eq(blocks.taskId, tasks.id))
+            .where(and(eq(blocks.taskId, row.id), waitingForCheckIn(now)))
+            .orderBy(blocks.start)
+            .all();
           tx.delete(blocks)
-            .where(or(unended, waiting))
+            .where(or(unended, inArray(blocks.id, answered.map((b) => b.id))))
             .run();
           const movesDeadline = deadlineBefore.some((due) => due.id === row.id);
           tx.update(tasks)

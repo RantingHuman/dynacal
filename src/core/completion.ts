@@ -14,7 +14,7 @@ export function hasLeftTaskList(completedAt: Date | null, now: Date): boolean {
 
 /**
  * How the owner answered for a past Block at its Check-in: "finished" or "more-time" (Didn't start removes it).
- * A Block with no answer is waiting for a Check-in. "done" and "partial" are answers from the old review, still
+ * A Block with no answer may be waiting for a Check-in (see `checkInState`). "done" and "partial" are answers from the old review, still
  * on completed Tasks' past Blocks.
  */
 export type BlockReview = "done" | "partial" | "finished" | "more-time";
@@ -61,11 +61,6 @@ export interface CheckInView {
    * more is planned, and for a one-piece Task.
    */
   plannedMinutes?: number;
-}
-
-/** Whether a past Block is waiting for a Check-in: the owner hasn't answered for it. */
-export function awaitsCheckIn(block: { review: BlockReview | null }): boolean {
-  return block.review === null;
 }
 
 export function blockMinutes(block: { start: Date; end: Date }): number {
