@@ -46,6 +46,11 @@
   border-bottom: var(--hairline) solid var(--faint);
 }
 
+/* The round check sits level with the middle of the title's lowercase letters, which most of a title is. */
+.item > button:first-child {
+  margin-top: 3px;
+}
+
 /* A row whose meta line holds its own button ("Finished? ›") stacks the Task's button and that line. */
 .body {
   flex: 1;

@@ -193,6 +193,8 @@
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) auto;
   align-items: baseline;
+  /* The words, still on one baseline, sit in the middle of a line made taller than them for a thumb. */
+  align-content: center;
   gap: var(--space-2);
   width: 100%;
   /* A thumb's tap: a past time's line is where its Check-in opens. */
