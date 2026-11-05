@@ -1,72 +1,54 @@
 # dynacal
 
-A self-hosted planner that turns your to-do list into a time-blocked schedule, fitted around what's already on your Google Calendar.
-
-You give dynacal Tasks, each with an estimated duration, a deadline and a Priority. It finds free time inside each Task's Context, gives each Task its time (splitting a Task only when you allow it), and writes those times to a dedicated "dynacal" calendar in your Google account, so your Schedule shows up in any Google Calendar app. When your calendar changes, it recalculates.
+A self-hosted planner that turns your Tasks into a time-blocked Schedule around your Google Calendar.
 
 <p align="center">
-  <img src="docs/screenshots/computer.png" alt="dynacal on a computer: the Task List beside the week's Schedule, with meetings and Tasks placed around them" width="100%">
+  <img src="docs/screenshots/computer.png" alt="dynacal on a computer: the Task List beside the week's Schedule" width="100%">
 </p>
 <p align="center">
-  <img src="docs/screenshots/phone-schedule.png" alt="dynacal on a phone: today's Schedule, one Task asking Finished?" width="32%">
+  <img src="docs/screenshots/phone-schedule.png" alt="dynacal on a phone: today's Schedule" width="24%">
   &nbsp;
-  <img src="docs/screenshots/phone-tasks.png" alt="dynacal on a phone: the Task List with Contexts and deadlines" width="32%">
+  <img src="docs/screenshots/phone-tasks.png" alt="dynacal on a phone: the Task List" width="24%">
+  &nbsp;
+  <img src="docs/screenshots/phone-context.png" alt="dynacal on a phone: editing a Context's days and hours" width="24%">
 </p>
 
 ## Features
 
-- **Scheduling around your real calendar.** Pick the Busy Calendars whose Events count as busy time. dynacal plans around them and never edits them. Commitments are added in your own calendar, not in dynacal.
-- **Contexts.** Named weekly windows such as "Deep work: weekdays 08:00–11:00". Every Task belongs to one Context and is placed only inside its windows (see [ADR-0007](docs/adr/0007-contexts-replace-working-hours.md)). Buffers keep time free before and after Tasks and Events.
-- **Deadline-first, Priority-aware.** Tasks are placed earliest-deadline-first. When there isn't time for everything, the lower-Priority Task is the one that misses (see [ADR-0003](docs/adr/0003-deadline-first-priority-decides-misses.md)). Tasks that can't make their deadline are flagged At Risk.
-- **Hands-on when you want it.** Drag a Task on the Schedule to pin it, and Recalculation plans around it. Tap it to mark it done, send it to tomorrow, or move it, even after its time has started. Move off today sends most of a day's Tasks on at once, and Undo puts things back. You can also move, resize or delete a Task's time from any Google Calendar app, and dynacal picks up the change.
-- **Check-ins.** Once a Task's time has passed, dynacal asks "Finished?": answer Finished, More time, Didn't start or Tomorrow, and it plans the rest (see [ADR-0006](docs/adr/0006-remaining-duration-is-what-the-owner-says.md)). Completed Tasks stay in the Task List for 7 days, folded under one line.
-- **Reminders** through web push, a set lead time before each Task starts. Switch them on in each browser you use; on iPhone, add dynacal to your Home Screen and open it from there first.
-- **Works offline.** Once reminders are on in a browser, it keeps a copy of the home page, so dynacal still opens without a connection and shows the Schedule as it last saw it.
-- **Instant sync** via Google push notifications when served over public HTTPS, with polling every 5 minutes as a fallback.
-- **Yours alone.** Each deployment serves one person, with their own Google OAuth client, and keeps all its data in one SQLite file (see [ADR-0001](docs/adr/0001-self-hosted-single-tenant.md)).
+- **Scheduling:** places each Task in free time before its deadline, earliest deadline first. When there isn't room for everything, the lower-Priority Task misses.
+- **Google Calendar:** plans around your busy calendars without editing them, and writes Tasks to its own "dynacal" calendar. Changes you make in Google come back to dynacal.
+- **Contexts:** named weekly hours, such as "Deep work, weekdays 08:00–11:00". Each Task is placed only inside its Context. To edit one, tap its days and drag a bar.
+- **Quick entry:** type "Board memo 2h by fri !high @deep".
+- **Moving Tasks:** drag a Task to pin it, send it to tomorrow, or use Move off today to clear the rest of the day. Undo puts things back.
+- **Check-ins:** after a Task's time has passed, dynacal asks "Finished?" and plans the rest.
+- **Reminders:** web push notifications before each Task starts.
+- **Phone first:** add dynacal to your Home Screen. Once reminders are on, it opens offline and shows the last Schedule it saw.
 
-## Quick start
+## Run it
 
-dynacal runs as a single Docker container. You'll need a Google OAuth client and a web push key pair. [docs/self-hosting.md](docs/self-hosting.md) covers each step.
+You need Docker, a Google OAuth client and a web push key pair. [docs/self-hosting.md](docs/self-hosting.md) explains how to get each one.
 
 ```bash
-cp .env.example .env   # then fill it in
+cp .env.example .env   # fill in all six values
 docker build -t dynacal .
 docker run -d --name dynacal --restart unless-stopped -p 3000:3000 --env-file .env -v dynacal-data:/data dynacal
 ```
 
-Open `PUBLIC_BASE_URL`, sign in with the `OWNER_EMAIL` Google account, and setup walks you through connecting your calendar.
+Open `PUBLIC_BASE_URL`, sign in as `OWNER_EMAIL`, and follow the setup.
 
-## Development
+## Develop
 
-Requires Node 24 and pnpm.
+Node 24 and pnpm.
 
 ```bash
 pnpm install
-pnpm dev         # http://localhost:3000, data in ./data/dynacal.db
-pnpm test        # vitest: domain tests and component tests
-pnpm typecheck
+pnpm dev     # http://localhost:3000
+pnpm check   # types, unit tests and browser tests (browser tests need Docker and `pnpm exec playwright install chromium`)
 ```
 
-The browser tests run the app in Chromium through Playwright. They need Docker (to check that the production image excludes all test code) and a one-time browser install:
+`pnpm screenshots` retakes the images above.
 
-```bash
-pnpm exec playwright install chromium
-pnpm test:browser
-```
-
-`pnpm check` runs the type checker, the tests and the browser tests in one go. `pnpm screenshots` retakes the screenshots above from sample data.
-
-Each browser test starts its own isolated server with a throwaway database, a fake Google Calendar and a fake push sender, so it never touches real data or accounts ([ADR-0005](docs/adr/0005-isolated-browser-test-runtime.md), [browser-tests/README.md](browser-tests/README.md)).
-
-Stack: Next.js, React, SQLite via Drizzle, and a pure TypeScript scheduler with no I/O ([ADR-0004](docs/adr/0004-single-container-typescript-sqlite.md)).
-
-- `src/core/` holds the domain logic: the scheduler, Tasks, sync and reminders.
-- `src/server/` holds runtime wiring: config, the Google Calendar client, and background jobs.
-- `src/app/` holds the Next.js UI and API routes.
-- `drizzle/` holds database migrations. After changing `src/core/db/schema.ts`, generate a new one with `pnpm db:generate`.
-
-[GLOSSARY.md](GLOSSARY.md) defines the domain terms (Task, Block, Context, Check-in, Busy Calendar and so on), and [docs/adr/](docs/adr/) records the main design decisions.
+[GLOSSARY.md](GLOSSARY.md) defines the domain terms, and [docs/adr/](docs/adr/) records the design decisions.
 
 ## License
 
