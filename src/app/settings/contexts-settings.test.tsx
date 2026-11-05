@@ -29,9 +29,9 @@ function lastSent(): WeeklyWindows {
   return call?.[1] as WeeklyWindows;
 }
 
-async function openWeekdays() {
+async function openWeek() {
   await userEvent.click(screen.getByRole("button", { name: "09:00–17:00" }));
-  return within(screen.getByRole("group", { name: "Monday to Friday hours" }));
+  return within(screen.getByRole("group", { name: "Hours" }));
 }
 
 describe("Contexts in prose Settings", () => {
@@ -53,9 +53,9 @@ describe("Contexts in prose Settings", () => {
     expect(document.body.textContent).not.toMatch(/working hours/i);
   });
 
-  it("saves an edited run for every weekday", async () => {
-    const editor = await openWeekdays();
-    fireEvent.change(editor.getByLabelText("Monday to Friday window 1 end"), { target: { value: "16:00" } });
+  it("saves edited hours for every weekday", async () => {
+    const editor = await openWeek();
+    for (let i = 0; i < 4; i++) await userEvent.click(editor.getByRole("button", { name: "End 15 minutes earlier" }));
     await waitFor(() => expect(saveContextWindows).toHaveBeenCalled());
     const sent = lastSent();
     for (const day of ["mon", "tue", "wed", "thu", "fri"] as const) {
@@ -66,24 +66,33 @@ describe("Contexts in prose Settings", () => {
     await waitFor(() => expect(screen.getByRole("status").textContent).toBe("Settings saved"));
   });
 
-  it("gives Friday its own hours without changing the other weekdays", async () => {
-    const editor = await openWeekdays();
-    await userEvent.click(editor.getByRole("button", { name: "Fri" }));
-    const friday = within(screen.getByRole("group", { name: "Friday hours" }));
-    fireEvent.change(friday.getByLabelText("Friday window 1 end"), { target: { value: "15:00" } });
+  it("gives Friday other hours without changing the other weekdays", async () => {
+    const editor = await openWeek();
+    await userEvent.click(editor.getByRole("button", { name: "Different hours on some days" }));
+    await userEvent.click(editor.getByRole("button", { name: "Friday" }));
+    await userEvent.click(editor.getByRole("button", { name: "Saturday" }));
+    await userEvent.click(editor.getByRole("button", { name: "Sunday" }));
     await waitFor(() => expect(saveContextWindows).toHaveBeenCalled());
     const sent = lastSent();
-    expect(sent.fri).toEqual([{ start: 540, end: 900 }]);
+    expect(sent.fri).toEqual([{ start: 600, end: 840 }]);
     for (const day of ["mon", "tue", "wed", "thu"] as const) {
       expect(sent[day]).toEqual([{ start: 540, end: 1020 }]);
     }
+    expect(sent.sat).toEqual([]);
+    // The sheet says the week in words, since on a phone it covers the sentence.
+    expect(editor.getByText("Monday to Thursday, 09:00–17:00. Friday, 10:00–14:00. Saturday and Sunday are off.")).toBeTruthy();
+    await userEvent.click(editor.getByRole("button", { name: "Done" }));
+    expect(screen.getByRole("heading", { name: "Contexts" }).nextElementSibling?.textContent).toBe(
+      "Work, the default. Monday to Thursday, 09:00–17:00. Friday, 10:00–14:00. Saturday and Sunday are off.",
+    );
   });
 
   it("holds overlapping windows unsaved while another setting can save", async () => {
-    const editor = await openWeekdays();
-    await userEvent.click(editor.getByRole("button", { name: "+ window" }));
-    fireEvent.change(editor.getByLabelText("Monday to Friday window 2 start"), { target: { value: "16:00" } });
-    expect(editor.getByRole("alert").textContent).toBe("09:00–17:00 overlaps 16:00–18:00.");
+    const editor = await openWeek();
+    await userEvent.click(editor.getByRole("button", { name: "+ more hours" }));
+    within(editor.getByRole("group", { name: "Hours 2" })).getByRole("slider", { name: "Start" }).focus();
+    await userEvent.keyboard("{ArrowUp>8/}");
+    expect(editor.getByRole("alert").textContent).toBe("09:00–17:00 overlaps 16:00–20:00.");
     expect(editor.getByRole("button", { name: "Done" })).toHaveProperty("disabled", true);
     await userEvent.click(screen.getByRole("switch", { name: "Count free Events" }));
     await waitFor(() => expect(saveSettings).toHaveBeenCalled());
@@ -110,10 +119,10 @@ describe("adding a Context in Settings", () => {
     return form;
   }
 
-  it("adds one with a name and weekly windows, edited as week sentences", async () => {
+  it("adds one with a name and weekly windows, edited in the week editor", async () => {
     const form = await startAdding("Errands");
     await userEvent.click(form.getByRole("button", { name: "off" }));
-    await userEvent.click(within(form.getByRole("group", { name: "Saturday and Sunday hours" })).getByRole("button", { name: "+ window" }));
+    await userEvent.click(within(form.getByRole("group", { name: "Hours" })).getByRole("button", { name: "Saturday" }));
 
     await userEvent.click(form.getByRole("button", { name: "Add" }));
 
@@ -155,7 +164,9 @@ describe("adding a Context in Settings", () => {
     const form = await startAdding("Errands");
     await userEvent.click(form.getByRole("button", { name: "09:00–17:00" }));
 
-    await userEvent.click(form.getByRole("button", { name: "Remove Monday to Friday window 1" }));
+    for (const day of ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]) {
+      await userEvent.click(within(form.getByRole("group", { name: "Hours" })).getByRole("button", { name: day }));
+    }
     await userEvent.click(form.getByRole("button", { name: "Add" }));
 
     expect(form.getAllByRole("alert")[0].textContent).toBe("A Context needs at least one window in the week.");

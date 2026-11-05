@@ -26,7 +26,12 @@ test("shows Work under Contexts on a phone, and keeps its edited windows after r
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 
     await work.getByRole("button", { name: "09:00–17:00" }).click();
-    await page.getByLabel("Monday to Friday window 1 end").fill("16:00");
+    const hours = page.getByRole("group", { name: "Hours" });
+    // Each step saves once it settles; wait for the save that carries 16:00 (960 minutes) before reloading.
+    const lastSave = page.waitForRequest((r) => r.method() === "POST" && (r.postData() ?? "").includes('"end":960'));
+    for (let i = 0; i < 4; i++) await hours.getByRole("button", { name: "End 15 minutes earlier" }).click();
+    await expect(work).toContainText("Monday to Friday, 09:00–16:00.");
+    await (await lastSave).response();
     await expect(page.getByRole("status")).toHaveText("Settings saved");
 
     await page.reload();
@@ -42,7 +47,14 @@ test("adds a Context on a phone, and places a Task moved into it only in its win
     const form = page.getByRole("form", { name: "New Context" });
     await form.getByRole("textbox", { name: "Name" }).fill("Deep work");
     await form.getByRole("button", { name: "09:00–17:00" }).click();
-    await form.getByLabel("Monday to Friday window 1 start").fill("14:00");
+    // Drag the start of the bar from 09:00 down to 14:00: five hours at 20px an hour.
+    const start = await form.getByRole("slider", { name: "Start" }).boundingBox();
+    await page.mouse.move(start!.x + start!.width / 2, start!.y + start!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(start!.x + start!.width / 2, start!.y + start!.height / 2 + 100, { steps: 10 });
+    await page.mouse.up();
+    await expect(form.getByRole("slider", { name: "Start" })).toHaveAttribute("aria-valuetext", "14:00");
+    await form.getByRole("button", { name: "Done" }).click();
     await form.getByRole("button", { name: "Add" }).click();
     await expect(page.getByRole("status")).toHaveText("Deep work added");
     await expect(page.locator("p", { hasText: "Deep work." })).toContainText("Monday to Friday, 14:00–17:00.");

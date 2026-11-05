@@ -24,16 +24,6 @@ export function windowRuns(week: WeeklyWindows): WindowRun[] {
   return runs;
 }
 
-/**
- * Gives every day in a run the same windows, each day its own copy. Passing a single day gives that day its own
- * hours, splitting it off its run; this replaces "Copy to…", since copying hours is just editing a run.
- */
-export function setRunHours(week: WeeklyWindows, days: readonly Weekday[], windows: TimeWindow[]): WeeklyWindows {
-  const next = { ...week };
-  for (const day of days) next[day] = windows.map((w) => ({ ...w }));
-  return next;
-}
-
 /** Joins items as a sentence would: "a", "a and b", "a, b and c". */
 export function andList(items: readonly string[]): string {
   if (items.length <= 1) return items.join("");
@@ -50,4 +40,49 @@ export function runDays(days: readonly Weekday[]): string {
   if (days.length === 1) return WEEKDAY_NAMES[days[0]];
   if (days.length === 2) return `${WEEKDAY_NAMES[days[0]]} and ${WEEKDAY_NAMES[days[1]]}`;
   return `${WEEKDAY_NAMES[days[0]]} to ${WEEKDAY_NAMES[days[days.length - 1]]}`;
+}
+
+/** Days that share the same windows, adjacent or not: how the week editor shows a week. Days off are left out. */
+export interface HoursGroup {
+  days: Weekday[];
+  windows: TimeWindow[];
+}
+
+function sorted(windows: readonly TimeWindow[]): TimeWindow[] {
+  return [...windows].sort((a, b) => a.start - b.start || a.end - b.end);
+}
+
+/** Groups a week's days by their windows, in week order: Mon, Wed and Fri 07:00–08:00 is one group. */
+export function hoursGroups(week: WeeklyWindows): HoursGroup[] {
+  const groups: HoursGroup[] = [];
+  for (const day of WEEKDAYS) {
+    const windows = sorted(week[day]);
+    if (windows.length === 0) continue;
+    const group = groups.find((g) => sameWindows(g.windows, windows));
+    if (group) group.days.push(day);
+    else groups.push({ days: [day], windows: windows.map((w) => ({ ...w })) });
+  }
+  return groups;
+}
+
+/** The week the groups describe; a day in no group is off. Overlaps are kept, so validation can say so. */
+export function weekFromGroups(groups: readonly HoursGroup[]): WeeklyWindows {
+  const week: WeeklyWindows = { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] };
+  for (const group of groups) {
+    for (const day of group.days) week[day] = sorted([...week[day], ...group.windows.map((w) => ({ ...w }))]);
+  }
+  return week;
+}
+
+/** Whether two weeks have the same windows on every day, whatever order they were entered in. */
+export function sameWeek(a: WeeklyWindows, b: WeeklyWindows): boolean {
+  return WEEKDAYS.every((day) => sameWindows(sorted(a[day]), sorted(b[day])));
+}
+
+/** Names any set of days as a sentence would: "Monday to Friday", "Monday, Wednesday and Friday". */
+export function dayNames(days: readonly Weekday[]): string {
+  const inOrder = WEEKDAYS.filter((d) => days.includes(d));
+  const positions = inOrder.map((d) => WEEKDAYS.indexOf(d));
+  const adjacent = positions.every((p, i) => i === 0 || p === positions[i - 1] + 1);
+  return adjacent ? runDays(inOrder) : andList(inOrder.map((d) => WEEKDAY_NAMES[d]));
 }

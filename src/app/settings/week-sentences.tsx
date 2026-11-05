@@ -1,29 +1,16 @@
 "use client";
 
-import type { WeeklyWindows, Weekday, WindowsErrors } from "@/core/settings";
-import { runDays, runHours, setRunHours, windowRuns } from "@/core/window-runs";
-import { TimeZoneEditor, WindowsEditor } from "./editors";
+import type { WeeklyWindows, WindowsErrors } from "@/core/settings";
+import { runDays, runHours, windowRuns } from "@/core/window-runs";
+import { TimeZoneEditor } from "./editors";
 import styles from "./prose.module.css";
 import { Value } from "./value";
+import { WeekEditor } from "./week-editor";
 
-const SHORT_DAYS: Record<Weekday, string> = {
-  mon: "Mon",
-  tue: "Tue",
-  wed: "Wed",
-  thu: "Thu",
-  fri: "Fri",
-  sat: "Sat",
-  sun: "Sun",
-};
-
-/** Which value's editor is open: "timeZone", or "hours:" and the days it edits ("hours:mon,tue,wed"). */
+/** Which value's editor is open: "timeZone" or "hours". */
 export type OpenValue = string | null;
 
-const hoursValue = (days: readonly Weekday[]) => `hours:${days.join(",")}`;
-
-function openDays(open: OpenValue): Weekday[] | null {
-  return open?.startsWith("hours:") ? (open.slice("hours:".length).split(",") as Weekday[]) : null;
-}
+const HOURS = "hours";
 
 /** "I work in Europe/London." */
 export function TimeZoneSentence({
@@ -64,10 +51,10 @@ export function TimeZoneSentence({
 }
 
 /**
- * A Context's windows as sentences: "Monday to Thursday, 09:00–17:30. Friday, 09:00–15:00. Saturday and Sunday are
- * off." Days with the same windows read as one run. Editing a run edits every day in it; "Give one day its own
- * hours" edits just that day, splitting it off. The days an editor edits are fixed when it opens, so a run that
- * merges with its neighbours while you edit it doesn't start editing them too.
+ * A Context's windows as sentences: "Monday to Friday, 09:00–17:00. Saturday and Sunday are off." Days with the
+ * same windows read as one run. Clicking any run's hours opens the week editor for the whole week, under the
+ * sentences (a sheet on a phone), so a run that splits or merges while you edit never takes the editor with it.
+ * Invalid windows are held: the editor stays open with the message and Undo until they're valid again.
  */
 export function WindowsSentences({
   windows,
@@ -87,51 +74,23 @@ export function WindowsSentences({
   onOpen: (open: OpenValue) => void;
   readOnly?: boolean;
 }) {
-  const editing = openDays(open);
+  const heldMessage = held ? Object.values(held)[0] : undefined;
+  const showEditor = !readOnly && (open === HOURS || heldMessage !== undefined);
 
   return (
     <>
       {windowRuns(windows).map((run) => {
-        const isOpen = editing !== null && run.days.includes(editing[0]);
-        const target = isOpen ? editing : run.days;
-        const label = runDays(target);
         const value = (
-          <Value
-            label={`${label} hours`}
-            open={isOpen}
-            onOpenChange={(o) => onOpen(o ? hoursValue(run.days) : null)}
-            held={held?.[run.days[0]]}
-            onUndo={() => {
-              const next = { ...windows };
-              for (const day of target) next[day] = saved[day];
-              onChange(next);
-            }}
+          <button
+            type="button"
+            className={styles.value}
+            aria-expanded={showEditor}
+            data-held={heldMessage !== undefined}
             disabled={readOnly}
-            editor={
-              <>
-                <span className={styles.muted}>
-                  {target.length === 1 && run.days.length > 1 ? `Just ${label}` : `For ${label}`}
-                </span>
-                <WindowsEditor
-                  label={label}
-                  windows={windows[target[0]]}
-                  onChange={(dayWindows) => onChange(setRunHours(windows, target, dayWindows))}
-                />
-                {target.length > 1 && (
-                  <span className={styles.chips}>
-                    <span className={styles.muted}>Give one day its own hours:</span>
-                    {target.map((day) => (
-                      <button key={day} type="button" className={styles.chip} onClick={() => onOpen(hoursValue([day]))}>
-                        {SHORT_DAYS[day]}
-                      </button>
-                    ))}
-                  </span>
-                )}
-              </>
-            }
+            onClick={() => onOpen(open === HOURS ? null : HOURS)}
           >
             {run.windows.length === 0 ? "off" : runHours(run.windows)}
-          </Value>
+          </button>
         );
         return (
           <span key={run.days.join()}>
@@ -148,6 +107,44 @@ export function WindowsSentences({
           </span>
         );
       })}
+      {showEditor && (
+        <span className={styles.valueWrap}>
+          <span
+            className={`${styles.editor} ${styles.weekEditor}`}
+            role="group"
+            aria-label="Hours"
+            onKeyDown={(e) => {
+              if (e.key === "Escape" && heldMessage === undefined) onOpen(null);
+            }}
+          >
+            <span className={styles.weekSummary} aria-live="polite">
+              {windowRuns(windows)
+                .map((run) =>
+                  run.windows.length === 0
+                    ? `${runDays(run.days)} ${run.days.length > 1 ? "are" : "is"} off.`
+                    : `${runDays(run.days)}, ${runHours(run.windows)}.`,
+                )
+                .join(" ")}
+            </span>
+            <WeekEditor windows={windows} onChange={onChange} />
+            {heldMessage !== undefined && (
+              <span className={styles.heldMessage} role="alert">
+                {heldMessage}
+              </span>
+            )}
+            <span className={styles.editorActions}>
+              {heldMessage !== undefined && (
+                <button type="button" className="link" onClick={() => onChange(saved)}>
+                  Undo
+                </button>
+              )}
+              <button type="button" className="button" disabled={heldMessage !== undefined} onClick={() => onOpen(null)}>
+                Done
+              </button>
+            </span>
+          </span>
+        </span>
+      )}
     </>
   );
 }
