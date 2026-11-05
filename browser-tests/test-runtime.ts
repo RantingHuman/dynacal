@@ -140,7 +140,7 @@ export function getRuntime(): Runtime {
     return result;
   };
   const now = clock.now();
-  db.insert(googleConnection).values({ id: 1, email: "owner@example.com", refreshToken: "test", connectedAt: now,
+  db.insert(googleConnection).values({ id: 1, email: "owner@example.com", refreshToken: "test", connectedAt: now, status: "healthy",
     dynacalCalendarId: "dynacal", busyCalendarsChosenAt: now }).run();
   const commands = createCommands({ db, clock, ownerEmail: "owner@example.com", calendar, pushSender: new FakePushSender() });
   commands.updateSettings({ timeZone: "Europe/London" });

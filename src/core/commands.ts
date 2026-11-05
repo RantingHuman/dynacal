@@ -42,14 +42,16 @@ import type { DayMoveUndo, MoveToDayResult, UndoDayMoveResult } from "./day-move
 import type { Db } from "./db";
 import {
   forgetConnection,
-  markBroken,
+  connectionView,
+  dynacalCalendarIdOf,
+  markRefused,
   markHealthy,
   readBusyCalendarsChosenAt,
   readConnection,
-  readDynacalCalendarId,
   saveBusyCalendarsChosenAt,
   saveDynacalCalendarId,
   saveGrant,
+  type GoogleConnection,
   type GoogleConnectionView,
   type GoogleGrant,
 } from "./google-connection";
@@ -301,11 +303,16 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
   const calendar = watchConnectionHealth(gateway, markConnectionBroken);
 
   function markConnectionBroken(): void {
-    markBroken(db, clock.now());
+    markRefused(db);
+  }
+
+  /** Where the Google connection stands; every reader of it starts here. */
+  function connection(): GoogleConnection {
+    return readConnection(db);
   }
 
   function getGoogleConnection(): GoogleConnectionView {
-    return readConnection(db);
+    return connectionView(connection());
   }
 
   function getSettings(): Settings {
@@ -515,7 +522,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
 
   /** The ID of the calendar dynacal writes Blocks to, once Google is connected. */
   function dynacalCalendarId(): string | null {
-    return readDynacalCalendarId(db);
+    return dynacalCalendarIdOf(connection());
   }
 
   /**
@@ -547,9 +554,9 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
    * poll after reconnecting catches up.
    */
   async function reconcileBlockEvents(): Promise<void> {
-    if (connectionProblem(getGoogleConnection())) return;
-    const calendarId = dynacalCalendarId();
-    if (calendarId === null) return;
+    const google = connection();
+    if (google.status !== "healthy") return;
+    const calendarId = google.dynacalCalendarId;
     const now = clock.now();
     const { reminderLeadMinutes } = getSettings();
     await settleEndedBlockEvents(calendarId, now);
@@ -751,9 +758,9 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
    * each edit means (see `google-edits.ts`). Returns whether the Schedule changed, so it needs a Recalculation.
    */
   async function applyGoogleEdits(): Promise<boolean> {
-    if (connectionProblem(getGoogleConnection())) return false;
-    const calendarId = dynacalCalendarId();
-    if (calendarId === null) return false;
+    const google = connection();
+    if (google.status !== "healthy") return false;
+    const calendarId = google.dynacalCalendarId;
     const now = clock.now();
     const inGoogle = await calendar.listDynacalCalendarEvents(calendarId, editWindow(now));
     return applyBlockEdits(calendarId, inGoogle, now);
@@ -1075,7 +1082,7 @@ export function createCommands({ db, clock, ownerEmail, pushSender, calendar: ga
       const eventsChanged = await readEvents();
       const recalculated = await onDynacalCalendar(async () => {
         // Connecting may have failed to create the dynacal calendar; until it's there, no Block reaches Google.
-        if (dynacalCalendarId() === null) await ensureDynacalCalendar(calendars);
+        if (connection().status === "calendar-missing") await ensureDynacalCalendar(calendars);
         return updateDynacalCalendar(eventsChanged);
       });
       return { ok: true, recalculated } as const;

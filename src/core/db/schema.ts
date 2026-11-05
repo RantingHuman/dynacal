@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
-import { integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { check, integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import type { BlockReview } from "../completion";
+import type { ConnectionHealth } from "../google-connection";
 import type { TaskFlag } from "../scheduler";
 import type { WeeklyWindows } from "../settings";
 import type { Priority } from "../tasks";
@@ -90,23 +91,33 @@ export const blocks = sqliteTable("blocks", {
 });
 
 /** A single row (id = 1) holding the owner's Google Calendar connection; absent until they connect. */
-export const googleConnection = sqliteTable("google_connection", {
-  id: integer("id").primaryKey(),
-  email: text("email").notNull(),
-  refreshToken: text("refresh_token").notNull(),
-  accessToken: text("access_token"),
-  accessTokenExpiresAt: integer("access_token_expires_at", { mode: "timestamp_ms" }),
-  connectedAt: integer("connected_at", { mode: "timestamp_ms" }).notNull(),
-  /** When Google last refused dynacal's credentials; null while the connection is healthy. Reconnecting clears it. */
-  brokenAt: integer("broken_at", { mode: "timestamp_ms" }),
-  /** The calendar dynacal owns and writes Blocks to (ADR-0002); null until it's created. */
-  dynacalCalendarId: text("dynacal_calendar_id"),
-  /**
-   * When the owner last saved their Busy Calendars; null until they first do. Until then the primary calendar
-   * is only suggested, never saved. (Installs from before this column count as chosen if they have any.)
-   */
-  busyCalendarsChosenAt: integer("busy_calendars_chosen_at", { mode: "timestamp_ms" }),
-});
+export const googleConnection = sqliteTable(
+  "google_connection",
+  {
+    id: integer("id").primaryKey(),
+    email: text("email").notNull(),
+    refreshToken: text("refresh_token").notNull(),
+    accessToken: text("access_token"),
+    accessTokenExpiresAt: integer("access_token_expires_at", { mode: "timestamp_ms" }),
+    connectedAt: integer("connected_at", { mode: "timestamp_ms" }).notNull(),
+    /** Whether Google takes dynacal's credentials: see `ConnectionHealth`. */
+    status: text("status").$type<ConnectionHealth>().notNull(),
+    /**
+     * The calendar dynacal owns and writes Blocks to (ADR-0002); null until it's created. It's created only once
+     * Google has answered, so a connection still unverified has none.
+     */
+    dynacalCalendarId: text("dynacal_calendar_id"),
+    /**
+     * When the owner last saved their Busy Calendars; null until they first do. Until then the primary calendar
+     * is only suggested, never saved. (Installs from before this column count as chosen if they have any.)
+     */
+    busyCalendarsChosenAt: integer("busy_calendars_chosen_at", { mode: "timestamp_ms" }),
+  },
+  (t) => [
+    check("google_connection_status", sql`${t.status} IN ('unverified', 'healthy', 'refused')`),
+    check("google_connection_unverified_has_no_calendar", sql`${t.status} <> 'unverified' OR ${t.dynacalCalendarId} IS NULL`),
+  ],
+);
 
 /**
  * The Block events dynacal has written to the dynacal calendar, as they stand in Google. Kept apart from
